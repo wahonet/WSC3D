@@ -1,0 +1,726 @@
+import { useEffect, useRef, useState } from "react";
+import * as THREE from "three";
+import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
+import { TransformControls } from "three/examples/jsm/controls/TransformControls.js";
+import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import type { AssemblyDimensions, AssemblyItem, AssemblyTransform } from "./types";
+import { AssemblyAdjustControls, type AdjustmentAxis, type AdjustmentMode } from "./AssemblyAdjustControls";
+
+type AssemblyWorkspaceProps = {
+  items: AssemblyItem[];
+  selectedItemId: string;
+  adjustmentStep: number;
+  rotationStep: number;
+  gizmoMode: AdjustmentMode;
+  resetToken: number;
+  activeView: AssemblyView;
+  cameraState?: AssemblyCameraState;
+  onSelectItem: (instanceId: string) => void;
+  onClearSelection: () => void;
+  onStepChange: (step: number) => void;
+  onRotationStepChange: (step: number) => void;
+  onGizmoModeChange: (mode: AdjustmentMode) => void;
+  onViewChange: (view: AssemblyView) => void;
+  onAdjust: (mode: AdjustmentMode, axis: AdjustmentAxis, direction: -1 | 1) => void;
+  onResetSelected: () => void;
+  onTransformChange: (instanceId: string, transform: AssemblyTransform) => void;
+  onDimensionsReady: (instanceId: string, dimensions: AssemblyDimensions) => void;
+  onCameraStateChange: (state: AssemblyCameraState) => void;
+};
+
+type LoadedAssemblyObject = {
+  item: AssemblyItem;
+  group: THREE.Group;
+  model: THREE.Object3D;
+  baseSize: THREE.Vector3;
+  selectionBox: THREE.BoxHelper;
+};
+
+export type AssemblyView = "front" | "back" | "left" | "right" | "top" | "bottom";
+
+export type AssemblyCameraState = {
+  position: [number, number, number];
+  target: [number, number, number];
+  up: [number, number, number];
+};
+
+const gridGroundY = -80;
+
+const assemblyViews: AssemblyView[] = ["front", "back", "left", "right", "top", "bottom"];
+
+const viewLabels: Record<AssemblyView, string> = {
+  front: "正",
+  back: "背",
+  left: "左",
+  right: "右",
+  top: "上",
+  bottom: "下"
+};
+
+const viewCubeTransforms: Record<AssemblyView, string> = {
+  front: "rotateX(-22deg) rotateY(34deg)",
+  back: "rotateX(-22deg) rotateY(214deg)",
+  left: "rotateX(-22deg) rotateY(124deg)",
+  right: "rotateX(-22deg) rotateY(-56deg)",
+  top: "rotateX(-64deg) rotateY(34deg)",
+  bottom: "rotateX(48deg) rotateY(34deg)"
+};
+
+export function AssemblyWorkspace({
+  items,
+  selectedItemId,
+  adjustmentStep,
+  rotationStep,
+  gizmoMode,
+  resetToken,
+  activeView,
+  cameraState,
+  onSelectItem,
+  onClearSelection,
+  onStepChange,
+  onRotationStepChange,
+  onGizmoModeChange,
+  onViewChange,
+  onAdjust,
+  onResetSelected,
+  onTransformChange,
+  onDimensionsReady,
+  onCameraStateChange
+}: AssemblyWorkspaceProps) {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const sceneRef = useRef<THREE.Scene | undefined>(undefined);
+  const cameraRef = useRef<THREE.PerspectiveCamera | undefined>(undefined);
+  const controlsRef = useRef<OrbitControls | undefined>(undefined);
+  const transformControlsRef = useRef<TransformControls | undefined>(undefined);
+  const gizmoSphereRef = useRef<THREE.Mesh | undefined>(undefined);
+  const loadedRef = useRef(new Map<string, LoadedAssemblyObject>());
+  const loadingIdsRef = useRef(new Set<string>());
+  const activeItemIdsRef = useRef(new Set<string>());
+  const selectedItemIdRef = useRef(selectedItemId);
+  const onSelectItemRef = useRef(onSelectItem);
+  const onClearSelectionRef = useRef(onClearSelection);
+  const adjustmentStepRef = useRef(adjustmentStep);
+  const rotationStepRef = useRef(rotationStep);
+  const gizmoModeRef = useRef(gizmoMode);
+  const onTransformChangeRef = useRef(onTransformChange);
+  const onDimensionsReadyRef = useRef(onDimensionsReady);
+  const onCameraStateChangeRef = useRef(onCameraStateChange);
+  const cameraStateRef = useRef(cameraState);
+  const shouldPreserveLoadedCameraRef = useRef(Boolean(cameraState));
+  const pointerStartedOnGizmoRef = useRef(false);
+  const clickStartRef = useRef<{ x: number; y: number } | undefined>(undefined);
+  const loaderRef = useRef(new GLTFLoader());
+  const [loadingCount, setLoadingCount] = useState(0);
+
+  useEffect(() => {
+    selectedItemIdRef.current = selectedItemId;
+  }, [selectedItemId]);
+
+  useEffect(() => {
+    onSelectItemRef.current = onSelectItem;
+  }, [onSelectItem]);
+
+  useEffect(() => {
+    onClearSelectionRef.current = onClearSelection;
+  }, [onClearSelection]);
+
+  useEffect(() => {
+    adjustmentStepRef.current = adjustmentStep;
+  }, [adjustmentStep]);
+
+  useEffect(() => {
+    rotationStepRef.current = rotationStep;
+  }, [rotationStep]);
+
+  useEffect(() => {
+    gizmoModeRef.current = gizmoMode;
+  }, [gizmoMode]);
+
+  useEffect(() => {
+    onTransformChangeRef.current = onTransformChange;
+  }, [onTransformChange]);
+
+  useEffect(() => {
+    onDimensionsReadyRef.current = onDimensionsReady;
+  }, [onDimensionsReady]);
+
+  useEffect(() => {
+    onCameraStateChangeRef.current = onCameraStateChange;
+  }, [onCameraStateChange]);
+
+  useEffect(() => {
+    cameraStateRef.current = cameraState;
+  }, [cameraState]);
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) {
+      return;
+    }
+
+    let disposed = false;
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color("#141312");
+    sceneRef.current = scene;
+
+    const width = container.clientWidth || 900;
+    const height = container.clientHeight || 700;
+    const camera = new THREE.PerspectiveCamera(45, width / height, 0.05, 20000);
+    camera.position.set(220, -260, 190);
+    cameraRef.current = camera;
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setSize(width, height);
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    container.appendChild(renderer.domElement);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controlsRef.current = controls;
+    restoreAssemblyCamera(camera, controls, cameraStateRef.current);
+
+    scene.add(new THREE.AmbientLight(0xffffff, 0.45));
+    scene.add(new THREE.HemisphereLight(0xfff8ec, 0x302a24, 0.9));
+    const keyLight = new THREE.DirectionalLight(0xfff1d6, 2.4);
+    keyLight.position.set(180, -130, 240);
+    scene.add(keyLight);
+    const fillLight = new THREE.DirectionalLight(0x9edbd7, 0.8);
+    fillLight.position.set(-180, 150, 100);
+    scene.add(fillLight);
+
+    const grid = new THREE.GridHelper(720, 24, 0x655b50, 0x2c2823);
+    grid.position.y = gridGroundY;
+    scene.add(grid);
+
+    const transformControls = new TransformControls(camera, renderer.domElement);
+    transformControls.setSpace("world");
+    transformControls.setSize(0.82);
+    transformControls.setColors("#ff5f57", "#45d483", "#4e9dff", "#f3a712");
+    scene.add(transformControls.getHelper());
+    transformControlsRef.current = transformControls;
+
+    const draggingChanged = (event: { value: unknown }) => {
+      controls.enabled = !Boolean(event.value);
+    };
+    const objectChanged = () => {
+      const instanceId = selectedItemIdRef.current;
+      const loaded = instanceId ? loadedRef.current.get(instanceId) : undefined;
+      if (!loaded || loaded.item.locked) {
+        return;
+      }
+      if (transformControls.getMode() === "rotate") {
+        snapQuaternionToImportantAngles(loaded.group.quaternion, rotationStepRef.current);
+      }
+      syncGizmoSphere(gizmoSphereRef.current, loaded);
+      onTransformChangeRef.current(instanceId, transformFromGroup(loaded.group));
+    };
+    transformControls.addEventListener("dragging-changed", draggingChanged);
+    transformControls.addEventListener("objectChange", objectChanged);
+
+    const gizmoSphere = new THREE.Mesh(
+      new THREE.SphereGeometry(1, 32, 16),
+      new THREE.MeshBasicMaterial({
+        color: "#f3a712",
+        transparent: true,
+        opacity: 0.28,
+        depthTest: false
+      })
+    );
+    gizmoSphere.renderOrder = 10;
+    gizmoSphere.visible = false;
+    scene.add(gizmoSphere);
+    gizmoSphereRef.current = gizmoSphere;
+
+    const pointerDown = (event: PointerEvent) => {
+      clickStartRef.current = { x: event.clientX, y: event.clientY };
+      pointerStartedOnGizmoRef.current = transformControls.dragging || transformControls.axis !== null;
+    };
+    const pointerUp = (event: PointerEvent) => {
+      if (pointerStartedOnGizmoRef.current || transformControls.dragging) {
+        pointerStartedOnGizmoRef.current = false;
+        return;
+      }
+      const start = clickStartRef.current;
+      if (!start || Math.hypot(event.clientX - start.x, event.clientY - start.y) > 6) {
+        return;
+      }
+
+      const hitId = pickItem(event, renderer.domElement, camera, loadedRef.current);
+      if (hitId) {
+        onSelectItemRef.current(hitId);
+      } else {
+        onClearSelectionRef.current();
+      }
+    };
+    renderer.domElement.addEventListener("pointerdown", pointerDown);
+    renderer.domElement.addEventListener("pointerup", pointerUp);
+
+    const resize = () => {
+      const nextWidth = container.clientWidth || width;
+      const nextHeight = container.clientHeight || height;
+      renderer.setSize(nextWidth, nextHeight);
+      camera.aspect = nextWidth / nextHeight;
+      camera.updateProjectionMatrix();
+    };
+    const observer = new ResizeObserver(resize);
+    observer.observe(container);
+
+    const animate = () => {
+      if (disposed) {
+        return;
+      }
+      controls.update();
+      loadedRef.current.forEach((loaded) => loaded.selectionBox.update());
+      syncGizmoSphere(gizmoSphereRef.current, loadedRef.current.get(selectedItemIdRef.current));
+      renderer.render(scene, camera);
+      requestAnimationFrame(animate);
+    };
+    animate();
+
+    return () => {
+      disposed = true;
+      if (loadedRef.current.size > 0) {
+        onCameraStateChangeRef.current(readAssemblyCameraState(camera, controls));
+      }
+      observer.disconnect();
+      renderer.domElement.removeEventListener("pointerdown", pointerDown);
+      renderer.domElement.removeEventListener("pointerup", pointerUp);
+      transformControls.removeEventListener("dragging-changed", draggingChanged);
+      transformControls.removeEventListener("objectChange", objectChanged);
+      transformControls.detach();
+      scene.remove(transformControls.getHelper());
+      transformControls.dispose();
+      scene.remove(gizmoSphere);
+      gizmoSphere.geometry.dispose();
+      disposeMaterial(gizmoSphere.material);
+      controls.dispose();
+      loadedRef.current.forEach((loaded) => disposeLoaded(loaded));
+      loadedRef.current.clear();
+      loadingIdsRef.current.clear();
+      renderer.dispose();
+      container.innerHTML = "";
+      sceneRef.current = undefined;
+      cameraRef.current = undefined;
+      controlsRef.current = undefined;
+      transformControlsRef.current = undefined;
+      gizmoSphereRef.current = undefined;
+    };
+  }, []);
+
+  useEffect(() => {
+    const scene = sceneRef.current;
+    if (!scene) {
+      return;
+    }
+
+    const currentIds = new Set(items.map((item) => item.instanceId));
+    activeItemIdsRef.current = currentIds;
+    loadedRef.current.forEach((loaded, instanceId) => {
+      if (!currentIds.has(instanceId)) {
+        if (selectedItemIdRef.current === instanceId) {
+          transformControlsRef.current?.detach();
+        }
+        scene.remove(loaded.group);
+        scene.remove(loaded.selectionBox);
+        disposeLoaded(loaded);
+        loadedRef.current.delete(instanceId);
+      }
+    });
+
+    for (const item of items) {
+      const loaded = loadedRef.current.get(item.instanceId);
+      if (loaded) {
+        applyTransform(loaded.group, item.transform);
+        loaded.item = item;
+        continue;
+      }
+      if (loadingIdsRef.current.has(item.instanceId)) {
+        continue;
+      }
+      loadAssemblyItem({
+        item,
+        scene,
+        loader: loaderRef.current,
+        loadedMap: loadedRef.current,
+        loadingIds: loadingIdsRef.current,
+        activeItemIdsRef,
+        isDisposed: () => !sceneRef.current,
+        setLoadingCount,
+        onDimensionsReady: onDimensionsReadyRef.current,
+        onLoaded: () => {
+          syncTransformControls(transformControlsRef.current, loadedRef.current, selectedItemIdRef.current, gizmoModeRef.current, adjustmentStepRef.current, rotationStepRef.current);
+          if (!shouldPreserveLoadedCameraRef.current) {
+            fitAssemblyCamera(loadedRef.current, cameraRef.current, controlsRef.current);
+          }
+        }
+      });
+    }
+  }, [items]);
+
+  useEffect(() => {
+    syncTransformControls(transformControlsRef.current, loadedRef.current, selectedItemId, gizmoMode, adjustmentStep, rotationStep);
+    syncGizmoSphere(gizmoSphereRef.current, loadedRef.current.get(selectedItemId));
+  }, [adjustmentStep, gizmoMode, items, loadingCount, rotationStep, selectedItemId]);
+
+  useEffect(() => {
+    fitAssemblyCamera(loadedRef.current, cameraRef.current, controlsRef.current);
+  }, [resetToken]);
+
+  const setView = (view: AssemblyView) => {
+    onViewChange(view);
+    fitAssemblyCamera(loadedRef.current, cameraRef.current, controlsRef.current, view);
+  };
+
+  const groundSelectedItem = () => {
+    const loaded = loadedRef.current.get(selectedItemIdRef.current);
+    if (!loaded || loaded.item.locked) {
+      return;
+    }
+
+    loaded.group.updateMatrixWorld(true);
+    const box = new THREE.Box3().setFromObject(loaded.group);
+    if (box.isEmpty()) {
+      return;
+    }
+
+    loaded.group.position.y += gridGroundY - box.min.y;
+    loaded.group.updateMatrixWorld(true);
+    syncGizmoSphere(gizmoSphereRef.current, loaded);
+    loaded.selectionBox.update();
+    onTransformChangeRef.current(loaded.item.instanceId, transformFromGroup(loaded.group));
+  };
+
+  return (
+    <div className="assembly-workspace">
+      <div ref={containerRef} className="three-stage" />
+      <div className="viewer-hud top-left">
+        <strong>拼接工作区</strong>
+        <span>{selectedItemId ? "拖动中心操作轴调整石块" : "点击画像石进入调整"}</span>
+      </div>
+      <div className="view-cube" aria-label="立面视角">
+        <div className="view-cube-inner" style={{ transform: viewCubeTransforms[activeView] }}>
+          {assemblyViews.map((view) => (
+            <button
+              className={view === activeView ? `cube-face cube-face-${view} active` : `cube-face cube-face-${view}`}
+              key={view}
+              title={`${viewLabels[view]}面`}
+              onClick={() => setView(view)}
+            >
+              {viewLabels[view]}
+            </button>
+          ))}
+        </div>
+      </div>
+      {loadingCount > 0 ? <div className="load-panel">正在加载 {loadingCount} 块模型</div> : null}
+      <AssemblyAdjustControls
+        item={items.find((item) => item.instanceId === selectedItemId)}
+        step={adjustmentStep}
+        rotationStep={rotationStep}
+        gizmoMode={gizmoMode}
+        onGizmoModeChange={onGizmoModeChange}
+        onStepChange={onStepChange}
+        onRotationStepChange={onRotationStepChange}
+        onAdjust={onAdjust}
+        onReset={onResetSelected}
+        onGroundSelected={groundSelectedItem}
+      />
+    </div>
+  );
+}
+
+function loadAssemblyItem({
+  item,
+  scene,
+  loader,
+  loadedMap,
+  loadingIds,
+  activeItemIdsRef,
+  isDisposed,
+  setLoadingCount,
+  onDimensionsReady,
+  onLoaded
+}: {
+  item: AssemblyItem;
+  scene: THREE.Scene;
+  loader: GLTFLoader;
+  loadedMap: Map<string, LoadedAssemblyObject>;
+  loadingIds: Set<string>;
+  activeItemIdsRef: React.RefObject<Set<string>>;
+  isDisposed: () => boolean;
+  setLoadingCount: React.Dispatch<React.SetStateAction<number>>;
+  onDimensionsReady: (instanceId: string, dimensions: AssemblyDimensions) => void;
+  onLoaded: () => void;
+}) {
+  if (!item.stone.modelUrl) {
+    return;
+  }
+
+  loadingIds.add(item.instanceId);
+  setLoadingCount((value) => value + 1);
+  loader.load(
+    item.stone.modelUrl,
+    (gltf) => {
+      if (isDisposed() || !activeItemIdsRef.current.has(item.instanceId)) {
+        disposeObject(gltf.scene);
+        loadingIds.delete(item.instanceId);
+        setLoadingCount((value) => Math.max(0, value - 1));
+        return;
+      }
+
+      const model = gltf.scene;
+      normalizeModel(model);
+      const baseBox = new THREE.Box3().setFromObject(model);
+      const baseSize = baseBox.getSize(new THREE.Vector3());
+      if (!item.baseDimensions) {
+        onDimensionsReady(item.instanceId, dimensionsFromBox(baseSize));
+      }
+
+      const group = new THREE.Group();
+      group.name = item.stone.displayName;
+      group.add(model);
+      applyTransform(group, item.transform);
+
+      scene.add(group);
+      const selectionBox = new THREE.BoxHelper(group, 0xf3a712);
+      selectionBox.visible = false;
+      scene.add(selectionBox);
+      loadedMap.set(item.instanceId, { item, group, model, baseSize, selectionBox });
+      loadingIds.delete(item.instanceId);
+      setLoadingCount((value) => Math.max(0, value - 1));
+      onLoaded();
+    },
+    undefined,
+    () => {
+      loadingIds.delete(item.instanceId);
+      setLoadingCount((value) => Math.max(0, value - 1));
+    }
+  );
+}
+
+function normalizeModel(model: THREE.Object3D) {
+  const box = new THREE.Box3().setFromObject(model);
+  const center = box.getCenter(new THREE.Vector3());
+  model.position.sub(center);
+  model.traverse((node) => {
+    const mesh = node as THREE.Mesh;
+    if (mesh.isMesh) {
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+    }
+  });
+}
+
+function dimensionsFromBox(size: THREE.Vector3): AssemblyDimensions {
+  const width = Math.max(size.x, 0.1);
+  const length = Math.max(size.y, 0.1);
+  const thickness = Math.max(size.z, 0.1);
+  return {
+    width,
+    length,
+    thickness,
+    longEdge: Math.max(width, length, thickness),
+    unit: "model",
+    source: "model"
+  };
+}
+
+function syncTransformControls(
+  controls: TransformControls | undefined,
+  loadedMap: Map<string, LoadedAssemblyObject>,
+  selectedItemId: string,
+  mode: AdjustmentMode,
+  adjustmentStep: number,
+  rotationStep: number
+) {
+  if (!controls) {
+    return;
+  }
+  controls.setMode(mode);
+  controls.setTranslationSnap(mode === "translate" ? adjustmentStep : null);
+  controls.setRotationSnap(mode === "rotate" ? THREE.MathUtils.degToRad(Math.max(rotationStep, 0.1)) : null);
+  controls.setSpace("world");
+
+  const loaded = loadedMap.get(selectedItemId);
+  if (!loaded || loaded.item.locked) {
+    controls.detach();
+    return;
+  }
+  controls.attach(loaded.group);
+}
+
+function syncGizmoSphere(sphere: THREE.Mesh | undefined, loaded: LoadedAssemblyObject | undefined) {
+  if (!sphere || !loaded || loaded.item.locked) {
+    if (sphere) {
+      sphere.visible = false;
+    }
+    return;
+  }
+
+  const center = loaded.group.getWorldPosition(new THREE.Vector3());
+  const maxDim = Math.max(loaded.baseSize.x, loaded.baseSize.y, loaded.baseSize.z, 1) * (loaded.group.scale.x || 1);
+  sphere.position.copy(center);
+  sphere.scale.setScalar(Math.max(5, Math.min(maxDim * 0.075, 14)));
+  sphere.visible = true;
+}
+
+function pickItem(
+  event: PointerEvent,
+  canvas: HTMLCanvasElement,
+  camera: THREE.Camera,
+  loadedMap: Map<string, LoadedAssemblyObject>
+) {
+  const rect = canvas.getBoundingClientRect();
+  const pointer = new THREE.Vector2(((event.clientX - rect.left) / rect.width) * 2 - 1, -(((event.clientY - rect.top) / rect.height) * 2 - 1));
+  const raycaster = new THREE.Raycaster();
+  raycaster.setFromCamera(pointer, camera);
+  const models = [...loadedMap.values()].map((loaded) => loaded.model);
+  const [hit] = raycaster.intersectObjects(models, true);
+  if (!hit) {
+    return undefined;
+  }
+
+  return [...loadedMap.values()].find((item) => isDescendant(hit.object, item.model))?.item.instanceId;
+}
+
+function isDescendant(object: THREE.Object3D, root: THREE.Object3D) {
+  let current: THREE.Object3D | null = object;
+  while (current) {
+    if (current === root) {
+      return true;
+    }
+    current = current.parent;
+  }
+  return false;
+}
+
+function readAssemblyCameraState(camera: THREE.PerspectiveCamera, controls: OrbitControls): AssemblyCameraState {
+  return {
+    position: camera.position.toArray() as [number, number, number],
+    target: controls.target.toArray() as [number, number, number],
+    up: camera.up.toArray() as [number, number, number]
+  };
+}
+
+function restoreAssemblyCamera(camera: THREE.PerspectiveCamera, controls: OrbitControls, state: AssemblyCameraState | undefined) {
+  if (!state) {
+    return;
+  }
+
+  camera.position.fromArray(state.position);
+  camera.up.fromArray(state.up);
+  controls.target.fromArray(state.target);
+  camera.lookAt(controls.target);
+  camera.updateProjectionMatrix();
+  controls.update();
+}
+
+function fitAssemblyCamera(
+  loadedMap: Map<string, LoadedAssemblyObject>,
+  camera: THREE.PerspectiveCamera | undefined,
+  controls: OrbitControls | undefined,
+  view?: AssemblyView
+) {
+  if (!camera || !controls || loadedMap.size === 0) {
+    return;
+  }
+
+  const box = new THREE.Box3();
+  loadedMap.forEach((loaded) => {
+    loaded.group.updateMatrixWorld(true);
+    box.union(new THREE.Box3().setFromObject(loaded.group));
+  });
+  if (box.isEmpty()) {
+    return;
+  }
+
+  const center = box.getCenter(new THREE.Vector3());
+  const size = box.getSize(new THREE.Vector3());
+  const maxDim = Math.max(size.x, size.y, size.z, 1);
+  const distance = maxDim * 1.75;
+  camera.near = Math.max(maxDim / 1000, 0.05);
+  camera.far = maxDim * 20;
+  camera.position.copy(center).add(view ? getViewDirection(view).multiplyScalar(distance) : new THREE.Vector3(distance * 0.45, -distance * 0.75, distance * 0.55));
+  camera.up.copy(view === "top" || view === "bottom" ? new THREE.Vector3(0, 0, view === "top" ? -1 : 1) : new THREE.Vector3(0, 1, 0));
+  camera.lookAt(center);
+  camera.updateProjectionMatrix();
+  controls.target.copy(center);
+  controls.update();
+}
+
+function getViewDirection(view: AssemblyView) {
+  const directions: Record<AssemblyView, THREE.Vector3> = {
+    front: new THREE.Vector3(0, 0, 1),
+    back: new THREE.Vector3(0, 0, -1),
+    left: new THREE.Vector3(-1, 0, 0),
+    right: new THREE.Vector3(1, 0, 0),
+    top: new THREE.Vector3(0, 1, 0),
+    bottom: new THREE.Vector3(0, -1, 0)
+  };
+  return directions[view].clone();
+}
+
+function applyTransform(group: THREE.Group, transform: AssemblyTransform) {
+  group.position.fromArray(transform.position);
+  group.quaternion.fromArray(transform.quaternion);
+  group.scale.setScalar(transform.scale ?? 1);
+  group.updateMatrixWorld(true);
+}
+
+function transformFromGroup(group: THREE.Group): AssemblyTransform {
+  return {
+    position: group.position.toArray() as [number, number, number],
+    quaternion: group.quaternion.toArray() as [number, number, number, number],
+    scale: group.scale.x
+  };
+}
+
+function snapQuaternionToImportantAngles(quaternion: THREE.Quaternion, step: number) {
+  const euler = new THREE.Euler().setFromQuaternion(quaternion, "XYZ");
+  const threshold = THREE.MathUtils.degToRad(Math.min(3, Math.max(0.5, step * 0.6)));
+  const targets = [Math.PI / 2, Math.PI, -Math.PI / 2, -Math.PI];
+  let changed = false;
+
+  for (const key of ["x", "y", "z"] as const) {
+    const snapped = targets.find((target) => Math.abs(shortAngleDistance(euler[key], target)) <= threshold);
+    if (snapped !== undefined) {
+      euler[key] = snapped;
+      changed = true;
+    }
+  }
+
+  if (changed) {
+    quaternion.setFromEuler(euler).normalize();
+  }
+}
+
+function shortAngleDistance(a: number, b: number) {
+  return Math.atan2(Math.sin(a - b), Math.cos(a - b));
+}
+
+function disposeLoaded(loaded: LoadedAssemblyObject) {
+  loaded.selectionBox.parent?.remove(loaded.selectionBox);
+  loaded.selectionBox.geometry.dispose();
+  disposeMaterial(loaded.selectionBox.material);
+  disposeObject(loaded.group);
+}
+
+function disposeObject(object3d: THREE.Object3D) {
+  object3d.traverse((object) => {
+    const mesh = object as THREE.Mesh;
+    if (mesh.geometry) {
+      mesh.geometry.dispose();
+    }
+    if (mesh.material) {
+      disposeMaterial(mesh.material);
+    }
+  });
+}
+
+function disposeMaterial(material: THREE.Material | THREE.Material[]) {
+  if (Array.isArray(material)) {
+    material.forEach((item) => item.dispose());
+  } else {
+    material.dispose();
+  }
+}

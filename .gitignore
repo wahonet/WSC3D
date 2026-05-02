@@ -1,0 +1,36 @@
+node_modules/
+dist/
+temp/
+参考图/
+画像石结构化分档/
+
+# Local runtime data
+data/assembly-plans/
+*.log
+*.err.log
+*.dev.log
+
+# QA screenshots and generated browser artifacts
+docs/qa-*.png
+docs/qa-*.json
+playwright-report/
+test-results/
+
+# 3D/source model payloads and model-side binary data
+*.glb
+*.gltf
+*.obj
+*.fbx
+*.ply
+*.stl
+*.bin
+*.ktx
+*.ktx2
+
+# Local-only original logo copy; the app uses frontend/public/嘉logo.png
+/嘉logo.png
+
+.env
+.env.*
+.DS_Store
+Thumbs.db

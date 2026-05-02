@@ -1,0 +1,41 @@
+{
+  "name": "wsc3d-han-stone-platform",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "concurrently \"npm:dev:backend\" \"npm:dev:frontend\"",
+    "dev:backend": "tsx watch backend/src/server.ts",
+    "dev:frontend": "vite --config frontend/vite.config.ts --host 127.0.0.1",
+    "build": "npm run build:backend && npm run build:frontend",
+    "build:backend": "tsc -p backend/tsconfig.json",
+    "build:frontend": "tsc -p frontend/tsconfig.json && vite build --config frontend/vite.config.ts",
+    "scan": "tsx backend/src/scripts/scan.ts",
+    "start:backend": "node dist/backend/server.js",
+    "typecheck": "tsc -p backend/tsconfig.json --noEmit && tsc -p frontend/tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@vitejs/plugin-react": "^5.1.1",
+    "concurrently": "^9.2.1",
+    "cors": "^2.8.5",
+    "express": "^5.2.1",
+    "lucide-react": "^0.555.0",
+    "morgan": "^1.10.1",
+    "react": "^19.2.1",
+    "react-dom": "^19.2.1",
+    "three": "^0.181.2"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/morgan": "^1.9.10",
+    "@types/node": "^24.10.2",
+    "@types/react": "^19.2.7",
+    "@types/react-dom": "^19.2.3",
+    "@types/three": "^0.184.0",
+    "playwright": "^1.59.1",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3",
+    "vite": "^7.2.6"
+  }
+}
