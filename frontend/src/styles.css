@@ -873,13 +873,14 @@ button {
   position: absolute;
   left: 50%;
   bottom: 20px;
-  width: min(700px, calc(100% - 40px));
   transform: translateX(-50%);
-  display: grid;
-  grid-template-columns: minmax(150px, 1fr) auto auto minmax(190px, auto) auto auto;
-  gap: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
   align-items: center;
+  gap: 8px;
   padding: 10px;
+  max-width: calc(100% - 40px);
   background: rgba(29, 26, 24, 0.88);
   border: 1px solid rgba(255, 255, 255, 0.14);
   border-radius: 8px;
@@ -887,10 +888,11 @@ button {
 }
 
 .adjust-title {
-  min-width: 0;
+  flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
   gap: 8px;
+  max-width: 220px;
   color: #eee8df;
 }
 
@@ -989,8 +991,8 @@ button {
 }
 
 .axis-nudge-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(54px, 1fr));
+  display: flex;
+  flex-wrap: wrap;
   gap: 4px;
 }
 
@@ -1047,8 +1049,8 @@ button {
 }
 
 .adjust-reset {
-  align-self: end;
-  min-width: 64px;
+  min-width: 36px;
+  padding: 0 10px;
 }
 
 .empty-state {
@@ -1142,12 +1144,12 @@ button {
   }
 
   .adjust-overlay {
-    left: 52px;
-    right: 10px;
+    left: 12px;
+    right: 12px;
     bottom: 12px;
-    width: auto;
     transform: none;
-    grid-template-columns: 1fr;
+    max-width: none;
+    justify-content: flex-start;
   }
 
   .adjust-steps {

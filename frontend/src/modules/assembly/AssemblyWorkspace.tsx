@@ -34,7 +34,12 @@ type LoadedAssemblyObject = {
   model: THREE.Object3D;
   baseSize: THREE.Vector3;
   selectionBox: THREE.BoxHelper;
+  bound: boolean;
 };
+
+const tmpBox = new THREE.Box3();
+const tmpVecA = new THREE.Vector3();
+const tmpVecB = new THREE.Vector3();
 
 export type AssemblyView = "front" | "back" | "left" | "right" | "top" | "bottom";
 
@@ -111,6 +116,8 @@ export function AssemblyWorkspace({
   const clickStartRef = useRef<{ x: number; y: number } | undefined>(undefined);
   const loaderRef = useRef(new GLTFLoader());
   const [loadingCount, setLoadingCount] = useState(0);
+  const [readyItemIds, setReadyItemIds] = useState<Set<string>>(() => new Set());
+  const isModelReady = readyItemIds.has(selectedItemId);
 
   useEffect(() => {
     selectedItemIdRef.current = selectedItemId;
@@ -316,6 +323,7 @@ export function AssemblyWorkspace({
 
     const currentIds = new Set(items.map((item) => item.instanceId));
     activeItemIdsRef.current = currentIds;
+    const removed: string[] = [];
     loadedRef.current.forEach((loaded, instanceId) => {
       if (!currentIds.has(instanceId)) {
         if (selectedItemIdRef.current === instanceId) {
@@ -325,8 +333,16 @@ export function AssemblyWorkspace({
         scene.remove(loaded.selectionBox);
         disposeLoaded(loaded);
         loadedRef.current.delete(instanceId);
+        removed.push(instanceId);
       }
     });
+    if (removed.length > 0) {
+      setReadyItemIds((prev) => {
+        const next = new Set(prev);
+        removed.forEach((id) => next.delete(id));
+        return next;
+      });
+    }
 
     for (const item of items) {
       const loaded = loadedRef.current.get(item.instanceId);
@@ -348,7 +364,15 @@ export function AssemblyWorkspace({
         isDisposed: () => !sceneRef.current,
         setLoadingCount,
         onDimensionsReady: onDimensionsReadyRef.current,
-        onLoaded: () => {
+        onLoaded: (loadedInstanceId) => {
+          setReadyItemIds((prev) => {
+            if (prev.has(loadedInstanceId)) {
+              return prev;
+            }
+            const next = new Set(prev);
+            next.add(loadedInstanceId);
+            return next;
+          });
           syncTransformControls(transformControlsRef.current, loadedRef.current, selectedItemIdRef.current, gizmoModeRef.current, adjustmentStepRef.current, rotationStepRef.current);
           if (!shouldPreserveLoadedCameraRef.current) {
             fitAssemblyCamera(loadedRef.current, cameraRef.current, controlsRef.current);
@@ -361,7 +385,7 @@ export function AssemblyWorkspace({
   useEffect(() => {
     syncTransformControls(transformControlsRef.current, loadedRef.current, selectedItemId, gizmoMode, adjustmentStep, rotationStep);
     syncGizmoSphere(gizmoSphereRef.current, loadedRef.current.get(selectedItemId));
-  }, [adjustmentStep, gizmoMode, items, loadingCount, rotationStep, selectedItemId]);
+  }, [adjustmentStep, gizmoMode, items, loadingCount, readyItemIds, rotationStep, selectedItemId]);
 
   useEffect(() => {
     fitAssemblyCamera(loadedRef.current, cameraRef.current, controlsRef.current);
@@ -374,13 +398,13 @@ export function AssemblyWorkspace({
 
   const groundSelectedItem = () => {
     const loaded = loadedRef.current.get(selectedItemIdRef.current);
-    if (!loaded || loaded.item.locked) {
+    if (!loaded || loaded.item.locked || !loaded.bound) {
       return;
     }
 
     loaded.group.updateMatrixWorld(true);
     const box = new THREE.Box3().setFromObject(loaded.group);
-    if (box.isEmpty()) {
+    if (box.isEmpty() || !Number.isFinite(box.min.y)) {
       return;
     }
 
@@ -413,18 +437,20 @@ export function AssemblyWorkspace({
         </div>
       </div>
       {loadingCount > 0 ? <div className="load-panel">正在加载 {loadingCount} 块模型</div> : null}
-      <AssemblyAdjustControls
-        item={items.find((item) => item.instanceId === selectedItemId)}
-        step={adjustmentStep}
-        rotationStep={rotationStep}
-        gizmoMode={gizmoMode}
-        onGizmoModeChange={onGizmoModeChange}
-        onStepChange={onStepChange}
-        onRotationStepChange={onRotationStepChange}
-        onAdjust={onAdjust}
-        onReset={onResetSelected}
-        onGroundSelected={groundSelectedItem}
-      />
+      {isModelReady ? (
+        <AssemblyAdjustControls
+          item={items.find((item) => item.instanceId === selectedItemId)}
+          step={adjustmentStep}
+          rotationStep={rotationStep}
+          gizmoMode={gizmoMode}
+          onGizmoModeChange={onGizmoModeChange}
+          onStepChange={onStepChange}
+          onRotationStepChange={onRotationStepChange}
+          onAdjust={onAdjust}
+          onReset={onResetSelected}
+          onGroundSelected={groundSelectedItem}
+        />
+      ) : null}
     </div>
   );
 }
@@ -450,7 +476,7 @@ function loadAssemblyItem({
   isDisposed: () => boolean;
   setLoadingCount: React.Dispatch<React.SetStateAction<number>>;
   onDimensionsReady: (instanceId: string, dimensions: AssemblyDimensions) => void;
-  onLoaded: () => void;
+  onLoaded: (instanceId: string) => void;
 }) {
   if (!item.stone.modelUrl) {
     return;
@@ -482,13 +508,15 @@ function loadAssemblyItem({
       applyTransform(group, item.transform);
 
       scene.add(group);
+      group.updateMatrixWorld(true);
       const selectionBox = new THREE.BoxHelper(group, 0xf3a712);
       selectionBox.visible = false;
       scene.add(selectionBox);
-      loadedMap.set(item.instanceId, { item, group, model, baseSize, selectionBox });
+      selectionBox.update();
+      loadedMap.set(item.instanceId, { item, group, model, baseSize, selectionBox, bound: true });
       loadingIds.delete(item.instanceId);
       setLoadingCount((value) => Math.max(0, value - 1));
-      onLoaded();
+      onLoaded(item.instanceId);
     },
     undefined,
     () => {
@@ -542,7 +570,13 @@ function syncTransformControls(
   controls.setSpace("world");
 
   const loaded = loadedMap.get(selectedItemId);
-  if (!loaded || loaded.item.locked) {
+  if (!loaded || loaded.item.locked || !loaded.bound) {
+    controls.detach();
+    return;
+  }
+  loaded.group.updateMatrixWorld(true);
+  tmpBox.setFromObject(loaded.group);
+  if (tmpBox.isEmpty()) {
     controls.detach();
     return;
   }
@@ -550,16 +584,25 @@ function syncTransformControls(
 }
 
 function syncGizmoSphere(sphere: THREE.Mesh | undefined, loaded: LoadedAssemblyObject | undefined) {
-  if (!sphere || !loaded || loaded.item.locked) {
-    if (sphere) {
-      sphere.visible = false;
-    }
+  if (!sphere) {
+    return;
+  }
+  if (!loaded || loaded.item.locked || !loaded.bound) {
+    sphere.visible = false;
     return;
   }
 
-  const center = loaded.group.getWorldPosition(new THREE.Vector3());
-  const maxDim = Math.max(loaded.baseSize.x, loaded.baseSize.y, loaded.baseSize.z, 1) * (loaded.group.scale.x || 1);
-  sphere.position.copy(center);
+  loaded.group.updateMatrixWorld(true);
+  tmpBox.setFromObject(loaded.group);
+  if (tmpBox.isEmpty()) {
+    sphere.visible = false;
+    return;
+  }
+
+  tmpBox.getCenter(tmpVecA);
+  tmpBox.getSize(tmpVecB);
+  const maxDim = Math.max(tmpVecB.x, tmpVecB.y, tmpVecB.z, 1);
+  sphere.position.copy(tmpVecA);
   sphere.scale.setScalar(Math.max(5, Math.min(maxDim * 0.075, 14)));
   sphere.visible = true;
 }
