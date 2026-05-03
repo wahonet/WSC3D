@@ -25,7 +25,7 @@ import {
 import { createAnnotationFromGeometry } from "./modules/annotation/geometry";
 import { describeMergeFailure, mergePolygonAnnotations } from "./modules/annotation/merge";
 import { annotationPalette, annotationReducer, getRelations, initialAnnotationState } from "./modules/annotation/store";
-import type { SpatialRelationCandidate } from "./modules/annotation/RelationsEditor";
+import { deriveSpatialRelations } from "./modules/annotation/spatial";
 import type { AnnotationSourceMode } from "./modules/annotation/AnnotationWorkspace";
 import type { YoloScanOptions } from "./modules/annotation/YoloScanDialog";
 import type { AdjustmentAxis, AdjustmentMode } from "./modules/assembly/AssemblyAdjustControls";
@@ -234,10 +234,15 @@ export function App() {
     () => annotationState.doc?.annotations.find((annotation) => annotation.id === annotationState.selectedAnnotationId),
     [annotationState.doc?.annotations, annotationState.selectedAnnotationId]
   );
-  // 标注间关系（B1）：从 doc 取出已存关系，过滤无效条目；
-  // spatialRelationCandidates（B2）当前为空，留待 B2 注入运行时推导结果。
+  // 标注间关系（B1 + B2）：
+  // - annotationRelations: doc.relations 里的正式关系（人工创建 / 已采纳的空间关系）
+  // - spatialRelationCandidates: 运行时基于几何推导出的空间关系候选，不入库；
+  //   RelationsEditor 在选中标注时把"涉及该标注且未入库"的候选列出，让用户采纳
   const annotationRelations = useMemo(() => getRelations(annotationState.doc), [annotationState.doc]);
-  const spatialRelationCandidates: SpatialRelationCandidate[] = useMemo(() => [], []);
+  const spatialRelationCandidates = useMemo(
+    () => deriveSpatialRelations(annotationState.doc?.annotations ?? []),
+    [annotationState.doc?.annotations]
+  );
 
   useEffect(() => {
     if (workspaceMode === "assembly" && !planName) {
