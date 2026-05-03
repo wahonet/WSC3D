@@ -21,6 +21,7 @@
     "ajv": "^8.20.0",
     "concurrently": "^9.2.1",
     "cors": "^2.8.5",
+    "cytoscape": "^3.33.3",
     "express": "^5.2.1",
     "konva": "^10.3.0",
     "lucide-react": "^0.555.0",
@@ -33,6 +34,7 @@
   },
   "devDependencies": {
     "@types/cors": "^2.8.19",
+    "@types/cytoscape": "^3.21.9",
     "@types/express": "^5.0.6",
     "@types/morgan": "^1.9.10",
     "@types/node": "^24.10.2",

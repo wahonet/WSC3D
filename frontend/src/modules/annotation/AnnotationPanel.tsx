@@ -1,4 +1,4 @@
-import { Check, Download, Eye, EyeOff, Group, Lock, RotateCcw, Trash2, Unlock, Wand2, X } from "lucide-react";
+import { Check, Download, Eye, EyeOff, Group, Lock, Network, RotateCcw, Trash2, Unlock, Wand2, X } from "lucide-react";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import type {
   IimlAnnotation,
@@ -11,6 +11,7 @@ import type {
   VocabularyTerm
 } from "../../api/client";
 import { ColorPopover } from "./ColorPopover";
+import { KnowledgeGraphView } from "./KnowledgeGraphView";
 import { RelationsEditor } from "./RelationsEditor";
 import { SourcesEditor } from "./SourcesEditor";
 import { TermPicker } from "./TermPicker";
@@ -59,10 +60,10 @@ const structuralLevelOptions: Array<{ value: IimlStructuralLevel; label: string 
   { value: "unknown", label: "未定" }
 ];
 
-type TabKey = "edit" | "review" | "list";
+type TabKey = "edit" | "review" | "list" | "graph";
 
 export function AnnotationPanel(props: AnnotationPanelProps) {
-  const { selectedAnnotation, doc, draftAnnotationId, onSelectAnnotation } = props;
+  const { selectedAnnotation, doc, draftAnnotationId, onSelectAnnotation, relations } = props;
   const annotations = doc?.annotations ?? [];
   const candidateCount = useMemo(
     () => annotations.filter((annotation) => annotation.reviewStatus === "candidate").length,
@@ -125,6 +126,18 @@ export function AnnotationPanel(props: AnnotationPanelProps) {
           列表
           {annotations.length > 0 ? <span className="annotation-tab-count">{annotations.length}</span> : null}
         </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === "graph"}
+          className={tab === "graph" ? "annotation-tab-btn is-active" : "annotation-tab-btn"}
+          onClick={() => setTab("graph")}
+          title="知识图谱：标注与关系的节点-边视图"
+        >
+          <Network size={13} />
+          图谱
+          {relations.length > 0 ? <span className="annotation-tab-count">{relations.length}</span> : null}
+        </button>
       </nav>
 
       <div className="annotation-tab-body" role="tabpanel">
@@ -132,6 +145,13 @@ export function AnnotationPanel(props: AnnotationPanelProps) {
           <EditTab annotation={selectedAnnotation} {...props} />
         ) : tab === "review" ? (
           <ReviewTab {...props} onPickCandidate={handlePickCandidate} />
+        ) : tab === "graph" ? (
+          <KnowledgeGraphView
+            doc={doc}
+            relations={relations}
+            selectedAnnotationId={selectedAnnotation?.id}
+            onSelectAnnotation={onSelectAnnotation}
+          />
         ) : (
           <ListTab {...props} />
         )}
