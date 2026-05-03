@@ -101,3 +101,43 @@
 - 用户可通过 "采纳" 按钮升为 manual 关系（B1 已实装该路径）
 - 在 App.tsx 替换 `spatialRelationCandidates: []` 为 `useMemo(() =>
   deriveSpatial(doc), ...)`
+
+---
+
+### 2026-05-04 05:35 · B2 完成 — 空间关系自动推导
+
+**commit**: `5eb19b5` (feat(annotation): B2 空间关系自动推导（纯运行时，不入库）)
+
+**做了什么**
+
+- 新建 `frontend/src/modules/annotation/spatial.ts · deriveSpatialRelations`
+- 算法：每个标注算外接矩形 → 对每对（i, j）按 4 步优先级判定：
+  1. 重叠率 > 15% → `overlaps`
+  2. 中心距 < 平均尺寸 × 0.5 → `nextTo`
+  3. 主导方向纵向（且距离 > 平均高 × 0.6）→ `above` / `below`
+  4. 主导方向横向 → `leftOf` / `rightOf`
+- 一对最多 1 条关系，避免淹没 RelationsEditor 候选区
+- 跨 frame 不比对（model + image 坐标系不可直接比）
+- App.tsx 替换占位：`spatialRelationCandidates = useMemo(() =>
+  deriveSpatialRelations(doc.annotations))`
+
+**怎么实现的**
+
+- 用现成的 geometry helpers：`flattenUVs(g)` 把任意几何拍平成顶点；
+  `ellipseBoundsToUV(g)` 给 Polygon 椭圆形态加速
+- BBox 直接读 4 元；其它形态走顶点扫一遍取 minU/minV/maxU/maxV
+- 比较时用 v 向下约定（与画布 / 图像一致）：dy > 0 表示 b 在 a 下方，
+  即 a `above` b
+- 候选 id 用 `spatial-${aId}-${bId}-${kind}` 稳定排重，已存关系会被
+  RelationsEditor `filteredCandidates` 过滤掉，不重复显示
+
+**下一步**
+
+进入 **B3 — 画布关联连线**：
+- AnnotationCanvas 内新增 `RelationLines` 子组件
+- 选中一个标注时，画从该标注中心到所有相关标注（manual + spatial-auto）
+  中心的连线
+- 实线 = manual；虚线 = spatial-auto
+- pointer-events: none，不影响交互
+- 跨 frame 关系：未校准时不画线；已校准时用 H 矩阵把对方中心投影到当前
+  画布
