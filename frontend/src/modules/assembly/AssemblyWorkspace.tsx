@@ -94,6 +94,7 @@ export function AssemblyWorkspace({
   const cameraStateRef = useRef(cameraState);
   const shouldPreserveLoadedCameraRef = useRef(Boolean(cameraState));
   const pointerStartedOnGizmoRef = useRef(false);
+  const isDraggingRef = useRef(false);
   const clickStartRef = useRef<{ x: number; y: number } | undefined>(undefined);
   const loaderRef = useRef(new GLTFLoader());
   const [loadingCount, setLoadingCount] = useState(0);
@@ -189,7 +190,9 @@ export function AssemblyWorkspace({
     transformControlsRef.current = transformControls;
 
     const draggingChanged = (event: { value: unknown }) => {
-      controls.enabled = !Boolean(event.value);
+      const dragging = Boolean(event.value);
+      controls.enabled = !dragging;
+      isDraggingRef.current = dragging;
     };
     const objectChanged = () => {
       const instanceId = selectedItemIdRef.current;
@@ -328,7 +331,11 @@ export function AssemblyWorkspace({
     for (const item of items) {
       const loaded = loadedRef.current.get(item.instanceId);
       if (loaded) {
-        applyTransform(loaded.group, item.transform);
+        // Avoid clobbering the group being actively dragged by TransformControls.
+        const isActiveDragTarget = isDraggingRef.current && item.instanceId === selectedItemIdRef.current;
+        if (!isActiveDragTarget) {
+          applyTransform(loaded.group, item.transform);
+        }
         loaded.item = item;
         continue;
       }
@@ -357,6 +364,7 @@ export function AssemblyWorkspace({
           syncTransformControls(transformControlsRef.current, loadedRef.current, selectedItemIdRef.current, gizmoModeRef.current, adjustmentStepRef.current, rotationStepRef.current);
           if (!shouldPreserveLoadedCameraRef.current) {
             fitAssemblyCamera(loadedRef.current, cameraRef.current, controlsRef.current);
+            shouldPreserveLoadedCameraRef.current = true;
           }
         }
       });

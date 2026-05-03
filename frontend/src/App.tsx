@@ -153,7 +153,11 @@ export function App() {
         return;
       }
       const instanceId = `${stone.id}-${Date.now()}-${assemblyItems.length}`;
-      const offset = assemblyItems.length * 150;
+      const lastItem = assemblyItems[assemblyItems.length - 1];
+      const lastX = lastItem?.transform.position[0] ?? 0;
+      const lastWidth = lastItem?.baseDimensions?.width ?? 120;
+      const newWidth = dimensionsFromStone(stone)?.width ?? 120;
+      const offset = assemblyItems.length === 0 ? 0 : lastX + (lastWidth + newWidth) / 2 + 12;
       const item: AssemblyItem = {
         instanceId,
         stone,
@@ -171,7 +175,7 @@ export function App() {
       setSaveStatus(undefined);
       setCurrentPlanId(undefined);
     },
-    [assemblyItems.length]
+    [assemblyItems]
   );
 
   const handleAddAssemblyStone = () => {
