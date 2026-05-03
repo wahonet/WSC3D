@@ -21,7 +21,11 @@ import {
   type UV
 } from "./geometry";
 import { applyHomography, buildAlignmentMatrices, solveHomography, transformUv, type AlignmentMatrices } from "./homography";
-import { requestSamCandidate, requestSamCandidateWithSource } from "./sam";
+import {
+  requestSamCandidate,
+  requestSamCandidateWithSource,
+  type SamPromptDraft
+} from "./sam";
 import { annotationPalette } from "./store";
 import type {
   AnnotationTool,
@@ -153,11 +157,20 @@ export function AnnotationCanvas({
   const [penPoints, setPenPoints] = useState<Array<{ x: number; y: number }>>([]);
   // SAM 请求期间禁掉画布点击并提示 wait 光标，避免重复点出多个候选。
   const [isSamPending, setIsSamPending] = useState(false);
+  // SAM 多 prompt 工作流：用户左键加正点、右键加负点、Shift+左键拖动 box，
+  // Enter 提交、Esc 清空。draft 是单一来源，hud 与画布 overlay 都基于它渲染。
+  const [samPromptDraft, setSamPromptDraft] = useState<SamPromptDraft>({ points: [] });
+  // box 拖动期间的"实时框"：mousedown 记 anchor，mousemove 跟着鼠标变 endUv，
+  // mouseup 时距离够大才落到 samPromptDraft.box，否则视为取消（防误触）。
+  const [samBoxLive, setSamBoxLive] = useState<{ start: UV; end: UV } | undefined>(undefined);
   const draggingRef = useRef<DraggingState>(undefined);
 
   useEffect(() => {
     setDraftRect(undefined);
     setPenPoints([]);
+    // 切换工具或 projection 失效时清空 SAM 采点态，避免上下文错乱
+    setSamPromptDraft({ points: [] });
+    setSamBoxLive(undefined);
   }, [activeTool, projection?.canvasWidth, projection?.canvasHeight]);
 
   // 滚轮转发：标注层在最上面，用户滚轮时要把事件交给下面的底图（3D canvas 或高清图容器）
@@ -256,17 +269,23 @@ export function AnnotationCanvas({
       } else if (event.key === "Escape") {
         if (penPoints.length > 0) {
           setPenPoints([]);
+        } else if (activeTool === "sam" && (samPromptDraft.points.length > 0 || samPromptDraft.box || samBoxLive)) {
+          resetSamPrompts();
         } else {
           onSelect(undefined);
         }
-      } else if (event.key === "Enter" && activeTool === "pen" && penPoints.length >= 3) {
-        finishPenPolygon(penPoints);
+      } else if (event.key === "Enter") {
+        if (activeTool === "pen" && penPoints.length >= 3) {
+          finishPenPolygon(penPoints);
+        } else if (activeTool === "sam" && (samPromptDraft.points.length > 0 || samPromptDraft.box) && !isSamPending) {
+          submitSamPrompts();
+        }
       }
     };
     node.addEventListener("keydown", onKey);
     return () => node.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedAnnotationId, activeTool, penPoints]);
+  }, [selectedAnnotationId, activeTool, penPoints, samPromptDraft, samBoxLive, isSamPending]);
 
   // 4 点对齐矩阵（modelToImage / imageToModel），无 alignment 或解算失败时为空对象。
   const alignmentMatrices = useMemo<AlignmentMatrices>(
@@ -329,6 +348,85 @@ export function AnnotationCanvas({
     setPenPoints([]);
   };
 
+  // SAM 多 prompt 提交：把当前 draft 一次性发给 SAM，候选返回后落入标注。
+  // 优先走高清图路径（pic/ 匹配 stoneId），失败回退到当前视角截图。
+  const submitSamPrompts = () => {
+    if (!projection || isSamPending) {
+      return;
+    }
+    const draft = samPromptDraft;
+    if (draft.points.length === 0 && !draft.box) {
+      return;
+    }
+    setIsSamPending(true);
+    const stoneId = resourceId.split(":")[0] ?? resourceId;
+    const baseColor = newColor();
+
+    void (async () => {
+      try {
+        const highRes = await requestSamCandidateWithSource({
+          stoneId,
+          prompts: draft,
+          resourceId,
+          color: baseColor,
+          frame: sourceMode
+        });
+        if (highRes) {
+          onCreate(highRes, false);
+          onSelect(highRes.id);
+          return;
+        }
+      } catch (error) {
+        console.warn("SAM source path failed, falling back to screenshot:", error);
+      }
+
+      const stoneCanvas = findStoneCanvas(containerRef.current);
+      if (!stoneCanvas) {
+        return;
+      }
+      try {
+        const shot = await requestSamCandidate({
+          prompts: draft,
+          stoneCanvas,
+          projection,
+          resourceId,
+          color: baseColor,
+          frame: sourceMode
+        });
+        if (shot) {
+          onCreate(shot, false);
+          onSelect(shot.id);
+        }
+      } catch (error) {
+        console.error("SAM screenshot path also failed:", error);
+      }
+    })().finally(() => {
+      setIsSamPending(false);
+      setSamPromptDraft({ points: [] });
+      setSamBoxLive(undefined);
+      onToolChange("select");
+    });
+  };
+
+  const resetSamPrompts = () => {
+    setSamPromptDraft({ points: [] });
+    setSamBoxLive(undefined);
+  };
+
+  const undoLastSamPrompt = () => {
+    setSamBoxLive(undefined);
+    setSamPromptDraft((prev) => {
+      // 优先撤销 box（最后加的可能是 box），否则撤销最后一个点
+      if (prev.box) {
+        return { ...prev, box: undefined };
+      }
+      if (prev.points.length === 0) {
+        return prev;
+      }
+      return { ...prev, points: prev.points.slice(0, -1) };
+    });
+  };
+
   const handleMouseDown = (event: KonvaEventObject<MouseEvent>) => {
     if (!projection) {
       return;
@@ -340,9 +438,26 @@ export function AnnotationCanvas({
     const stage = event.target.getStage();
     const isEmptyTarget = stage !== null && event.target === stage;
 
-    // 中键 / 右键按下：无论哪个工具都让给底图做 pan。
-    // 中键：通用平移；右键：与多数 3D 软件惯例一致（OrbitControls 默认 RIGHT=PAN）。
-    if (nativeEvent.button === 1 || nativeEvent.button === 2) {
+    // 中键：无论哪个工具都让给底图做平移。
+    if (nativeEvent.button === 1) {
+      nativeEvent.preventDefault();
+      startForwardPan(nativeEvent);
+      return;
+    }
+
+    // 右键：SAM 工具下用作"加负点"，其它工具下让给底图做平移
+    // （OrbitControls 默认 RIGHT=PAN；SourceImageView 自己也接受右键 pan）。
+    if (nativeEvent.button === 2) {
+      if (activeTool === "sam" && !isSamPending) {
+        nativeEvent.preventDefault();
+        const point = pointerScreen();
+        const uv = screenToUV(point, projection);
+        setSamPromptDraft((prev) => ({
+          ...prev,
+          points: [...prev.points, { uv, label: 0 }]
+        }));
+        return;
+      }
       nativeEvent.preventDefault();
       startForwardPan(nativeEvent);
       return;
@@ -385,57 +500,16 @@ export function AnnotationCanvas({
       if (nativeEvent.button !== 0 || isSamPending) {
         return;
       }
-      setIsSamPending(true);
-      // resourceId 形如 "asset-29:model"，前缀就是 stoneId。
-      const stoneId = resourceId.split(":")[0] ?? resourceId;
-      const baseColor = newColor();
-
-      void (async () => {
-        // 1) 先尝试高清图路径（pic/ 目录匹配 stoneId）。识别率明显更高。
-        try {
-          const highRes = await requestSamCandidateWithSource({
-            stoneId,
-            screenPoint: point,
-            projection,
-            resourceId,
-            color: baseColor,
-            frame: sourceMode
-          });
-          if (highRes) {
-            onCreate(highRes, false);
-            onSelect(highRes.id);
-            return;
-          }
-        } catch (error) {
-          // 网络抖动或后端 500 时打印，下面照常 fallback。
-          console.warn("SAM source path failed, falling back to screenshot:", error);
-        }
-
-        // 2) 回退到当前视角截图（旧路径），保证没配高清图的画像石也能用。
-        const stoneCanvas = findStoneCanvas(containerRef.current);
-        if (!stoneCanvas) {
-          return;
-        }
-        try {
-          const shot = await requestSamCandidate({
-            screenPoint: point,
-            stoneCanvas,
-            projection,
-            resourceId,
-            color: baseColor,
-            frame: sourceMode
-          });
-          if (shot) {
-            onCreate(shot, false);
-            onSelect(shot.id);
-          }
-        } catch (error) {
-          console.error("SAM screenshot path also failed:", error);
-        }
-      })().finally(() => {
-        setIsSamPending(false);
-        onToolChange("select");
-      });
+      const uv = screenToUV(point, projection);
+      // Shift + 左键：开始 box 拖动；普通左键：加正点
+      if (nativeEvent.shiftKey) {
+        setSamBoxLive({ start: uv, end: uv });
+        return;
+      }
+      setSamPromptDraft((prev) => ({
+        ...prev,
+        points: [...prev.points, { uv, label: 1 }]
+      }));
       return;
     }
 
@@ -490,6 +564,11 @@ export function AnnotationCanvas({
     if (draftRect) {
       setDraftRect({ ...draftRect, end: pointerScreen() });
     }
+
+    if (samBoxLive) {
+      const uv = screenToUV(pointerScreen(), projection);
+      setSamBoxLive({ ...samBoxLive, end: uv });
+    }
   };
 
   const handleMouseUp = () => {
@@ -497,6 +576,23 @@ export function AnnotationCanvas({
       draggingRef.current = undefined;
       return;
     }
+
+    // SAM box 拖动结束：距离够大才落到 promptDraft.box，否则视为取消（防止 Shift+
+    // 单击的误触）。
+    if (samBoxLive && projection) {
+      const startScreen = uvToScreen(samBoxLive.start, projection);
+      const endScreen = uvToScreen(samBoxLive.end, projection);
+      const distance = Math.hypot(endScreen.x - startScreen.x, endScreen.y - startScreen.y);
+      if (distance >= minDragPixels) {
+        setSamPromptDraft((prev) => ({
+          ...prev,
+          box: { startUv: samBoxLive.start, endUv: samBoxLive.end }
+        }));
+      }
+      setSamBoxLive(undefined);
+      return;
+    }
+
     if (!draftRect || !projection) {
       return;
     }
@@ -526,6 +622,9 @@ export function AnnotationCanvas({
     }
     if (draftRect) {
       setDraftRect(undefined);
+    }
+    if (samBoxLive) {
+      setSamBoxLive(undefined);
     }
   };
 
@@ -642,6 +741,13 @@ export function AnnotationCanvas({
               alignmentMatrices={alignmentMatrices}
             />
           ) : null}
+          {activeTool === "sam" && projection ? (
+            <SamPromptOverlay
+              draft={samPromptDraft}
+              live={samBoxLive}
+              projection={projection}
+            />
+          ) : null}
         </Layer>
       </Stage>
       {!projection ? (
@@ -653,6 +759,19 @@ export function AnnotationCanvas({
         <div className="annotation-cross-frame-hint">
           有 {hiddenCrossFrameCount} 个标注在另一坐标系中，<strong>请先完成"对齐校准"</strong>才能在当前底图上看到。
         </div>
+      ) : null}
+      {activeTool === "sam" ? (
+        <SamPromptHud
+          draft={samPromptDraft}
+          pending={isSamPending}
+          onSubmit={submitSamPrompts}
+          onUndoLast={undoLastSamPrompt}
+          onReset={resetSamPrompts}
+          onCancel={() => {
+            resetSamPrompts();
+            onToolChange("select");
+          }}
+        />
       ) : null}
     </div>
   );
@@ -959,5 +1078,186 @@ function CalibrationMarker({
         listening={false}
       />
     </Group>
+  );
+}
+
+/**
+ * SAM 多 prompt 画布层：
+ *   - 正点：绿色实心圆（label=1）
+ *   - 负点：红色实心圆 + 中心 ✕（label=0）
+ *   - 已确认 box：黄色虚线矩形
+ *   - 拖动中的临时 box：黄色更稀疏虚线（与已确认 box 区分）
+ */
+function SamPromptOverlay({
+  draft,
+  live,
+  projection
+}: {
+  draft: SamPromptDraft;
+  live: { start: UV; end: UV } | undefined;
+  projection: ProjectionContext;
+}) {
+  const boxStart = draft.box ? draft.box.startUv : undefined;
+  const boxEnd = draft.box ? draft.box.endUv : undefined;
+  const boxScreen = boxStart && boxEnd
+    ? rectScreenFromUVs(boxStart, boxEnd, projection)
+    : undefined;
+  const liveScreen = live ? rectScreenFromUVs(live.start, live.end, projection) : undefined;
+
+  return (
+    <Group listening={false}>
+      {boxScreen ? (
+        <Rect
+          x={boxScreen.x}
+          y={boxScreen.y}
+          width={boxScreen.width}
+          height={boxScreen.height}
+          stroke="#f3a712"
+          strokeWidth={2}
+          dash={[6, 4]}
+          listening={false}
+        />
+      ) : null}
+      {liveScreen ? (
+        <Rect
+          x={liveScreen.x}
+          y={liveScreen.y}
+          width={liveScreen.width}
+          height={liveScreen.height}
+          stroke="#f8b834"
+          strokeWidth={1.5}
+          dash={[3, 4]}
+          opacity={0.85}
+          listening={false}
+        />
+      ) : null}
+      {draft.points.map((point, index) => {
+        const screen = uvToScreen(point.uv, projection);
+        return (
+          <SamPromptMarker
+            key={`sam-prompt-${index}`}
+            x={screen.x}
+            y={screen.y}
+            label={point.label}
+          />
+        );
+      })}
+    </Group>
+  );
+}
+
+function rectScreenFromUVs(a: UV, b: UV, projection: ProjectionContext) {
+  const start = uvToScreen(a, projection);
+  const end = uvToScreen(b, projection);
+  return {
+    x: Math.min(start.x, end.x),
+    y: Math.min(start.y, end.y),
+    width: Math.abs(end.x - start.x),
+    height: Math.abs(end.y - start.y)
+  };
+}
+
+function SamPromptMarker({
+  x,
+  y,
+  label
+}: {
+  x: number;
+  y: number;
+  label: 0 | 1;
+}) {
+  const isPositive = label === 1;
+  const fill = isPositive ? "#45d483" : "#ff5f57";
+  return (
+    <Group x={x} y={y} listening={false}>
+      <Circle radius={8} fill="#1d1a18" opacity={0.85} />
+      <Circle radius={6} fill={fill} stroke="#1d1a18" strokeWidth={1.2} />
+      {isPositive ? null : (
+        <>
+          <Line points={[-3, -3, 3, 3]} stroke="#1d1a18" strokeWidth={1.5} />
+          <Line points={[-3, 3, 3, -3]} stroke="#1d1a18" strokeWidth={1.5} />
+        </>
+      )}
+    </Group>
+  );
+}
+
+/**
+ * SAM 多 prompt 浮窗：底部居中，显示当前 prompt 计数 + 操作按钮。
+ * 与 calibration-hud 视觉风格一致；不阻塞画布交互（pointer-events 仅作用在按钮上）。
+ */
+function SamPromptHud({
+  draft,
+  pending,
+  onSubmit,
+  onUndoLast,
+  onReset,
+  onCancel
+}: {
+  draft: SamPromptDraft;
+  pending: boolean;
+  onSubmit: () => void;
+  onUndoLast: () => void;
+  onReset: () => void;
+  onCancel: () => void;
+}) {
+  const positive = draft.points.filter((point) => point.label === 1).length;
+  const negative = draft.points.filter((point) => point.label === 0).length;
+  const hasBox = Boolean(draft.box);
+  const total = draft.points.length + (hasBox ? 1 : 0);
+  const canSubmit = !pending && total > 0;
+
+  let prompt: React.ReactNode;
+  if (pending) {
+    prompt = <span>正在请求 SAM…</span>;
+  } else if (total === 0) {
+    prompt = (
+      <span>
+        <strong>左键</strong>加正点 · <strong>右键</strong>加负点 · <strong>Shift+左键拖动</strong>出框
+        <span className="muted-text"> · 至少 1 个点 / 框</span>
+      </span>
+    );
+  } else {
+    prompt = (
+      <span>
+        当前：<strong>{positive}</strong> 正点
+        {negative > 0 ? (
+          <>
+            {" / "}
+            <strong>{negative}</strong> 负点
+          </>
+        ) : null}
+        {hasBox ? (
+          <>
+            {" / "}
+            <strong>1</strong> 框
+          </>
+        ) : null}
+        <span className="muted-text"> · 按 Enter 提交</span>
+      </span>
+    );
+  }
+
+  return (
+    <div className="sam-prompt-hud" role="dialog" aria-label="SAM 多点 prompt">
+      <div className="sam-prompt-hud-row">
+        <span className="sam-prompt-hud-step">{Math.min(total, 9)} prompts</span>
+        <div className="sam-prompt-hud-prompt">{prompt}</div>
+      </div>
+      <div className="sam-prompt-hud-actions">
+        <button type="button" className="ghost-cta" onClick={onUndoLast} disabled={pending || total === 0}>
+          撤销上一个
+        </button>
+        <button type="button" className="ghost-cta" onClick={onReset} disabled={pending || total === 0}>
+          清空
+        </button>
+        <button type="button" className="ghost-cta" onClick={onCancel} disabled={pending}>
+          取消
+        </button>
+        <button type="button" className="primary-cta" onClick={onSubmit} disabled={!canSubmit}>
+          {pending ? "运行中…" : `提交 SAM（${total}）`}
+        </button>
+      </div>
+    </div>
   );
 }

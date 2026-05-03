@@ -263,7 +263,19 @@ def _uv_to_pixel_prompt(prompt: dict, width: int, height: int) -> dict:
 
 
 def _run_predictor(image: np.ndarray, prompts_px: list[dict], fallback_source: str) -> dict:
-    """输入 RGB numpy 图 + 像素坐标 prompts，返回归一化 polygon（y 向下 / 图像坐标系）。"""
+    """
+    输入 RGB numpy 图 + 像素坐标 prompts，返回归一化 polygon（y 向下 / 图像坐标系）。
+
+    支持的 prompt 类型（一次调用可任意组合）：
+      - {"type": "point", "x", "y", "label": 0|1}：正点(1) / 负点(0)，可有多个
+      - {"type": "box", "bbox": [x1, y1, x2, y2]}：box 框，可有 0 或 1 个
+    其它 prompt（包括 box_uv/point_uv 这类 UV 形态）应该已被 _uv_to_pixel_prompt
+    转成了上述像素形态再传进来。
+
+    多 prompt 行为：mobile-sam SamPredictor.predict 原生支持 point_coords +
+    point_labels + box 三者一起；当 box 与点都给了，box 限定 mask 大致区域，
+    点继续做"内部要 / 不要"的精修，特别适合"用 box 框出人物 + 用负点把背景剔掉"。
+    """
     if _predictor is None:
         result = _run_fallback(image, prompts_px)
         result["warning"] = _load_status["status"]
@@ -271,28 +283,67 @@ def _run_predictor(image: np.ndarray, prompts_px: list[dict], fallback_source: s
         return result
 
     height, width = image.shape[:2]
-    first = prompts_px[0] if prompts_px else {"type": "point", "x": width / 2, "y": height / 2, "label": 1}
+
+    # 把所有 point 收集到一起，box 只取最后一个。无任何 prompt 时退化为图像中心一个正点。
+    point_xy: list[list[float]] = []
+    point_labels: list[int] = []
+    box_xyxy: Optional[list[float]] = None
+    for prompt in prompts_px:
+        kind = prompt.get("type")
+        if kind == "point":
+            x = float(prompt.get("x", width / 2))
+            y = float(prompt.get("y", height / 2))
+            label = int(prompt.get("label", 1))
+            point_xy.append([x, y])
+            point_labels.append(1 if label != 0 else 0)
+        elif kind == "box":
+            bbox = prompt.get("bbox", [0, 0, width, height])
+            box_xyxy = [float(v) for v in bbox]
+
+    if not point_xy and box_xyxy is None:
+        point_xy = [[width / 2, height / 2]]
+        point_labels = [1]
+
+    point_coords = np.array(point_xy, dtype=np.float32) if point_xy else None
+    point_labels_arr = np.array(point_labels, dtype=np.int32) if point_labels else None
+    box_arr = np.array(box_xyxy, dtype=np.float32).reshape(4) if box_xyxy is not None else None
+
+    # 多 prompt 时 multimask_output=False 让 SAM 直接给最优 mask（避免 3 mask 启发式
+    # 把 box 框出来的整块再切成"小、中、大"造成不必要的歧义）。
+    multimask = box_arr is None and (point_labels_arr is None or len(point_labels_arr) <= 1)
 
     try:
         with _predictor_lock:
             _predictor.set_image(image)
-            if first.get("type") == "box":
-                bbox = first.get("bbox", [0, 0, width, height])
-                box = np.array(bbox, dtype=np.float32).reshape(4)
-                masks, scores, _ = _predictor.predict(box=box, multimask_output=True)
-            else:
-                px = float(first.get("x", width / 2))
-                py = float(first.get("y", height / 2))
-                label = int(first.get("label", 1))
-                point_coords = np.array([[px, py]], dtype=np.float32)
-                point_labels = np.array([label], dtype=np.int32)
-                masks, scores, _ = _predictor.predict(
-                    point_coords=point_coords,
-                    point_labels=point_labels,
-                    multimask_output=True,
-                )
+            masks, scores, _ = _predictor.predict(
+                point_coords=point_coords,
+                point_labels=point_labels_arr,
+                box=box_arr,
+                multimask_output=multimask,
+            )
 
-        best_idx = _select_best_mask(masks, scores, width, height, first)
+        # 选最佳 mask：单 mask 直接选；多 mask 走启发式（去掉过大、必须包含每个正点）。
+        if masks.shape[0] == 1:
+            best_idx: Optional[int] = 0 if int(masks[0].sum()) > 0 else None
+        else:
+            # 启发式选择需要"代表点"作为参照，这里取所有正点；
+            # _select_best_mask 当前 API 只接受单点，传一个正点即可（多点已经在 SAM
+            # 推理时让 mask 收敛，启发式只是兜底防止"整张图"答案）。
+            ref_prompt: dict
+            if point_xy and 1 in point_labels:
+                pos_index = point_labels.index(1)
+                ref_prompt = {
+                    "type": "point",
+                    "x": point_xy[pos_index][0],
+                    "y": point_xy[pos_index][1],
+                }
+            elif box_arr is not None:
+                cx = (box_arr[0] + box_arr[2]) / 2
+                cy = (box_arr[1] + box_arr[3]) / 2
+                ref_prompt = {"type": "point", "x": float(cx), "y": float(cy)}
+            else:
+                ref_prompt = {"type": "point", "x": width / 2, "y": height / 2}
+            best_idx = _select_best_mask(masks, scores, width, height, ref_prompt)
         if best_idx is None:
             return _run_fallback(image, prompts_px)
         mask = masks[best_idx]
@@ -303,7 +354,12 @@ def _run_predictor(image: np.ndarray, prompts_px: list[dict], fallback_source: s
             "polygons": [polygon],
             "confidence": float(scores[best_idx]),
             "model": _MODEL_NAME,
-            "maskAreaRatio": float(mask.sum()) / float(width * height)
+            "maskAreaRatio": float(mask.sum()) / float(width * height),
+            "promptCounts": {
+                "positive": sum(1 for label in point_labels if label == 1),
+                "negative": sum(1 for label in point_labels if label == 0),
+                "box": 1 if box_arr is not None else 0,
+            },
         }
     except Exception as exc:  # noqa: BLE001
         result = _run_fallback(image, prompts_px)

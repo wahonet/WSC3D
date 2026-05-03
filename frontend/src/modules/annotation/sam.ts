@@ -2,64 +2,135 @@ import { runSamSegmentation, runSamSegmentationBySource } from "../../api/client
 import { createAnnotationFromGeometry, polygonFromUVs, screenToUV, type UV } from "./geometry";
 import type { IimlAnnotation, IimlAnnotationFrame, ProjectionContext } from "./types";
 
+// 单条 SAM prompt：UV 是当前画布坐标系（model 模式 = modelBox UV，image 模式 = 高清图归一化）。
+// label=1 正点（要这里）；label=0 负点（不要这里）。
+export type SamPromptPoint = {
+  uv: UV;
+  label: 0 | 1;
+};
+
+// box prompt：两个对角点（顺序无关，最终归一化为 [minU, minV, maxU, maxV]）。
+export type SamPromptBox = {
+  startUv: UV;
+  endUv: UV;
+};
+
+// 一次提交里收集的全部 prompt：≥ 1 个点 或 1 个 box（可两者都给）。
+export type SamPromptDraft = {
+  points: SamPromptPoint[];
+  box?: SamPromptBox;
+};
+
+// 提交给 SAM 的入参（截图路径）。
 export type SamCandidateInput = {
-  // 画布像素坐标（相当于 three-stage canvas 的左上原点）
-  screenPoint: { x: number; y: number };
+  prompts: SamPromptDraft;
   stoneCanvas: HTMLCanvasElement;
   projection: ProjectionContext;
   resourceId: string;
   color: string;
-  // 当前底图坐标系，标注落库时记下来；切到另一底图能跨 frame 渲染。
   frame: IimlAnnotationFrame;
 };
 
 /**
- * 以当前 Three.js canvas 截图作为图像，向 /ai/sam 发起单点 prompt 请求，
- * 把返回的归一化多边形转换到 WSC3D modelBox 坐标系，构造成 candidate annotation。
+ * 把 SamPromptDraft 转成接口要的"截图路径"prompts 数组（图像像素坐标）。
  *
- * 坐标系说明（HiDPI 屏下两套尺寸必须对齐）：
- *   - stoneCanvas.width / height        ：canvas 内部像素（受 renderer pixelRatio 放大），
- *                                         toDataURL 输出图像就是这个尺寸
- *   - projection.canvasWidth / Height   ：CSS 显示尺寸，Konva 事件的坐标系
- *   - screenPoint                       ：用户在 Konva 里点击的 CSS 像素
+ * 两套像素尺寸（HiDPI）：
+ *   - stoneCanvas.width / height：canvas 内部像素，toDataURL 输出图像就是这个尺寸
+ *   - projection.canvasWidth / Height：CSS 显示尺寸；UV ↔ CSS 转换在 geometry.ts
  *
- * Prompt 发给 SAM 时必须把 CSS 坐标换算成"图像像素坐标"——否则 HiDPI 屏上
- * 每个 point 只命中图像左上 1/4 区域，SAM 完全点不到用户想分割的对象。
+ * 关键：UV → 图像像素 = UV * canvasInternalPixel；不是 CSS 像素，否则 HiDPI 屏每个
+ * point 只命中图像左上角 1/4。
+ */
+function buildScreenshotPrompts(
+  draft: SamPromptDraft,
+  stoneCanvas: HTMLCanvasElement
+): Array<
+  | { type: "point"; x: number; y: number; label: 0 | 1 }
+  | { type: "box"; bbox: [number, number, number, number] }
+> {
+  const W = stoneCanvas.width;
+  const H = stoneCanvas.height;
+  const out: Array<
+    | { type: "point"; x: number; y: number; label: 0 | 1 }
+    | { type: "box"; bbox: [number, number, number, number] }
+  > = [];
+  for (const point of draft.points) {
+    out.push({
+      type: "point",
+      x: clamp(point.uv.u * W, 0, W - 1),
+      y: clamp(point.uv.v * H, 0, H - 1),
+      label: point.label
+    });
+  }
+  if (draft.box) {
+    const u1 = Math.min(draft.box.startUv.u, draft.box.endUv.u);
+    const u2 = Math.max(draft.box.startUv.u, draft.box.endUv.u);
+    const v1 = Math.min(draft.box.startUv.v, draft.box.endUv.v);
+    const v2 = Math.max(draft.box.startUv.v, draft.box.endUv.v);
+    out.push({
+      type: "box",
+      bbox: [clamp(u1 * W, 0, W - 1), clamp(v1 * H, 0, H - 1), clamp(u2 * W, 0, W - 1), clamp(v2 * H, 0, H - 1)]
+    });
+  }
+  return out;
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
+}
+
+function summarizePrompts(draft: SamPromptDraft) {
+  return {
+    positiveCount: draft.points.filter((point) => point.label === 1).length,
+    negativeCount: draft.points.filter((point) => point.label === 0).length,
+    box: draft.box ? 1 : 0
+  };
+}
+
+function promptDraftToGeneration(draft: SamPromptDraft) {
+  const points: number[][] = draft.points.map((point) => [point.uv.u, point.uv.v]);
+  const labels: number[] = draft.points.map((point) => point.label);
+  const box = draft.box
+    ? [
+        Math.min(draft.box.startUv.u, draft.box.endUv.u),
+        Math.min(draft.box.startUv.v, draft.box.endUv.v),
+        Math.max(draft.box.startUv.u, draft.box.endUv.u),
+        Math.max(draft.box.startUv.v, draft.box.endUv.v)
+      ]
+    : undefined;
+  return { points, labels, box };
+}
+
+/**
+ * 截图路径：把当前 Three.js canvas 截图作为 SAM 输入。
  *
- * 坐标链：
- *   CSS [x, y] → 图像像素 [x * scaleX, y * scaleY] → SAM point prompt
- *   image-normalized [u, v] (SAM 输出)
- *     → CSS 像素 [u * canvasWidth, v * canvasHeight]
- *     → modelBox 归一化 [u', v'] via screenToUV
+ * 当 sourceMode === "model" 时使用——3D viewport 的内容直接送进去；
+ * 当 sourceMode === "image" 时优先走 requestSamCandidateWithSource 的高清图路径，
+ * 这条路径只在没匹配到 pic 文件时作为 fallback。
  */
 export async function requestSamCandidate({
-  screenPoint,
+  prompts,
   stoneCanvas,
   projection,
   resourceId,
   color,
   frame
 }: SamCandidateInput): Promise<IimlAnnotation | undefined> {
+  if (prompts.points.length === 0 && !prompts.box) {
+    return undefined;
+  }
   const imageBase64 = stoneCanvas.toDataURL("image/png");
-
-  // 换算 CSS → 图像像素。高 DPI 屏下 scale 通常是 2，低 DPI 屏是 1。
-  const scaleX = stoneCanvas.width / Math.max(projection.canvasWidth, 1);
-  const scaleY = stoneCanvas.height / Math.max(projection.canvasHeight, 1);
-  const promptX = screenPoint.x * scaleX;
-  const promptY = screenPoint.y * scaleY;
-
-  const response = await runSamSegmentation({
-    imageBase64,
-    prompts: [{ type: "point", x: promptX, y: promptY, label: 1 }]
-  });
+  const apiPrompts = buildScreenshotPrompts(prompts, stoneCanvas);
+  const response = await runSamSegmentation({ imageBase64, prompts: apiPrompts });
 
   const imagePolygon = response.polygons?.[0];
   if (!imagePolygon || imagePolygon.length < 3) {
     return undefined;
   }
 
-  // SAM 返回的坐标是图像归一化（0..1），两套像素尺寸在这里是等价的——
-  // 乘以 CSS 尺寸直接得到 Konva 坐标系下的像素坐标。
+  // SAM 返回的 polygon 是图像归一化坐标 [u, v]（截图路径下截图就是 canvas 自身内容，
+  // 等价于 projection 的画布坐标）。这里乘 CSS 尺寸再走 screenToUV，把图像归一化
+  // 转换到 modelBox UV（仅 model 模式下需要；image 模式下两者本来就一致）。
   const uvs: UV[] = imagePolygon.map((point) => {
     const ui = Number(point[0] ?? 0);
     const vi = Number(point[1] ?? 0);
@@ -69,6 +140,7 @@ export async function requestSamCandidate({
   });
 
   const geometry = polygonFromUVs(uvs);
+  const summary = summarizePrompts(prompts);
   return createAnnotationFromGeometry({
     geometry,
     resourceId,
@@ -83,8 +155,8 @@ export async function requestSamCandidate({
       model: response.model,
       confidence: response.confidence,
       prompt: {
-        points: [[screenPoint.x, screenPoint.y]],
-        labels: [1]
+        ...promptDraftToGeneration(prompts),
+        ...summary
       }
     }
   });
@@ -96,57 +168,73 @@ export async function requestSamCandidate({
 
 export type SamSourceInput = {
   stoneId: string;
-  screenPoint: { x: number; y: number };
-  projection: ProjectionContext;
+  prompts: SamPromptDraft;
   resourceId: string;
   color: string;
   frame: IimlAnnotationFrame;
 };
 
 /**
- * 告诉后端"用该画像石的高清原图跑 SAM"：
- * 前端把用户点击点换算到 modelBox UV（v 向下，与屏幕一致）作为 prompt；
- * 后端读 pic/ 文件、算像素、跑 SAM，输出 polygon 也用同一套 UV，前端直接渲染即可。
+ * 高清图路径：让后端用 pic/ 下的原图跑 SAM。
  *
- * 返回 undefined 有三种情况：
- *  1. pic/ 里没有对应 stoneId 的文件（source-image-not-found）
- *  2. 预测出的 mask 太碎或为空
+ * 前端把 prompt 按 modelBox UV（v 向下，与屏幕一致）发送，后端在它自己的图像
+ * 像素空间里推理；输出 polygon 也回 modelBox UV，前端直接渲染。
+ *
+ * 返回 undefined 的三种情况：
+ *  1. pic/ 没匹配 stoneId 的文件（source-image-not-found）
+ *  2. mask 太碎或为空
  *  3. 权重未就绪 + fallback 也失败
  *
  * 调用方收到 undefined 时可以 fallback 到 requestSamCandidate（当前视角截图）。
  */
 export async function requestSamCandidateWithSource({
   stoneId,
-  screenPoint,
-  projection,
+  prompts,
   resourceId,
   color,
   frame
 }: SamSourceInput): Promise<IimlAnnotation | undefined> {
-  const clickUv = screenToUV(screenPoint, projection);
+  if (prompts.points.length === 0 && !prompts.box) {
+    return undefined;
+  }
+  const apiPrompts: Array<
+    | { type: "point_uv"; u: number; v: number; label: 0 | 1 }
+    | { type: "box_uv"; bbox_uv: [number, number, number, number] }
+  > = [];
+  for (const point of prompts.points) {
+    apiPrompts.push({
+      type: "point_uv",
+      u: point.uv.u,
+      v: point.uv.v,
+      label: point.label
+    });
+  }
+  if (prompts.box) {
+    const u1 = Math.min(prompts.box.startUv.u, prompts.box.endUv.u);
+    const u2 = Math.max(prompts.box.startUv.u, prompts.box.endUv.u);
+    const v1 = Math.min(prompts.box.startUv.v, prompts.box.endUv.v);
+    const v2 = Math.max(prompts.box.startUv.v, prompts.box.endUv.v);
+    apiPrompts.push({ type: "box_uv", bbox_uv: [u1, v1, u2, v2] });
+  }
 
-  const response = await runSamSegmentationBySource({
-    stoneId,
-    prompts: [{ type: "point_uv", u: clickUv.u, v: clickUv.v, label: 1 }]
-  });
-
+  const response = await runSamSegmentationBySource({ stoneId, prompts: apiPrompts });
   if (response.error || !response.polygons?.length) {
     return undefined;
   }
 
-  // 后端输出的 polygon 已经是 modelBox UV (v 向下，与屏幕坐标一致)，直接当 UV 用。
+  // 后端输出已经是 modelBox UV（v 向下，与屏幕一致），直接当 UV 用。
   const uvs: UV[] = response.polygons[0]
     .map((point) => ({
       u: Number(point[0] ?? 0),
       v: Number(point[1] ?? 0)
     }))
     .filter((uv) => Number.isFinite(uv.u) && Number.isFinite(uv.v));
-
   if (uvs.length < 3) {
     return undefined;
   }
 
   const geometry = polygonFromUVs(uvs);
+  const summary = summarizePrompts(prompts);
   return createAnnotationFromGeometry({
     geometry,
     resourceId,
@@ -160,8 +248,8 @@ export async function requestSamCandidateWithSource({
       model: response.model,
       confidence: response.confidence,
       prompt: {
-        points: [[clickUv.u, clickUv.v]],
-        labels: [1],
+        ...promptDraftToGeneration(prompts),
+        ...summary,
         source: response.sourceImage ?? null
       }
     }

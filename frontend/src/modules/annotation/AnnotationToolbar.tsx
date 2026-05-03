@@ -40,7 +40,10 @@ function describeSam(status?: SamStatus): { disabled: boolean; title: string } {
   }
   switch (status.status) {
     case "ready":
-      return { disabled: false, title: `SAM 智能分割（${status.model}）· 左键点击对象` };
+      return {
+        disabled: false,
+        title: `SAM 智能分割（${status.model}）· 左键正点 / 右键负点 / Shift+左键拖框 / Enter 提交`
+      };
     case "downloading":
       return { disabled: true, title: "SAM 模型下载中…" };
     case "loading":

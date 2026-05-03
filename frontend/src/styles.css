@@ -1376,6 +1376,101 @@ button {
   border-radius: 50%;
 }
 
+/* SAM 多 prompt 浮窗：底部居中，与 calibration-hud 同风格但主色用绿（SAM 调性） */
+.sam-prompt-hud {
+  position: absolute;
+  bottom: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 30;
+  min-width: 540px;
+  max-width: 86%;
+  padding: 12px 16px;
+  display: grid;
+  gap: 10px;
+  background: rgba(29, 26, 24, 0.92);
+  border: 1px solid rgba(69, 212, 131, 0.45);
+  border-radius: 10px;
+  backdrop-filter: blur(12px);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+}
+
+.sam-prompt-hud-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.sam-prompt-hud-step {
+  flex: 0 0 auto;
+  padding: 3px 9px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #11100f;
+  background: #45d483;
+  border-radius: 999px;
+  letter-spacing: 0.4px;
+}
+
+.sam-prompt-hud-prompt {
+  flex: 1;
+  font-size: 13.5px;
+  line-height: 1.45;
+  color: #f4ece0;
+}
+
+.sam-prompt-hud-prompt strong {
+  color: #45d483;
+}
+
+.sam-prompt-hud-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.sam-prompt-hud-actions .ghost-cta {
+  width: auto;
+  height: 30px;
+  padding: 0 12px;
+  font-size: 12.5px;
+  border-radius: 6px;
+}
+
+.sam-prompt-hud-actions .ghost-cta:hover:not(:disabled) {
+  color: #f4ece0;
+  border-color: #6f6a62;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.sam-prompt-hud-actions .ghost-cta:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.sam-prompt-hud-actions .primary-cta {
+  height: 30px;
+  padding: 0 16px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #11100f;
+  background: #45d483;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.12s, opacity 0.12s;
+}
+
+.sam-prompt-hud-actions .primary-cta:hover:not(:disabled) {
+  background: #5fe09a;
+}
+
+.sam-prompt-hud-actions .primary-cta:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 .annotation-canvas {
   position: absolute !important;
   inset: 0;

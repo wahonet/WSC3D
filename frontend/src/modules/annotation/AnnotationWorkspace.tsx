@@ -388,7 +388,7 @@ function toolHint(tool: AnnotationTool) {
     case "pen":
       return "依次点击添加节点，双击或回车闭合多边形";
     case "sam":
-      return "在画像石上点击对象，AI 自动框出候选";
+      return "左键正点 / 右键负点 / Shift+左键拖动出框 → Enter 提交，AI 一次返回精修候选";
     case "calibrate":
       return "在 3D 模型 / 高清图各点 4 对对应点完成对齐";
     case "select":
