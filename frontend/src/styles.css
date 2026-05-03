@@ -2333,6 +2333,65 @@ button {
   font-size: 12px;
 }
 
+/* C6 候选类别 chip 过滤：banner 下方一组小 chip */
+.review-filter-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+  padding: 6px;
+  background: #1c1916;
+  border: 1px solid #2c2824;
+  border-radius: 6px;
+}
+
+.review-filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  font-size: 11.5px;
+  color: #cfc7bd;
+  background: #2a2622;
+  border: 1px solid #3d3731;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+}
+
+.review-filter-chip:hover {
+  color: #f4ece0;
+  border-color: #6f6a62;
+}
+
+.review-filter-chip.is-on {
+  color: #11100f;
+  background: #f3a712;
+  border-color: #f3a712;
+}
+
+.review-filter-chip-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  padding: 0 5px;
+  font-size: 10px;
+  font-weight: 600;
+  color: #11100f;
+  background: rgba(255, 255, 255, 0.4);
+  border-radius: 999px;
+}
+
+.review-filter-chip.is-on .review-filter-chip-count {
+  background: rgba(255, 255, 255, 0.55);
+}
+
+.review-filter-clear {
+  margin-left: auto;
+}
+
 .review-card-title {
   min-width: 0;
   height: 28px;

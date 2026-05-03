@@ -743,6 +743,26 @@ function ReviewTab({
   // 多选合并：选中的候选 id 集合，操作完合并后或候选列表变化后会自动同步剔除已不存在的 id。
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
 
+  // C6 类别 chip 过滤：按候选 label 分组；过滤集合为空 = 不过滤。
+  const labelGroups = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const annotation of candidates) {
+      const label = annotation.label?.trim() || "未命名";
+      counts.set(label, (counts.get(label) ?? 0) + 1);
+    }
+    return Array.from(counts.entries())
+      .map(([label, count]) => ({ label, count }))
+      .sort((a, b) => b.count - a.count);
+  }, [candidates]);
+  const [labelFilter, setLabelFilter] = useState<Set<string>>(() => new Set());
+
+  const filteredCandidates = useMemo(() => {
+    if (labelFilter.size === 0) {
+      return candidates;
+    }
+    return candidates.filter((annotation) => labelFilter.has(annotation.label?.trim() || "未命名"));
+  }, [candidates, labelFilter]);
+
   // 候选列表随外部操作（接受 / 拒绝 / 合并）实时变动；从已选集合里删掉不再存在的 id，
   // 避免合并完成后 UI 还显示"已选 N 个"。
   useEffect(() => {
@@ -760,6 +780,37 @@ function ReviewTab({
       return changed ? next : prev;
     });
   }, [candidates]);
+
+  // 类别过滤集合：剔除已不在 labelGroups 中的 label（合并 / 拒绝后某 label 可能消失）
+  useEffect(() => {
+    setLabelFilter((prev) => {
+      let changed = false;
+      const next = new Set<string>();
+      const known = new Set(labelGroups.map((group) => group.label));
+      for (const label of prev) {
+        if (known.has(label)) {
+          next.add(label);
+        } else {
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [labelGroups]);
+
+  const toggleLabel = (label: string) => {
+    setLabelFilter((prev) => {
+      const next = new Set(prev);
+      if (next.has(label)) {
+        next.delete(label);
+      } else {
+        next.add(label);
+      }
+      return next;
+    });
+  };
+
+  const clearLabelFilter = () => setLabelFilter(new Set());
 
   const toggleSelected = (id: string) => {
     setSelectedIds((prev) => {
@@ -832,8 +883,38 @@ function ReviewTab({
         </div>
       ) : null}
 
+      {labelGroups.length > 1 ? (
+        <div className="review-filter-chips" role="group" aria-label="候选类别过滤">
+          {labelGroups.map((group) => (
+            <button
+              key={group.label}
+              type="button"
+              className={
+                labelFilter.has(group.label)
+                  ? "review-filter-chip is-on"
+                  : "review-filter-chip"
+              }
+              onClick={() => toggleLabel(group.label)}
+              title={`仅显示标签为"${group.label}"的候选`}
+            >
+              {group.label}
+              <span className="review-filter-chip-count">{group.count}</span>
+            </button>
+          ))}
+          {labelFilter.size > 0 ? (
+            <button type="button" className="ghost-link review-filter-clear" onClick={clearLabelFilter}>
+              清除过滤
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+
+      {filteredCandidates.length === 0 && labelFilter.size > 0 ? (
+        <p className="muted-text">当前过滤下没有候选；点"清除过滤"恢复全部。</p>
+      ) : null}
+
       <ul className="review-list">
-        {candidates.map((annotation, index) => (
+        {filteredCandidates.map((annotation, index) => (
           <CandidateCard
             key={annotation.id}
             annotation={annotation}
