@@ -1,6 +1,20 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { getSourceImageUrl } from "../../api/client";
+import { getLineartUrl, getSourceImageUrl } from "../../api/client";
 import type { ScreenProjection } from "./StoneViewer";
+
+// 高清图模式可叠加的图像层。"source" 仅显示原图；"canny" 在原图之上叠半透明
+// Canny 线图（共用 transform，避免对齐问题），便于辨识浅浮雕轮廓。
+export type SourceImageLayer = "source" | "canny";
+
+export type CannyOptions = {
+  // 双阈值 0-255。低阈值越大边越少；高阈值越大主干线越突出。
+  low: number;
+  high: number;
+  // 线图叠加在原图之上的不透明度 0..1。
+  opacity: number;
+};
+
+const defaultCanny: CannyOptions = { low: 60, high: 140, opacity: 0.85 };
 
 type SourceImageViewProps = {
   // 父级以 CSS 隐藏时传 false；图片自身没有 render loop，关掉只是省一点 ResizeObserver 工作。
@@ -9,6 +23,11 @@ type SourceImageViewProps = {
   background?: "black" | "gray" | "white";
   // 父级递增 fitToken（如工具栏"重置视角"按钮）触发 fit 到容器。
   fitToken?: number;
+  // 显示哪一层：原图 / 原图 + 半透明 Canny 线图。layer 切换不影响坐标系，
+  // 因为 Canny PNG 与原 PNG 像素一一对应。
+  layer?: SourceImageLayer;
+  // Canny 线图选项；layer === "canny" 时才生效。
+  cannyOptions?: CannyOptions;
   // 与 StoneViewer 一致的 projection 回调，AnnotationCanvas 不感知底图来源。
   onScreenProjectionChange?: (projection: ScreenProjection | undefined) => void;
 };
@@ -49,8 +68,11 @@ export function SourceImageView({
   stoneId,
   background = "black",
   fitToken,
+  layer = "source",
+  cannyOptions,
   onScreenProjectionChange
 }: SourceImageViewProps) {
+  const canny = cannyOptions ?? defaultCanny;
   const containerRef = useRef<HTMLDivElement | null>(null);
   const imgRef = useRef<HTMLImageElement | null>(null);
   const onProjectionChangeRef = useRef(onScreenProjectionChange);
@@ -292,14 +314,27 @@ export function SourceImageView({
     };
   }, []);
 
-  const imgStyle = viewState
+  const baseStyle = viewState
     ? {
         transform: `translate(${viewState.offsetX}px, ${viewState.offsetY}px) scale(${viewState.scale})`,
         transformOrigin: "0 0",
-        // width/height 用 naturalSize，scale 控制最终显示尺寸；transform-origin 取左上保证
-        // offsetX/Y 直接对应屏幕像素，免去额外补偿。
         width: imgRef.current?.naturalWidth || "auto",
         height: imgRef.current?.naturalHeight || "auto"
+      }
+    : { opacity: 0 };
+
+  // Canny 线图叠加：与原图共享同一 transform，alpha 由 cannyOptions.opacity 控制。
+  // layer === "canny" 时才请求线图 PNG，避免无谓加载。
+  const cannyUrl = layer === "canny"
+    ? getLineartUrl(stoneId, { method: "canny", low: canny.low, high: canny.high })
+    : undefined;
+  const cannyStyle = viewState
+    ? {
+        ...baseStyle,
+        opacity: canny.opacity,
+        // 让 Canny 线图与原图严格对齐：用与 baseStyle 同一组 transform；
+        // mix-blend-mode 在白线 + 暗背景上视觉效果最清晰。
+        mixBlendMode: "screen" as const
       }
     : { opacity: 0 };
 
@@ -314,7 +349,7 @@ export function SourceImageView({
         src={url}
         alt=""
         draggable={false}
-        style={imgStyle}
+        style={baseStyle}
         onLoad={() => {
           setStatus("ready");
           // 等下一帧再 fit，确保 imgRef.current.naturalSize 已经可读。
@@ -325,6 +360,15 @@ export function SourceImageView({
           onProjectionChangeRef.current?.(undefined);
         }}
       />
+      {cannyUrl ? (
+        <img
+          src={cannyUrl}
+          alt=""
+          draggable={false}
+          className="source-image-stage-overlay"
+          style={cannyStyle}
+        />
+      ) : null}
       {status === "loading" ? (
         <div className="load-panel">
           <span>正在加载高清图</span>

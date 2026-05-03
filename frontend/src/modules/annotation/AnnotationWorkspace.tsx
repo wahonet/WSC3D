@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import type { StoneListItem } from "../../api/client";
-import { SourceImageView } from "../viewer/SourceImageView";
+import { SourceImageView, type SourceImageLayer } from "../viewer/SourceImageView";
 import { StoneViewer, type ScreenProjection } from "../viewer/StoneViewer";
 import { AnnotationCanvas, type CalibrationDraftView } from "./AnnotationCanvas";
 import type { UV } from "./geometry";
@@ -68,6 +68,9 @@ export function AnnotationWorkspace({
 }: AnnotationWorkspaceProps) {
   const [projection, setProjection] = useState<ProjectionContext | undefined>(undefined);
   const [calibration, setCalibration] = useState<CalibrationDraft | undefined>(undefined);
+  // 高清图模式下的图层切换：原图 / 原图 + 半透明 Canny 线图。
+  // 不影响标注坐标系（线图与原图同尺寸），仅是视觉辅助。
+  const [imageLayer, setImageLayer] = useState<SourceImageLayer>("source");
   const resourceId = doc?.resources[0]?.id ?? `${stone.id}:model`;
   const alignment = getAlignment(doc);
 
@@ -239,6 +242,7 @@ export function AnnotationWorkspace({
           active={active}
           background={background}
           fitToken={fitToken}
+          layer={imageLayer}
           stoneId={stone.id}
           onScreenProjectionChange={handleProjectionChange}
         />
@@ -280,6 +284,26 @@ export function AnnotationWorkspace({
           高清图
         </button>
       </div>
+      {sourceMode === "image" ? (
+        <div className="annotation-layer-switch" role="group" aria-label="图层">
+          <button
+            type="button"
+            className={imageLayer === "source" ? "active" : ""}
+            onClick={() => setImageLayer("source")}
+            title="只显示原图"
+          >
+            原图
+          </button>
+          <button
+            type="button"
+            className={imageLayer === "canny" ? "active" : ""}
+            onClick={() => setImageLayer("canny")}
+            title="原图 + 半透明 Canny 线图（辅助辨识浅浮雕轮廓）"
+          >
+            +线图
+          </button>
+        </div>
+      ) : null}
       {calibration ? (
         <CalibrationHud
           draft={calibration}

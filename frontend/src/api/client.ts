@@ -331,6 +331,20 @@ export async function probeSourceImage(stoneId: string): Promise<boolean> {
   }
 }
 
+// AI 线图 PNG 端点：基于 source-image 的转码缓存，做 OpenCV Canny 后落盘。
+// 输出是 RGBA（白线 + alpha 软渐变），可直接半透明叠加在高清图上。
+// 不同阈值组合各自缓存，浏览器并发请求互不影响。
+export function getLineartUrl(
+  stoneId: string,
+  options: { method?: "canny"; low?: number; high?: number; maxEdge?: number } = {}
+): string {
+  const method = options.method ?? "canny";
+  const low = options.low ?? 60;
+  const high = options.high ?? 140;
+  const maxEdge = options.maxEdge ?? 4096;
+  return `/ai/lineart/${encodeURIComponent(stoneId)}?method=${method}&low=${low}&high=${high}&max_edge=${maxEdge}`;
+}
+
 export type SamSegmentationResponse = {
   polygons: Array<IimlPoint[]>;
   confidence: number;

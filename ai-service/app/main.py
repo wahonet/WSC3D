@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, Field
 
-from .canny import canny_line
+from .canny import canny_line, get_lineart_png
 from .sam import get_source_image_png
 from .sam import get_status as get_sam_status
 from .sam import kickoff_load as sam_kickoff_load
@@ -100,6 +100,40 @@ def source_image(stone_id: str, max_edge: int = 4096):
     首次访问会做一次解码 + 缩放 + 写盘，之后直接命中缓存（约 ms 级响应）。
     """
     cache_path = get_source_image_png(stone_id, max_edge=max_edge)
+    if cache_path is None:
+        return JSONResponse(
+            status_code=404,
+            content={"error": "source-image-not-found", "stoneId": stone_id},
+        )
+    return FileResponse(
+        cache_path,
+        media_type="image/png",
+        headers={"Cache-Control": "public, max-age=3600"},
+    )
+
+
+@app.get("/ai/lineart/{stone_id}")
+def lineart(
+    stone_id: str,
+    method: str = "canny",
+    low: int = 60,
+    high: int = 140,
+    max_edge: int = 4096,
+):
+    """
+    返回该画像石的线图 PNG（白色描边 + alpha 渐变），可直接半透明叠加在
+    高清原图上辅助辨识浅浮雕轮廓。
+
+    method: 当前仅支持 canny；预留 sobel / hed / relic2contour 等 M3 后续阶段。
+    low / high: Canny 双阈值，前端 UI 会带滑杆，调阈值 = 拉不同 cache 文件，
+                所以阈值变化 = 立即出新结果 + 不同阈值各自缓存独立。
+    """
+    if method != "canny":
+        return JSONResponse(
+            status_code=400,
+            content={"error": "unsupported-method", "method": method},
+        )
+    cache_path = get_lineart_png(stone_id, low=low, high=high, max_edge=max_edge)
     if cache_path is None:
         return JSONResponse(
             status_code=404,
