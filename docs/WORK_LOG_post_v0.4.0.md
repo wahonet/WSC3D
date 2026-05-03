@@ -141,3 +141,45 @@
 - pointer-events: none，不影响交互
 - 跨 frame 关系：未校准时不画线；已校准时用 H 矩阵把对方中心投影到当前
   画布
+
+---
+
+### 2026-05-04 05:50 · B3 完成 — 画布关联连线
+
+**commit**: `c5ffbf5` (feat(annotation): B3 画布关联连线（选中标注时高亮关系）)
+
+**做了什么**
+
+- AnnotationCanvas 加可选 `relations` prop（默认 []，向后兼容）
+- 新增 `RelationLines` 子组件，渲染在 Stage 内、与 SamPromptOverlay /
+  CalibrationOverlay 同层
+- 选中标注 → 从其几何中心画线到所有相关标注几何中心：
+  * manual 关系：橙色实线（粗 2）
+  * 自动 / AI 建议关系：青色虚线（粗 1.5，dash [6, 4]）
+  * 起点端 + 各目标端都有小圆点
+  * `listening={false}` 不拦截事件
+- 跨 frame 关系：对方在 displayAnnotations 里（已校准 + 投影成功）才画线，
+  否则跳过 —— 避免画到错位位置（与 B1 RelationsEditor "采纳" 流程相容）
+- AnnotationWorkspace 用 `getRelations(doc)` 取关系，下发给 AnnotationCanvas
+- 与 RelationsEditor 共享同一份 `doc.relations`
+
+**怎么实现的**
+
+- 复用 `displayAnnotations` 已经做完的"跨 frame 投影 + 过滤"逻辑：直接从中查
+  对方标注，对方不在表里就视为不可见 / 不可投影
+- 复用 `geometryCenter()` + `uvToScreen()` 取屏幕坐标
+- 用 react-konva `<Group>` + `<Line>` + `<Circle>`，与已有 SAM / Calibration
+  overlay 共用画布层
+
+**下一步**
+
+进入 **B4 — 知识图谱 tab**：
+- 安装 `cytoscape` + `react-cytoscapejs` + 类型
+- 新建 `KnowledgeGraphView` 组件：
+  * 节点 = annotations（按 structuralLevel 着色）
+  * 边 = doc.relations（按 kind 着色）
+  * 选中节点 → 通过 onSelectAnnotation 让画布也选中
+  * 默认布局 cose（力导向）；提供"重新布局"按钮
+- AnnotationPanel 加新 tab "图谱"（在 列表 / 候选 / 标注 同级）
+- 如果 React 19 与 react-cytoscapejs 类型有冲突，回退到直接 use cytoscape
+  + useRef + useEffect
