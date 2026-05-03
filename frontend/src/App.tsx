@@ -1,29 +1,51 @@
 import { Camera, MousePointer2, Ruler, RotateCcw, SquareDashedMousePointer, Trash2 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useReducer, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useReducer, useState } from "react";
 import * as THREE from "three";
 import {
+  fetchAiHealth,
   fetchAssemblyPlan,
   fetchAssemblyPlans,
   fetchIimlDocument,
   fetchStoneMetadata,
   fetchStones,
+  fetchTerms,
   saveAssemblyPlan,
   saveIimlDocument,
   type AssemblyPlanRecord,
+  type IimlDocument,
+  type IimlSource,
+  type SamStatus,
   type StoneListItem,
   type StoneListResponse,
-  type StoneMetadata
+  type StoneMetadata,
+  type VocabularyCategory,
+  type VocabularyTerm
 } from "./api/client";
-import { AnnotationPanel } from "./modules/annotation/AnnotationPanel";
-import { AnnotationToolbar } from "./modules/annotation/AnnotationToolbar";
-import { AnnotationWorkspace } from "./modules/annotation/AnnotationWorkspace";
 import { annotationReducer, initialAnnotationState } from "./modules/annotation/store";
-import { AssemblyPanel } from "./modules/assembly/AssemblyPanel";
-import { AssemblyWorkspace, type AssemblyCameraState } from "./modules/assembly/AssemblyWorkspace";
+import { describeMergeFailure, mergePolygonAnnotations } from "./modules/annotation/merge";
+import type { AnnotationSourceMode } from "./modules/annotation/AnnotationWorkspace";
 import type { AdjustmentAxis, AdjustmentMode } from "./modules/assembly/AssemblyAdjustControls";
+import type { AssemblyCameraState } from "./modules/assembly/AssemblyWorkspace";
 import type { AssemblyDimensions, AssemblyItem, AssemblyTransform } from "./modules/assembly/types";
 import { StoneViewer, type MeasurementResult, type ViewerMode } from "./modules/viewer/StoneViewer";
 import type { ViewCubeView } from "./modules/shared/ViewCube";
+
+// 代码分割：按工作模式懒加载拼接/标注两大区的代码，保持 viewer 首屏同步加载。
+const AssemblyWorkspace = lazy(() =>
+  import("./modules/assembly/AssemblyWorkspace").then((module) => ({ default: module.AssemblyWorkspace }))
+);
+const AssemblyPanel = lazy(() =>
+  import("./modules/assembly/AssemblyPanel").then((module) => ({ default: module.AssemblyPanel }))
+);
+const AnnotationWorkspace = lazy(() =>
+  import("./modules/annotation/AnnotationWorkspace").then((module) => ({ default: module.AnnotationWorkspace }))
+);
+const AnnotationPanel = lazy(() =>
+  import("./modules/annotation/AnnotationPanel").then((module) => ({ default: module.AnnotationPanel }))
+);
+const AnnotationToolbar = lazy(() =>
+  import("./modules/annotation/AnnotationToolbar").then((module) => ({ default: module.AnnotationToolbar }))
+);
 
 type WorkspaceMode = "viewer" | "assembly" | "annotation";
 type BackgroundMode = "black" | "gray" | "white";
@@ -67,6 +89,34 @@ export function App() {
   const [selectedPlanId, setSelectedPlanId] = useState("");
   const [currentPlanId, setCurrentPlanId] = useState<string>();
   const [annotationState, dispatchAnnotation] = useReducer(annotationReducer, initialAnnotationState);
+  // 标注底图来源：默认 3D 模型，可切到高清原图（来自 ai-service /ai/source-image）。
+  // 切到高清图后 SAM 候选与画布显示在同一坐标系，对齐天然准确。
+  const [annotationSourceMode, setAnnotationSourceMode] = useState<AnnotationSourceMode>("model");
+  // 当前是否处于"对齐校准"流程；只是把 activeTool 同步给 toolbar 显示用。
+  const isCalibrating = annotationState.activeTool === "calibrate";
+  const hasAlignment = Boolean(
+    annotationState.doc?.culturalObject &&
+      (annotationState.doc.culturalObject as { alignment?: unknown }).alignment
+  );
+  const [vocabularyCategories, setVocabularyCategories] = useState<VocabularyCategory[]>([]);
+  const [vocabularyTerms, setVocabularyTerms] = useState<VocabularyTerm[]>([]);
+  // AI 服务健康状态；/ai/health 轮询到 sam.ready 就停止，断连则持续重试。
+  const [samStatus, setSamStatus] = useState<SamStatus | undefined>(undefined);
+  // 一旦进入过拼接/标注模式，保持组件 mount，用 CSS 切换可见性，
+  // 避免重建 Three.js / Konva 场景导致 gizmo、相机、TransformControls 链路失效。
+  const [hasEnteredAssembly, setHasEnteredAssembly] = useState(false);
+  const [hasEnteredAnnotation, setHasEnteredAnnotation] = useState(false);
+  const isAssemblyActive = workspaceMode === "assembly";
+  const isAnnotationActive = workspaceMode === "annotation";
+
+  useEffect(() => {
+    if (isAssemblyActive && !hasEnteredAssembly) {
+      setHasEnteredAssembly(true);
+    }
+    if (isAnnotationActive && !hasEnteredAnnotation) {
+      setHasEnteredAnnotation(true);
+    }
+  }, [hasEnteredAnnotation, hasEnteredAssembly, isAnnotationActive, isAssemblyActive]);
 
   useEffect(() => {
     fetchStones()
@@ -77,6 +127,55 @@ export function App() {
         setAddStoneId(firstWithModel?.id ?? "");
       })
       .catch((err: Error) => setError(err.message));
+  }, []);
+
+  useEffect(() => {
+    fetchTerms()
+      .then(({ categories, terms }) => {
+        setVocabularyCategories(categories);
+        setVocabularyTerms(terms);
+      })
+      .catch(() => {
+        setVocabularyCategories([]);
+        setVocabularyTerms([]);
+      });
+  }, []);
+
+  useEffect(() => {
+    let alive = true;
+    let timer: number | undefined;
+    // 指数退避：10s → 20s → 40s，上限 60s；sam.ready 或 error 时直接停止。
+    // 避免 SAM 模型下载慢时前端每 5 秒刷屏 /ai/health。
+    let delay = 10_000;
+    const tick = async () => {
+      try {
+        const health = await fetchAiHealth();
+        if (!alive) {
+          return;
+        }
+        setSamStatus(health.sam);
+        // ready / error 都是终态，不再轮询；error 需要用户介入（装依赖或手放权重）。
+        if (!health.sam || health.sam.ready || health.sam.status === "error") {
+          return;
+        }
+        timer = window.setTimeout(tick, delay);
+        delay = Math.min(delay * 2, 60_000);
+      } catch {
+        if (!alive) {
+          return;
+        }
+        setSamStatus(undefined);
+        timer = window.setTimeout(tick, delay);
+        delay = Math.min(delay * 2, 60_000);
+      }
+    };
+    tick();
+    return () => {
+      alive = false;
+      if (timer !== undefined) {
+        window.clearTimeout(timer);
+      }
+    };
   }, []);
 
   useEffect(() => {
@@ -134,12 +233,6 @@ export function App() {
       setPlanName(createDefaultPlanName());
     }
   }, [planName, workspaceMode]);
-
-  useEffect(() => {
-    if (workspaceMode === "assembly" && assemblyItems.length === 0 && selectedStone?.hasModel) {
-      addAssemblyStone(selectedStone);
-    }
-  }, [assemblyItems.length, selectedStone, workspaceMode]);
 
   useEffect(() => {
     if (selectedStone?.hasModel) {
@@ -372,6 +465,79 @@ export function App() {
     }
   };
 
+  const handleExportIiml = useCallback(() => {
+    const doc = annotationState.doc;
+    if (!doc || !selectedId) {
+      return;
+    }
+    const fileName = `${selectedId}-${formatExportTimestamp()}.iiml.json`;
+    downloadBlob(new Blob([JSON.stringify(doc, null, 2)], { type: "application/json" }), fileName);
+    dispatchAnnotation({ type: "set-status", status: `已导出 ${fileName}` });
+  }, [annotationState.doc, selectedId]);
+
+  const handleExportCsv = useCallback(() => {
+    const doc = annotationState.doc;
+    if (!doc || !selectedId) {
+      return;
+    }
+    const fileName = `${selectedId}-${formatExportTimestamp()}.csv`;
+    downloadBlob(new Blob([buildAnnotationCsv(doc)], { type: "text/csv;charset=utf-8" }), fileName);
+    dispatchAnnotation({ type: "set-status", status: `已导出 ${fileName}` });
+  }, [annotationState.doc, selectedId]);
+
+  // SAM 候选审核：接受 = 标记 approved；拒绝 = 直接删除；重试 = 删除后切回 SAM 工具让用户重点。
+  const handleAcceptCandidate = useCallback((id: string) => {
+    dispatchAnnotation({ type: "update-annotation", id, patch: { reviewStatus: "approved" } });
+  }, []);
+
+  const handleRejectCandidate = useCallback((id: string) => {
+    dispatchAnnotation({ type: "delete-annotation", id });
+  }, []);
+
+  const handleRetryCandidate = useCallback((id: string) => {
+    dispatchAnnotation({ type: "delete-annotation", id });
+    dispatchAnnotation({ type: "set-tool", tool: "sam" });
+  }, []);
+
+  const handleBulkAcceptCandidates = useCallback(() => {
+    const candidates = annotationState.doc?.annotations.filter((a) => a.reviewStatus === "candidate") ?? [];
+    candidates.forEach((annotation) => {
+      dispatchAnnotation({ type: "update-annotation", id: annotation.id, patch: { reviewStatus: "approved" } });
+    });
+  }, [annotationState.doc]);
+
+  const handleBulkRejectCandidates = useCallback(() => {
+    const candidates = annotationState.doc?.annotations.filter((a) => a.reviewStatus === "candidate") ?? [];
+    candidates.forEach((annotation) => {
+      dispatchAnnotation({ type: "delete-annotation", id: annotation.id });
+    });
+  }, [annotationState.doc]);
+
+  // 把选中的候选做几何并集（mergePolygonAnnotations），生成新的合并候选并替换原条目。
+  // 失败原因（少于 2 个 / 跨 frame / 几何不可并集）翻成中文写入 status 提示用户。
+  const handleMergeCandidates = useCallback(
+    (ids: string[]) => {
+      const doc = annotationState.doc;
+      if (!doc || ids.length < 2) {
+        return;
+      }
+      const targets = doc.annotations.filter((annotation) => ids.includes(annotation.id));
+      if (targets.length < 2) {
+        return;
+      }
+      const result = mergePolygonAnnotations(targets);
+      if (!result.ok) {
+        dispatchAnnotation({ type: "set-status", status: describeMergeFailure(result.reason) });
+        return;
+      }
+      ids.forEach((id) => dispatchAnnotation({ type: "delete-annotation", id }));
+      dispatchAnnotation({ type: "add-annotation", annotation: result.annotation });
+      dispatchAnnotation({ type: "select", id: result.annotation.id });
+      dispatchAnnotation({ type: "set-status", status: `已合并 ${targets.length} 个候选` });
+    },
+    [annotationState.doc]
+  );
+
   return (
     <div className="app-shell">
       <header className="topbar">
@@ -410,16 +576,24 @@ export function App() {
       <div className="workspace-grid">
         <aside className="tool-rail" aria-label="工具栏">
           {workspaceMode === "annotation" ? (
-            <AnnotationToolbar
-              activeTool={annotationState.activeTool}
-              canDelete={Boolean(annotationState.selectedAnnotationId)}
-              canRedo={annotationState.redoStack.length > 0}
-              canUndo={annotationState.undoStack.length > 0}
-              onDeleteSelected={deleteSelectedAnnotation}
-              onRedo={() => dispatchAnnotation({ type: "redo" })}
-              onToolChange={(tool) => dispatchAnnotation({ type: "set-tool", tool })}
-              onUndo={() => dispatchAnnotation({ type: "undo" })}
-            />
+            <Suspense fallback={null}>
+              <AnnotationToolbar
+                activeTool={annotationState.activeTool}
+                calibrating={isCalibrating}
+                canDelete={Boolean(annotationState.selectedAnnotationId)}
+                canRedo={annotationState.redoStack.length > 0}
+                canUndo={annotationState.undoStack.length > 0}
+                hasAlignment={hasAlignment}
+                samStatus={samStatus}
+                onCancelCalibration={() => dispatchAnnotation({ type: "set-tool", tool: "select" })}
+                onDeleteSelected={deleteSelectedAnnotation}
+                onRedo={() => dispatchAnnotation({ type: "redo" })}
+                onResetView={() => setResetToken((value) => value + 1)}
+                onStartCalibration={() => dispatchAnnotation({ type: "set-tool", tool: "calibrate" })}
+                onToolChange={(tool) => dispatchAnnotation({ type: "set-tool", tool })}
+                onUndo={() => dispatchAnnotation({ type: "undo" })}
+              />
+            </Suspense>
           ) : (
             <>
               <IconButton title="选择" icon={<MousePointer2 size={18} />} active />
@@ -445,133 +619,165 @@ export function App() {
               onMeasureChange={setMeasurement}
             />
           ) : null}
-          {workspaceMode === "assembly" ? (
-            <AssemblyWorkspace
-              items={assemblyItems}
-              selectedItemId={selectedAssemblyId}
-              adjustmentStep={adjustmentStep}
-              rotationStep={rotationStep}
-              gizmoMode={gizmoMode}
-              resetToken={resetToken}
-              activeView={assemblyView}
-              cameraState={assemblyCameraState}
-              onSelectItem={handleSelectAssemblyItem}
-              onClearSelection={handleClearAssemblySelection}
-              onStepChange={setAdjustmentStep}
-              onRotationStepChange={setRotationStep}
-              onGizmoModeChange={setGizmoMode}
-              onViewChange={setAssemblyView}
-              onAdjust={adjustSelectedStone}
-              onResetSelected={resetSelectedStone}
-              onTransformChange={handleTransformChange}
-              onDimensionsReady={handleDimensionsReady}
-              onCameraStateChange={setAssemblyCameraState}
-            />
+          {hasEnteredAssembly ? (
+            <Suspense fallback={<div className="empty-state">正在加载拼接模块...</div>}>
+              <div className={isAssemblyActive ? "workspace-layer is-active" : "workspace-layer is-hidden"}>
+                <AssemblyWorkspace
+                  active={isAssemblyActive}
+                  items={assemblyItems}
+                  selectedItemId={selectedAssemblyId}
+                  adjustmentStep={adjustmentStep}
+                  rotationStep={rotationStep}
+                  gizmoMode={gizmoMode}
+                  resetToken={resetToken}
+                  activeView={assemblyView}
+                  cameraState={assemblyCameraState}
+                  onSelectItem={handleSelectAssemblyItem}
+                  onClearSelection={handleClearAssemblySelection}
+                  onStepChange={setAdjustmentStep}
+                  onRotationStepChange={setRotationStep}
+                  onGizmoModeChange={setGizmoMode}
+                  onViewChange={setAssemblyView}
+                  onAdjust={adjustSelectedStone}
+                  onResetSelected={resetSelectedStone}
+                  onTransformChange={handleTransformChange}
+                  onDimensionsReady={handleDimensionsReady}
+                  onCameraStateChange={setAssemblyCameraState}
+                />
+              </div>
+            </Suspense>
           ) : null}
-          {workspaceMode === "annotation" && selectedStone ? (
-            <AnnotationWorkspace
-              activeTool={annotationState.activeTool}
-              background={background}
-              doc={annotationState.doc}
-              draftAnnotationId={annotationState.draftAnnotationId}
-              selectedAnnotationId={annotationState.selectedAnnotationId}
-              stone={selectedStone}
-              onCreate={(annotation, asDraft) => dispatchAnnotation({ type: "add-annotation", annotation, asDraft })}
-              onDelete={(id) => dispatchAnnotation({ type: "delete-annotation", id })}
-              onSelect={(id) => dispatchAnnotation({ type: "select", id })}
-              onToolChange={(tool) => dispatchAnnotation({ type: "set-tool", tool })}
-              onUpdate={(id, patch) => dispatchAnnotation({ type: "update-annotation", id, patch })}
-            />
+          {hasEnteredAnnotation && selectedStone ? (
+            <Suspense fallback={<div className="empty-state">正在加载标注模块...</div>}>
+              <div className={isAnnotationActive ? "workspace-layer is-active" : "workspace-layer is-hidden"}>
+                <AnnotationWorkspace
+                  active={isAnnotationActive}
+                  activeTool={annotationState.activeTool}
+                  background={background}
+                  doc={annotationState.doc}
+                  draftAnnotationId={annotationState.draftAnnotationId}
+                  fitToken={resetToken}
+                  selectedAnnotationId={annotationState.selectedAnnotationId}
+                  sourceMode={annotationSourceMode}
+                  stone={selectedStone}
+                  onCreate={(annotation, asDraft) => dispatchAnnotation({ type: "add-annotation", annotation, asDraft })}
+                  onDelete={(id) => dispatchAnnotation({ type: "delete-annotation", id })}
+                  onSaveAlignment={(alignment) => dispatchAnnotation({ type: "set-alignment", alignment })}
+                  onSelect={(id) => dispatchAnnotation({ type: "select", id })}
+                  onSourceModeChange={setAnnotationSourceMode}
+                  onToolChange={(tool) => dispatchAnnotation({ type: "set-tool", tool })}
+                  onUpdate={(id, patch) => dispatchAnnotation({ type: "update-annotation", id, patch })}
+                />
+              </div>
+            </Suspense>
           ) : null}
         </main>
 
         <aside className="side-panel">
-          <CurrentRecord metadata={metadata} stone={selectedStone} />
-
-          {workspaceMode === "viewer" ? (
-            <>
-              <section className="panel-section">
-                <div className="section-title">视图</div>
-                <div className="segmented">
-                  {(Object.keys(viewerModeLabels) as ViewerMode[]).map((mode) => (
-                    <button key={mode} className={viewMode === mode ? "active" : ""} onClick={() => setViewMode(mode)}>
-                      {viewerModeLabels[mode]}
-                    </button>
-                  ))}
-                </div>
-              </section>
-
-              <section className="panel-section">
-                <label className="select-row">
-                  <span>背景</span>
-                  <select value={background} onChange={(event) => setBackground(event.target.value as BackgroundMode)}>
-                    {Object.entries(backgroundLabels).map(([value, label]) => (
-                      <option value={value} key={value}>
-                        {label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              </section>
-
-              <MeasurePanel
-                stone={selectedStone}
-                measuring={measuring}
-                measurement={measurement}
-                onToggle={() => {
-                  setMeasuring((value) => !value);
-                  setMeasurement(undefined);
+          {workspaceMode === "annotation" ? (
+            <Suspense fallback={<section className="panel-section"><p className="muted-text">正在加载标注面板...</p></section>}>
+              <AnnotationPanel
+                doc={annotationState.doc}
+                draftAnnotationId={annotationState.draftAnnotationId}
+                metadata={metadata}
+                selectedAnnotation={selectedAnnotation}
+                vocabularyCategories={vocabularyCategories}
+                vocabularyTerms={vocabularyTerms}
+                onAcceptCandidate={handleAcceptCandidate}
+                onBulkAcceptCandidates={handleBulkAcceptCandidates}
+                onBulkRejectCandidates={handleBulkRejectCandidates}
+                onConfirmDraft={() => {
+                  dispatchAnnotation({ type: "set-draft", id: undefined });
+                  dispatchAnnotation({ type: "set-status", status: "标注已完成" });
                 }}
-                onClear={() => {
-                  setMeasurement(undefined);
-                  setMeasureClearToken((value) => value + 1);
-                }}
+                onDeleteAnnotation={(id) => dispatchAnnotation({ type: "delete-annotation", id })}
+                onExportCsv={handleExportCsv}
+                onExportIiml={handleExportIiml}
+                onMergeCandidates={handleMergeCandidates}
+                onRejectCandidate={handleRejectCandidate}
+                onRetryCandidate={handleRetryCandidate}
+                onSelectAnnotation={(id) => dispatchAnnotation({ type: "select", id })}
+                onUpdateAnnotation={(id, patch) => dispatchAnnotation({ type: "update-annotation", id, patch })}
               />
-
-              <IntroPanel metadata={metadata} />
-            </>
-          ) : workspaceMode === "annotation" ? (
-            <AnnotationPanel
-              doc={annotationState.doc}
-              draftAnnotationId={annotationState.draftAnnotationId}
-              selectedAnnotation={selectedAnnotation}
-              status={annotationState.status}
-              onConfirmDraft={() => {
-                dispatchAnnotation({ type: "set-draft", id: undefined });
-                dispatchAnnotation({ type: "set-status", status: "标注已完成" });
-              }}
-              onDeleteAnnotation={(id) => dispatchAnnotation({ type: "delete-annotation", id })}
-              onSelectAnnotation={(id) => dispatchAnnotation({ type: "select", id })}
-              onUpdateAnnotation={(id, patch) => dispatchAnnotation({ type: "update-annotation", id, patch })}
-            />
+            </Suspense>
           ) : (
-            <AssemblyPanel
-              stones={catalog?.stones ?? []}
-              items={assemblyItems}
-              addStoneId={addStoneId}
-              selectedItemId={selectedAssemblyId}
-              planName={planName}
-              saveStatus={saveStatus}
-              savedPlans={savedPlans}
-              selectedPlanId={selectedPlanId}
-              canSave={assemblyItems.length > 0}
-              canLoadPlan={Boolean(selectedPlanId && catalog)}
-              onAddStoneIdChange={setAddStoneId}
-              onAddStone={handleAddAssemblyStone}
-              onSelectItem={handleSelectAssemblyItem}
-              onRemove={handleRemoveAssemblyItem}
-              onToggleLock={(instanceId) =>
-                setAssemblyItems((items) => items.map((item) => (item.instanceId === instanceId ? { ...item, locked: !item.locked } : item)))
-              }
-              onScaleLongEdge={handleScaleLongEdge}
-              onPlanNameChange={(name) => {
-                setPlanName(name);
-                setCurrentPlanId(undefined);
-              }}
-              onSavePlan={handleSavePlan}
-              onSelectedPlanChange={setSelectedPlanId}
-              onLoadPlan={handleLoadPlan}
-            />
+            <>
+              <CurrentRecord metadata={metadata} stone={selectedStone} />
+
+              {workspaceMode === "viewer" ? (
+                <>
+                  <section className="panel-section">
+                    <div className="section-title">视图</div>
+                    <div className="segmented">
+                      {(Object.keys(viewerModeLabels) as ViewerMode[]).map((mode) => (
+                        <button key={mode} className={viewMode === mode ? "active" : ""} onClick={() => setViewMode(mode)}>
+                          {viewerModeLabels[mode]}
+                        </button>
+                      ))}
+                    </div>
+                  </section>
+
+                  <section className="panel-section">
+                    <label className="select-row">
+                      <span>背景</span>
+                      <select value={background} onChange={(event) => setBackground(event.target.value as BackgroundMode)}>
+                        {Object.entries(backgroundLabels).map(([value, label]) => (
+                          <option value={value} key={value}>
+                            {label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  </section>
+
+                  <MeasurePanel
+                    stone={selectedStone}
+                    measuring={measuring}
+                    measurement={measurement}
+                    onToggle={() => {
+                      setMeasuring((value) => !value);
+                      setMeasurement(undefined);
+                    }}
+                    onClear={() => {
+                      setMeasurement(undefined);
+                      setMeasureClearToken((value) => value + 1);
+                    }}
+                  />
+
+                  <IntroPanel metadata={metadata} />
+                </>
+              ) : (
+                <Suspense fallback={<section className="panel-section"><p className="muted-text">正在加载拼接面板...</p></section>}>
+                  <AssemblyPanel
+                    stones={catalog?.stones ?? []}
+                    items={assemblyItems}
+                    addStoneId={addStoneId}
+                    selectedItemId={selectedAssemblyId}
+                    planName={planName}
+                    saveStatus={saveStatus}
+                    savedPlans={savedPlans}
+                    selectedPlanId={selectedPlanId}
+                    canSave={assemblyItems.length > 0}
+                    canLoadPlan={Boolean(selectedPlanId && catalog)}
+                    onAddStoneIdChange={setAddStoneId}
+                    onAddStone={handleAddAssemblyStone}
+                    onSelectItem={handleSelectAssemblyItem}
+                    onRemove={handleRemoveAssemblyItem}
+                    onToggleLock={(instanceId) =>
+                      setAssemblyItems((items) => items.map((item) => (item.instanceId === instanceId ? { ...item, locked: !item.locked } : item)))
+                    }
+                    onScaleLongEdge={handleScaleLongEdge}
+                    onPlanNameChange={(name) => {
+                      setPlanName(name);
+                      setCurrentPlanId(undefined);
+                    }}
+                    onSavePlan={handleSavePlan}
+                    onSelectedPlanChange={setSelectedPlanId}
+                    onLoadPlan={handleLoadPlan}
+                  />
+                </Suspense>
+              )}
+            </>
           )}
         </aside>
       </div>
@@ -725,6 +931,75 @@ function createDefaultPlanName() {
   const date = now.toLocaleDateString("zh-CN", { month: "2-digit", day: "2-digit" }).replace(/\//gu, "-");
   const time = now.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit", hour12: false });
   return `拼接方案 ${date} ${time}`;
+}
+
+function formatExportTimestamp() {
+  const now = new Date();
+  const pad = (value: number) => String(value).padStart(2, "0");
+  return `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}`;
+}
+
+function downloadBlob(blob: Blob, fileName: string) {
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = fileName;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
+}
+
+// 构造 UTF-8 BOM + CRLF 行的 CSV，方便 Excel / Numbers 直接双击打开并识别编码。
+function buildAnnotationCsv(doc: IimlDocument): string {
+  const header = [
+    "id",
+    "structuralLevel",
+    "label",
+    "preIconographic",
+    "iconographicMeaning",
+    "iconologicalMeaning",
+    "terms",
+    "inscriptionTranscription",
+    "inscriptionTranslation",
+    "inscriptionReadingNote",
+    "sources",
+    "notes"
+  ];
+  const rows = doc.annotations.map((annotation) => [
+    annotation.id,
+    annotation.structuralLevel,
+    annotation.label ?? "",
+    annotation.semantics?.preIconographic ?? "",
+    annotation.semantics?.iconographicMeaning ?? "",
+    annotation.semantics?.iconologicalMeaning ?? "",
+    (annotation.semantics?.terms ?? []).map((term) => term.label).join(" | "),
+    annotation.semantics?.inscription?.transcription ?? "",
+    annotation.semantics?.inscription?.translation ?? "",
+    annotation.semantics?.inscription?.readingNote ?? "",
+    (annotation.sources ?? []).map(stringifyCsvSource).join(" | "),
+    annotation.notes ?? ""
+  ]);
+  const escape = (value: string) => (/[",\r\n]/u.test(value) ? `"${value.replace(/"/gu, '""')}"` : value);
+  const lines = [header.join(","), ...rows.map((row) => row.map(escape).join(","))];
+  return `\ufeff${lines.join("\r\n")}`;
+}
+
+function stringifyCsvSource(source: IimlSource): string {
+  switch (source.kind) {
+    case "metadata":
+      return source.panelIndex !== undefined
+        ? `档案 L${source.layerIndex}·P${source.panelIndex + 1}`
+        : `档案 L${source.layerIndex}`;
+    case "reference":
+      return source.title || source.citation || source.uri || "文献";
+    case "resource":
+      return `资源 ${source.resourceId || ""}`.trim();
+    case "other":
+      return source.text || "其他";
+    default:
+      return "";
+  }
 }
 
 function IconButton({

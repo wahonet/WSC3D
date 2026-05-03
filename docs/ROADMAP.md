@@ -1,102 +1,202 @@
 # 下一步工作计划
 
-> 当前版本：`v0.2.0` —— 浏览 / 拼接 / 标注 三大模块基础可用，标注模块完成"一标注一图层"的简化模型。
+> 当前版本：`v0.3.0` —— 在 v0.2.2（M2 ICON 化）基础上完成 M3 第一波：SAM 标注闭环、多源底图（3D / 高清图）、4 点对齐校准、视图交互一致化。
 > 本文档面向 AI IDE 与协作者，按"近期 → 中期 → 远期"列出下一步要做的工作。
 
 ---
 
-## 0. 当前已交付（截至 v0.2.0）
+## 0. 当前已交付（截至 v0.3.0）
 
-- **浏览模块**：3D / 2D / 正射、视角骰子、测距、背景切换、结构化档案展示。
-- **拼接模块**：最多 10 块同时加载、平移/旋转微调、长边等比缩放、方案 JSON 持久化与重新加载。
-- **标注模块**：
-  - 模型空间 `(u, v) ∈ [0, 1]²` 归一化坐标，标注随相机平移 / 缩放自动跟随。
-  - 5 个工具：选择 / 矩形 / 圆-椭圆 / 点 / 钢笔（双击或回车闭合）。
-  - 矩形与椭圆需拖动出尺寸（≥ 4 像素）才创建，避免误点；创建后自动切回选择并进入草稿态。
-  - 标注本身即图层：每条标注自带颜色、可见、锁定；锁定后整体与四角 handle 都不可拖动。
-  - 详情面板：标签、备注、确定 / 取消 / 删除；保存自动写入 `data/iiml/<stoneId>.iiml.json`。
-  - 浏览模式不再渲染标注覆盖层。
-- **AI 子服务（已实现接口，未在前端启用）**：SAM、YOLO、Canny 三个 FastAPI 路由位于 `ai-service/app/`，模型文件按需加载。
+### 浏览模块
 
----
+- 3D / 2D / 正射，视角骰子，测距（按结构化尺寸自动 cm 校准），背景与光照分档切换。
 
-## 1. 近期（M2，1–2 周）
+### 拼接模块
 
-### 1.1 标注模块完善
+- 最多 10 块同时加载、平移 / 旋转微调（1/5/10 cm 步长，5° / 任意角度）、长边等比缩放、面对面贴合。
+- 方案 JSON 持久化（`data/assembly-plans/`）+ 重命名 / 重新加载。
+- 多石场景下 gizmo 拖动正常（v0.2.1 修复），新加石头不重置相机。
 
-- [ ] **色板自定义**：列表项色块支持点击弹出色卡 popover，提供 8–10 个推荐色与"自定义颜色"。
-- [ ] **批量术语绑定**：详情面板新增"绑定术语"按钮，从 `data/terms.json` 检索并多选。
-- [ ] **关联结构化档案**：详情面板提供"关联到层 / 帧"的下拉，把标注与 Markdown 档案中的 `layer_index` / `panel_index` 对应起来，便于回放和搜索。
-- [ ] **3D 模式气泡叠加**：浏览或拼接模式下显示一个简化的标注气泡叠加，便于演示标注成果（参考 `参考图/2.jpg`）。
-- [ ] **导出 IIML**：恢复"导出 IIML"按钮，但放在更隐蔽的位置（例如菜单），避免在主操作流程中干扰用户。
+### 标注模块
 
-### 1.2 拼接模块
+#### 双源底图（v0.3.0 新增）
 
-- [ ] **AABB 选边吸附**改造：从隐藏的"高级面"重新作为可视化面板（默认折叠），保留对面对齐 + 法线反向贴合算法。
-- [ ] **方案对比**：双方案合并后并排查看 / 切换，便于学术比较。
-- [ ] **导出 GLB**：合并当前拼接结果为单文件 GLB，使用 [glTF-Transform](https://github.com/donmccurdy/glTF-Transform) 处理 Draco / KTX2。
+- 工作区右上角 segmented 切换 **3D 模型 / 高清图**。
+- **3D 模型**：modelBox UV `(u, v) ∈ [0, 1]²`；OrbitControls 处理视图变换。
+- **高清图**：`<img>` + 自维护 ViewState（scale / offsetX / offsetY），滚轮 / 中键 / 右键自带 pan + zoom。后端 `/ai/source-image/{stone_id}` 把 tif 缩放到长边 4096 LANCZOS 后落盘缓存为 PNG。
+- 两种模式下鼠标交互一致：滚轮缩放 + 中键 / 右键拖动平移。
 
-### 1.3 工程
+#### 工具
 
-- [ ] **Vite 代码分割**：当前主 chunk > 1MB，按模块（viewer / assembly / annotation）做动态 import，先把不在当前工作模式下的代码切出来。
-- [ ] **Konva 与 Three 资源回收**：进入和离开标注工作区时显式释放 stage / renderer，避免页面长时间使用后内存增长。
-- [ ] **TypeScript strict 调优**：当前已开启 strict，但 `App.tsx` 还存在少量过宽的 `any` 兜底，整理掉。
+- 选择 / 矩形 / 圆 - 椭圆 / 点 / 钢笔（双击或回车闭合）
+- **SAM 智能分割**：单击对象出多边形候选；高清图直读路径（`stoneId` + MobileSAM ViT-T）+ 当前视角截图回退。
+- **对齐校准**（v0.3.0 新增）：工具栏 `Crosshair` 按钮，"乒乓式" 4 对点采集，标定结果写入 `culturalObject.alignment`。
 
----
+#### 数据模型（IIML / ICON 三层 + 双坐标系）
 
-## 2. 中期（M3，2–4 周）
+- **IIML 文档**：`@context / culturalObject / resources / annotations / relations / processingRuns / provenance`（ajv 校验后落盘到 `data/iiml/<stoneId>.iiml.json`）。
+- **结构层级**：whole / scene / figure / component / trace / inscription / damage / unknown。
+- **图像志三层**：`semantics.preIconographic / iconographicMeaning / iconologicalMeaning`，论文 35 ICON 核心。
+- **题刻条件子面板**：`structuralLevel === "inscription"` 时出现，三段（释文 / 翻译 / 释读注）。
+- **受控术语**：M2 阶段用本地 `WSC3D` 词表，scheme 字段预留 `ICONCLASS / AAT / Wikidata`。
+- **证据源数组**：`metadata`（archive 层 / 帧）/ `reference`（文献）/ `resource`（IIML resources）/ `other`（自由文本）。
+- **审定状态**：`reviewStatus: candidate / reviewed / approved / rejected`，仅在 AI 候选 / 合并场景显示。
+- **frame 字段**（v0.3.0 新增）：每条标注标记 `image | model`，跨 frame 显示通过 4 点单应性矩阵投影。
+- **alignment 字段**（v0.3.0 新增）：`culturalObject.alignment.controlPoints[]` 持久化 4 对对应点。
 
-### 2.1 AI 标注接入
+#### 候选闭环（v0.3.0 新增）
 
-- [ ] **SAM 智能标注**：恢复"SAM 工具"，单击模型 → 截屏 + 点坐标发送到 `/ai/sam`，回写多边形作为草稿；用户在画布上微调后确认。
-  - 使用 MobileSAM / FastSAM 加快本地推理。
-  - 多个 prompt 点累积、box prompt 也接入。
-- [ ] **YOLO 候选检测**：当前接口已接入，但要做"批量审阅"流程：扫描 → 列表展示候选 → 单条 Approve / Reject / Edit → 进入正式标注。
-- [ ] **快速线图（Canny）**：作为可切换的图像层（与原模型 2D 投影互斥），便于辨识浅浮雕的轮廓。
+- 候选 tab + 列表 tab 都支持 checkbox 多选 + "合并选中"按钮。
+- `polygon-clipping` 做几何并集，只保留每个 polygon 的外环（丢孔洞），符合"只保留最外面的边缘"。
+- 合并产物的 reviewStatus 智能继承：任一源是候选 → 候选；否则跟随第一个源（避免已 approved 标注被打回未审）。
 
-### 2.2 知识图谱与术语网络
+### AI 子服务（FastAPI）
 
-- [ ] 在右侧增加"知识图谱"标签页，使用 [Cytoscape.js](https://js.cytoscape.org/) 渲染：
-  - 节点：标注实体；
-  - 边：空间关系（A 在 B 上 / 包含 / 相邻），由几何自动推导一遍 + 人工修订。
-- [ ] **共现推荐**：标注完"西王母"后，自动推荐"玉兔 / 九尾狐 / 三足乌"。
-
-### 2.3 类 Git 版本管理
-
-- [ ] **快照机制**：标注每次"保存"形成一个带 hash + 作者 + 备注的快照，存到 `data/iiml-history/`。
-- [ ] **历史浏览**：右侧面板"历史"标签页列出快照，支持回滚、查看 diff。
+- `/ai/health`：服务健康检查 + SAM 加载状态轮询（pending / downloading / loading / ready / error）。
+- `/ai/sam`：MobileSAM ViT-T 推理；支持 `imageBase64` 截图路径与 `stoneId` 高清图路径。
+- `/ai/source-image/{stone_id}`（v0.3.0 新增）：tif → PNG 转码 + 落盘缓存（`max_edge` 可调，默认 4096）。
+- `/ai/yolo`、`/ai/canny`：占位接口（M3 后续启用）。
 
 ---
 
-## 3. 远期（M4，4 周以上）
+## 1. M2 完成清单（已交付）
 
-- [ ] **多端协作**：可选地把后端 IIML 接口托管到云端（例如 SQLite → PostgreSQL），多用户共编标注并通过 WebSocket 推送。
-- [ ] **导出**：
-  - **PDF 报告**：自动生成画像石+拼接方案+标注摘要的 PDF（含截图）。
-  - **COCO JSON**：导出标注用于目标检测模型训练。
-  - **PNG + Mask**：原图 + 分割 mask，用于语义分割模型训练。
-- [ ] **`.hpsml` 自定义格式**：扩展 IIML，加入拼接方案、知识图谱、术语版本等。
-- [ ] **AI 训练循环**：把审阅过的 SAM / YOLO 结果回流到本地训练数据集，定期 fine-tune。
+> 详见 [`RELEASE_NOTES_v0.2.2.md`](RELEASE_NOTES_v0.2.2.md) 与 [`THINKING_m2.md`](THINKING_m2.md)。
+
+### 1.1 标注详情面板 ICON 化
+
+- [x] **A. 色板自定义**：列表色块 popover，10 个推荐色 + HTML5 拾色器。
+- [x] **G. 结构层级下拉**：8 档枚举，IIML schema 原生字段。
+- [x] **H. 图像志三层文本**：preIconographic / iconographicMeaning / iconologicalMeaning + notes 备注（自由文字、不参与 IIML 语义导出）。
+- [x] **B. 受控术语多选**：`/api/terms` 检索 + chip 多选 + 自定义术语；scheme 字段预留外部词表。
+- [x] **C. 证据源数组**：4 种 kind 判别联合；`metadata` kind 直接读取 `/api/stones/:id/metadata` 的 layers / panels。
+- [x] **D. 导出 IIML**：状态区右上角下载按钮，浏览器 `Blob + URL.createObjectURL` 一键下载。
+
+### 1.2 工程小修
+
+- [x] **代码分割**：`AssemblyWorkspace / AssemblyPanel / AnnotationWorkspace / AnnotationPanel / AnnotationToolbar` 改为 `React.lazy + <Suspense>`；主 chunk 从 > 1MB 降到 ~ 800KB（gzip ~245KB）。
+- [x] **资源回收**：AnnotationCanvas 卸载时显式 `stage.destroy()`；StoneViewer 的 disposeMaterial 扩展 12 个贴图 slot。
+
+---
+
+## 2. M3 — AI 标注接入与多解释（进行中）
+
+### 2.1 SAM 智能分割（已完成 v0.3.0）
+
+- [x] **阶段 1**：MobileSAM ViT-T 启动时自动从 GitHub 拉取权重（`weights/mobile_sam.pt`）；单点 prompt；OpenCV Canny fallback。
+- [x] **阶段 2**：高清图直读路径（`stoneId` + 后端 PIL 解码 + tif→PNG 转码缓存）；前后端 v 轴方向统一；多 mask 候选启发式（丢面积 > 50% 的"场景级"大块、必须包含 prompt 点、选最紧凑那个）。
+- [x] **候选合并**（polygon union）：候选 / 列表两个 tab 都支持。
+- [ ] **阶段 3**：多 prompt 点累积（含负点）+ box prompt；处理运行记录写入 IIML `processingRuns`。
+
+### 2.2 多源底图与对齐校准（已完成 v0.3.0）
+
+- [x] **3D 模型 / 高清图**双底图切换。
+- [x] **4 点单应性对齐校准**：`culturalObject.alignment` + 跨 frame 标注按 H 矩阵投影显示。
+- [ ] **更精细的对齐**：4 点扩展到 N 点（≥ 4），用 SVD 而不是 8 元 DLT 求解，提升标定精度；当前 4 点对小型不规则画像石已足够。
+- [ ] **跨 frame 标注就地编辑**：当前跨 frame 标注只能查看，需要切回原 frame 编辑。如确有研究流程上的需要（如在 3D 上拖动一个图坐标系标注），再加反向投影路径。
+
+### 2.3 YOLO 候选检测
+
+- [ ] **批量审阅流程**：扫描 → 列表展示候选 → 单条 Approve / Reject / Edit → 进入正式标注。
+- [ ] **类别从高价值 5–6 个开始**（论文 24）：人物、车马、鸟兽、建筑、礼器。
+- [ ] **类别置信度阈值**：UI 暴露调整滑杆，避免一次倾倒大量低置信度候选。
+
+### 2.4 AI 线图
+
+- [ ] **Canny 线图层**：作为可切换的图像层（与 3D / 高清图互斥），便于辨识浅浮雕轮廓。
+- [ ] **Relic2Contour / 论文 25**：当其变成成熟开源模型后接入；当前先占位。
+- [ ] **风格化线图严格审核**（论文 34 LoRA 扩散）：所有 AI 线图标记为 candidate，必须人工确认才进入 IIML。
+
+### 2.5 多解释并存与标注间关系
+
+- [ ] **多解释并存**：同一区域可保留不同研究者的释读，用 `relations.alternativeInterpretationOf` 表达。
+- [ ] **叙事关系**：`holds / rides / attacks / partOf / contains` 等受控谓词，UI 用拖拽连线 + 关系类型选择器。
+- [ ] **空间关系自动推导**：`above / below / leftOf / rightOf / overlaps` 由几何自动判定，作为知识图谱的边。
+
+### 2.6 知识图谱可视化
+
+- [ ] 右侧增加"知识图谱" tab，[Cytoscape.js](https://js.cytoscape.org/) 渲染节点 / 边图。节点点击 → 画布上高亮对应标注。
+- [ ] **共现推荐**：标注完"西王母"后，自动推荐"玉兔 / 九尾狐 / 三足乌"等共现术语。
+- [ ] **关系筛选 / 高亮**：选某个关系类型时，只显示对应的边。
+
+### 2.7 类 Git 版本管理（可选，待评估）
+
+- [ ] 标注每次保存形成快照（hash + 作者 + 备注），存入 `data/iiml-history/`。
+- [ ] 历史 tab 列出快照，支持回滚 / 查看 diff。
+
+> 是否需要版本管理取决于实际研究流程，待用户判断后再排期。
+
+---
+
+## 3. M4 — 多源资源与导出
+
+### 3.1 多源资源版本切换
+
+- [ ] **一对象多资源**：同一 `culturalObject` 下挂多份 `resources`（原图 / RTI / 拓片 / 线图 / 法线图 / 网格）。
+- [ ] **画布资源切换 UI**：在右上角"底图切换条"基础上扩展为多选项，标注 `resourceId` 绑定到具体版本。
+- [ ] **跨版本坐标变换**：`coordinateSystem.transform` 字段，所有版本最终归一到一个统一坐标空间。
+- [ ] **资源元数据**：拍摄方式、设备、分辨率、采集者，便于研究溯源。
+
+### 3.2 导出格式扩展
+
+- [ ] **IIIF Web Annotation**：与外部文物平台互操作。
+- [ ] **COCO JSON**：用于目标检测模型训练。
+- [ ] **PNG + Mask**：原图 + 分割 mask，用于语义分割训练。
+- [ ] **`.hpsml` 自定义研究包**：扩展 IIML，加入拼接方案、知识图谱、术语版本快照等，作为"研究档案完整包"。
+
+### 3.3 数据交换与协作
+
+- [ ] **导入 / 合并外部 IIML**：检测同 ID 标注差异，UI 展示三方合并。
+- [ ] **多用户多解释合并**：基于 IIML `provenance.author` 字段，多研究者数据可叠加查看。
 
 ---
 
 ## 4. 已知问题与技术债
 
-- 浏览模式 3D 视图下没有标注气泡叠加（M2 加上）。
-- 标注画布在窗口大小剧烈变化时偶发 1 帧错位，用 `ResizeObserver` 而非 RAF 应该可以缓解。
-- 钢笔工具尚未支持贝塞尔控制柄（v3）。
-- 当前 IIML 文档中的 `culturalObject.dimensions` 字段是从 metadata 注入，未来需要与"拼接方案"中的真实拼接尺寸合并。
-- 旧 IIML 文档中的 `layers` 字段在保存时会被剥离，老用户首次保存后会失去图层名称信息（颜色按调色板重新分配）。
+### 设计取舍（不算 bug）
+
+- 跨 frame 标注暂不支持就地编辑（v0.3.0 设计取舍）。用户需要切回原 frame 编辑。
+- 候选合并目前只取每个多边形的外环，带孔（甜甜圈形状）的合并候选孔洞会被自动填掉。
+- 单应性变换假设 4 点对应大致正向矩形且不严格共线；极端共线 / 退化时跨 frame 渲染整体跳过 + 提示重新校准。
+
+### 技术债
+
+- 标注画布在窗口大小剧烈变化时偶发 1 帧错位（v0.2.1 已记录）。
+- 钢笔工具尚未支持贝塞尔控制柄。
+- 主 chunk 仍 > 600 KB，原因是 Three.js + StoneViewer 随 viewer 首屏同步加载。
+- 当前 IIML 文档中的 `culturalObject.dimensions` 字段从 metadata 注入，未来需要与"拼接方案"中的真实拼接尺寸合并。
+
+### 数据兼容
+
+- 旧 IIML 文档没有 `frame` 字段：渲染时按 `"model"` 处理，与历史行为一致。
+- 旧 IIML 文档没有 `alignment`：跨 frame 标注被自动隐藏并提示，不会错位显示。
+- 旧 IIML 文档中的 `layers` 字段在加载时会被剥离（v0.2.0 已迁移完成）。
 
 ---
 
-## 5. 与示例 PPT 的对照
+## 5. 已废弃 / 不再做的方向
 
-| 示例图功能 | 当前状态 | 后续计划 |
-| --- | --- | --- |
-| SAM / 矩形 / 钢笔 三种标注工具 | 矩形 / 圆 / 点 / 钢笔 已实现，SAM 接口待接入 | M3-2.1 |
-| 多维度术语气泡 | 在 2D 标注画布显示形状，气泡 / 浏览模式叠加 | M2-1.1 |
-| 受控术语库 Tab | 后端接口已就绪 (`/api/terms`)，前端 UI 待接入 | M2-1.1 |
-| 知识图谱 | 未实现 | M3-2.2 |
-| 类 Git 版本管理 | 未实现 | M3-2.3 |
-| `.iiml` 格式导出 | 文档已按 IIML 结构存储，导出按钮暂时隐藏 | M2-1.1 |
+| 方向 | 原计划 | 决策 | 理由 |
+| --- | --- | --- | --- |
+| 3D 模式气泡叠加 | 浏览 / 拼接模式上叠加标注气泡 | 不做 | 与"标注内容只在标注模块出现"原则冲突；演示需求改用导出截图替代。 |
+| 拼接 AABB 选边吸附 UI 化 | 高级吸附面板默认折叠 | 暂缓 | 当前用平移 / 旋转 / 长边缩放已够用；如未来需要再单独评估。 |
+| 拼接方案对比 | 双方案并排查看 / 切换 | 暂缓 | 实际研究中很少同时持有两个方案。 |
+| 拼接合并导出 GLB | 当前拼接合并成单文件 GLB | 暂缓 | 文件体积大、收益低；优先做 IIML 学术导出。 |
+| 标注审定流程的全局开关 | candidate / reviewed / approved / rejected 出现在主流程 | 不做 | 仅在 AI 候选 / 合并场景下出现，纯手工标注不显示。 |
+| 高清图 PNG 进版本库 | 把 pic/ 转码后的 PNG 提交 | 不做 | 单文件 30+ MB，转码缓存逻辑已稳定，按需重生成即可。 |
+
+---
+
+## 6. 与论文 / 规范的对照
+
+| 来源 | 提示 | 对应工作 | 状态 |
+| --- | --- | --- | --- |
+| 论文 35 ICON Ontology | 三层解释 + 多解释并存 + 证据资源 | M2-1.1 H/B/C；多解释 M3-2.5 | 三层 ✓；多解释待做 |
+| 论文 24 YOLO | 仅作 candidate，类别先聚焦高价值 5-6 个 | M3-2.3 | 待做 |
+| 论文 25 Relic2Contour | AI 线图区分候选 / 确认 / 废弃 | M3-2.4 | 待做 |
+| 论文 26 点云线图 | 几何线图与图像边缘线图互补 | M3-2.4 + M4 资源版本 | 待做 |
+| 论文 34 扩散 LoRA 线图 | 风格化线图严格人工审核 | M3-2.4 | 待做 |
+| IIML schema | resource / annotation / relation / processingRun | M2 + M3 全程 | annotation ✓；relation / processingRun 待做 |
+| 知识库 §三元数据架构 | resource / annotation / script 三层分离 | M2 起始落地 | annotation ✓ |
+| **新**：论文 / 规范以外的工程产物 | 4 点单应性对齐 | M3-2.2 | ✓（v0.3.0） |
+| **新**：候选合并 | polygon-clipping union | M3-2.1 | ✓（v0.3.0） |

@@ -70,6 +70,27 @@ export type IimlGeometry =
 export type IimlStructuralLevel = "whole" | "scene" | "figure" | "component" | "trace" | "inscription" | "damage" | "unknown";
 export type IimlReviewStatus = "candidate" | "reviewed" | "approved" | "rejected";
 
+// 标注所处坐标系：3D 模型 modelBox UV 或高清图自身归一化坐标。
+// 历史标注无该字段时默认按 "model" 处理（向后兼容）。
+export type IimlAnnotationFrame = "image" | "model";
+
+// 3D 模型 / 高清图坐标系之间的 4 点单应性标定。
+// controlPoints 至少 4 对，按用户采集顺序存储，渲染时用 4 个点解 3×3 矩阵。
+export type IimlAlignmentControlPoint = {
+  modelUv: [number, number];
+  imageUv: [number, number];
+};
+
+export type IimlAlignment = {
+  version: 1;
+  calibratedAt: string;
+  calibratedBy?: string;
+  controlPoints: IimlAlignmentControlPoint[];
+  // 标定时高清图的原始尺寸；若以后高清图被重新缩放/裁剪，可作为校验依据。
+  imageNaturalSize?: [number, number];
+  notes?: string;
+};
+
 export type IimlTermRef = {
   id: string;
   label: string;
@@ -77,19 +98,34 @@ export type IimlTermRef = {
   role?: string;
 };
 
+// 证据源：用 kind 区分 metadata / reference / resource / other 四种；
+// M2 只启用 metadata（结构化档案层/帧）和 reference（文献），
+// resource 留给 M3 一对象多资源，other 兜底自由文本。
+export type IimlSource =
+  | { kind: "metadata"; layerIndex: number; panelIndex?: number; note?: string }
+  | { kind: "reference"; title?: string; uri?: string; citation?: string }
+  | { kind: "resource"; resourceId: string; note?: string }
+  | { kind: "other"; text: string };
+
 export type IimlAnnotation = {
   id: string;
   type?: "Annotation";
   resourceId: string;
   target: IimlGeometry;
+  // 标注几何坐标所在的参考系。缺省视作 "model"，与历史数据兼容。
+  frame?: IimlAnnotationFrame;
   structuralLevel: IimlStructuralLevel;
   label?: string;
   color?: string;
+  // 标注填充区域的透明度 0..1；描边始终用 color 不透明。默认 0.15。
+  opacity?: number;
   visible?: boolean;
   locked?: boolean;
   semantics?: {
     name?: string;
     description?: string;
+    // 前图像志：可见对象纯描述，论文 35 ICON 三层中的第一层。
+    preIconographic?: string;
     iconographicMeaning?: string;
     iconologicalMeaning?: string;
     inscription?: {
@@ -100,6 +136,7 @@ export type IimlAnnotation = {
     terms?: IimlTermRef[];
     attributes?: Record<string, string | number | boolean | null>;
   };
+  sources?: IimlSource[];
   contains?: IimlAnnotation[];
   partOf?: string;
   confidence?: number;
@@ -256,7 +293,22 @@ export async function fetchTerms(): Promise<{ categories: VocabularyCategory[]; 
   return response.json();
 }
 
-export async function fetchAiHealth(): Promise<{ ok: boolean; service?: string }> {
+export type SamStatus = {
+  ready: boolean;
+  // pending | downloading | loading | ready | error
+  status: "pending" | "downloading" | "loading" | "ready" | "error";
+  model: string;
+  detail: string;
+};
+
+export type AiHealthResponse = {
+  ok: boolean;
+  service?: string;
+  features?: string[];
+  sam?: SamStatus;
+};
+
+export async function fetchAiHealth(): Promise<AiHealthResponse> {
   const response = await fetch("/ai/health");
   if (!response.ok) {
     throw new Error("ai_service_unavailable");
@@ -264,10 +316,39 @@ export async function fetchAiHealth(): Promise<{ ok: boolean; service?: string }
   return response.json();
 }
 
+// 高清图 PNG 端点：后端会把 pic/ 下的 tif 解码并缩放到指定长边后落盘缓存，
+// 浏览器直接 <img src=...> 即可。HEAD 请求可用来探测某块画像石是否配了高清图。
+export function getSourceImageUrl(stoneId: string, maxEdge = 4096): string {
+  return `/ai/source-image/${encodeURIComponent(stoneId)}?max_edge=${maxEdge}`;
+}
+
+export async function probeSourceImage(stoneId: string): Promise<boolean> {
+  try {
+    const response = await fetch(getSourceImageUrl(stoneId), { method: "HEAD" });
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
+export type SamSegmentationResponse = {
+  polygons: Array<IimlPoint[]>;
+  confidence: number;
+  model: string;
+  // 响应坐标系：旧截图路径返回图像归一化（y 向下），需要前端再做 screenToUV；
+  // 高清图路径返回 modelBox-uv（v 向下，与屏幕/图像坐标一致），前端可以直接当 UV 用。
+  coordinateSystem?: "image-normalized" | "modelbox-uv";
+  sourceMode?: "screenshot" | "source";
+  sourceImage?: string;
+  sourceSize?: [number, number];
+  error?: string;
+  warning?: string;
+};
+
 export async function runSamSegmentation(payload: {
   imageBase64: string;
   prompts: Array<{ type: "point"; x: number; y: number; label: 0 | 1 } | { type: "box"; bbox: [number, number, number, number] }>;
-}): Promise<{ polygons: Array<IimlPoint[]>; confidence: number; model: string }> {
+}): Promise<SamSegmentationResponse> {
   const response = await fetch("/ai/sam", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -275,6 +356,27 @@ export async function runSamSegmentation(payload: {
   });
   if (!response.ok) {
     throw new Error(`SAM 标注失败：${response.status}`);
+  }
+  return response.json();
+}
+
+// 高清图路径：让后端根据 stoneId 去 pic/ 目录找对应原图。
+// prompt 点 / 响应 polygon 都用 modelBox UV（v 向下，与屏幕坐标一致），
+// 后端不再做 y 翻转，前端直接把 polygon 当 UV 渲染。
+export async function runSamSegmentationBySource(payload: {
+  stoneId: string;
+  prompts: Array<
+    | { type: "point_uv"; u: number; v: number; label: 0 | 1 }
+    | { type: "box_uv"; bbox_uv: [number, number, number, number] }
+  >;
+}): Promise<SamSegmentationResponse> {
+  const response = await fetch("/ai/sam", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+  if (!response.ok) {
+    throw new Error(`SAM 高清图标注失败：${response.status}`);
   }
   return response.json();
 }

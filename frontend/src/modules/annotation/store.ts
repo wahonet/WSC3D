@@ -1,4 +1,4 @@
-import type { AnnotationAction, AnnotationState, IimlAnnotation, IimlDocument } from "./types";
+import type { AnnotationAction, AnnotationState, IimlAlignment, IimlAnnotation, IimlDocument } from "./types";
 
 const maxHistory = 40;
 
@@ -99,6 +99,22 @@ export function annotationReducer(state: AnnotationState, action: AnnotationActi
       );
       return wasDraft ? { ...next, draftAnnotationId: undefined } : next;
     }
+    case "set-alignment": {
+      // alignment 落在 culturalObject 下；undefined 表示清除已有标定。
+      return updateDoc(
+        state,
+        (doc) => {
+          const culturalObject = { ...(doc.culturalObject ?? {}) } as Record<string, unknown>;
+          if (action.alignment) {
+            culturalObject.alignment = action.alignment;
+          } else {
+            delete culturalObject.alignment;
+          }
+          return { ...doc, culturalObject };
+        },
+        state.selectedAnnotationId
+      );
+    }
     case "undo": {
       const previous = state.undoStack.at(-1);
       if (!previous || !state.doc) {
@@ -150,4 +166,28 @@ function updateDoc(
 
 export function cloneDoc(doc: IimlDocument): IimlDocument {
   return JSON.parse(JSON.stringify(doc)) as IimlDocument;
+}
+
+/**
+ * 从 IIML 文档中取出 alignment，校验最小字段后返回；缺失或字段不完整时返回 undefined。
+ * 渲染层和标定流程都通过该函数取数据，避免到处写防御代码。
+ */
+export function getAlignment(doc: IimlDocument | undefined): IimlAlignment | undefined {
+  const raw = doc?.culturalObject && (doc.culturalObject as Record<string, unknown>).alignment;
+  if (!raw || typeof raw !== "object") {
+    return undefined;
+  }
+  const candidate = raw as Partial<IimlAlignment>;
+  if (!Array.isArray(candidate.controlPoints) || candidate.controlPoints.length < 4) {
+    return undefined;
+  }
+  for (const point of candidate.controlPoints) {
+    if (
+      !Array.isArray(point.modelUv) || point.modelUv.length !== 2 ||
+      !Array.isArray(point.imageUv) || point.imageUv.length !== 2
+    ) {
+      return undefined;
+    }
+  }
+  return candidate as IimlAlignment;
 }

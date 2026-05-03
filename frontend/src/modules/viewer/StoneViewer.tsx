@@ -27,6 +27,8 @@ export type ScreenProjection = {
 };
 
 type StoneViewerProps = {
+  // 父级以 CSS 隐藏时传 false，暂停 render loop 省 GPU。默认 true 保持向后兼容。
+  active?: boolean;
   stone: StoneListItem;
   viewMode: ViewerMode;
   background: "black" | "gray" | "white";
@@ -34,6 +36,8 @@ type StoneViewerProps = {
   measureToken?: number;
   cubeView?: ViewCubeView;
   hideHud?: boolean;
+  // 值变化就把相机 fit 回当前 cubeView；给 SAM 场景用来提供稳定输入视角。
+  fitToken?: number;
   onCubeViewChange?: (view: ViewCubeView) => void;
   onMeasureChange?: (result: MeasurementResult | undefined) => void;
   onProjectionReady?: (projection: ProjectionState) => void;
@@ -50,6 +54,7 @@ const tmpVec = new THREE.Vector3();
 const tmpVecB = new THREE.Vector3();
 
 export function StoneViewer({
+  active = true,
   stone,
   viewMode,
   background,
@@ -57,11 +62,13 @@ export function StoneViewer({
   measureToken = 0,
   cubeView = "front",
   hideHud = false,
+  fitToken = 0,
   onCubeViewChange,
   onMeasureChange,
   onProjectionReady,
   onScreenProjectionChange
 }: StoneViewerProps) {
+  const activeRef = useRef(active);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const sceneRef = useRef<THREE.Scene | undefined>(undefined);
   const rendererRef = useRef<THREE.WebGLRenderer | undefined>(undefined);
@@ -86,6 +93,10 @@ export function StoneViewer({
   const [progress, setProgress] = useState(0);
   const [status, setStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [pointCount, setPointCount] = useState(0);
+
+  useEffect(() => {
+    activeRef.current = active;
+  }, [active]);
 
   useEffect(() => {
     measuringRef.current = measuring;
@@ -398,6 +409,11 @@ export function StoneViewer({
       if (disposed) {
         return;
       }
+      // 隐藏时跳过更新与 render，激活后下一帧自动恢复。
+      if (!activeRef.current) {
+        requestAnimationFrame(animate);
+        return;
+      }
       controls.update();
       const camera = activeCameraRef.current ?? perspectiveCamera;
       renderer.render(scene, camera);
@@ -490,6 +506,22 @@ export function StoneViewer({
     }
     clearMeasurement();
   }, [measureToken, measuring, clearMeasurement]);
+
+  // 外部点"重置视角"时 fitToken 变化：让相机回到当前 cubeView 的 fit 状态，
+  // SAM 场景下把画像石居中并留出背景边缘，显著提升识别率。
+  useEffect(() => {
+    if (!fitToken) {
+      return;
+    }
+    const perspective = perspectiveCameraRef.current;
+    const orthographic = orthographicCameraRef.current;
+    const controls = controlsRef.current;
+    if (!perspective || !orthographic || !controls || !modelRef.current) {
+      return;
+    }
+    snapCameraToView(cubeViewRef.current, perspective, orthographic, controls, modelBoxRef.current, viewModeRef.current);
+    emitScreenProjection();
+  }, [emitScreenProjection, fitToken]);
 
   useEffect(() => {
     if (!measuring) {
@@ -686,6 +718,32 @@ function fitModel(
   }
 }
 
+// 常见贴图 slot，material.dispose 并不会连带回收 texture，需要显式调用。
+const textureSlots = [
+  "map",
+  "alphaMap",
+  "aoMap",
+  "bumpMap",
+  "displacementMap",
+  "emissiveMap",
+  "envMap",
+  "lightMap",
+  "metalnessMap",
+  "normalMap",
+  "roughnessMap",
+  "specularMap"
+] as const;
+
+function disposeMaterial(material: THREE.Material) {
+  for (const slot of textureSlots) {
+    const texture = (material as unknown as Record<string, THREE.Texture | null | undefined>)[slot];
+    if (texture && typeof texture.dispose === "function") {
+      texture.dispose();
+    }
+  }
+  material.dispose();
+}
+
 function disposeObject(object3d: THREE.Object3D) {
   object3d.traverse((object) => {
     const mesh = object as THREE.Mesh;
@@ -693,9 +751,9 @@ function disposeObject(object3d: THREE.Object3D) {
       mesh.geometry.dispose();
     }
     if (Array.isArray(mesh.material)) {
-      mesh.material.forEach((material) => material.dispose());
+      mesh.material.forEach(disposeMaterial);
     } else if (mesh.material) {
-      mesh.material.dispose();
+      disposeMaterial(mesh.material);
     }
   });
 }

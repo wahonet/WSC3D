@@ -22,16 +22,48 @@ export type IimlTermRef = {
   role?: string;
 };
 
+// 证据源：与前端 IimlSource 保持同构，kind 判别四种来源。
+export type IimlSource =
+  | { kind: "metadata"; layerIndex: number; panelIndex?: number; note?: string }
+  | { kind: "reference"; title?: string; uri?: string; citation?: string }
+  | { kind: "resource"; resourceId: string; note?: string }
+  | { kind: "other"; text: string };
+
+// 标注所处坐标系；缺省 "model" 兼容历史数据。
+export type IimlAnnotationFrame = "image" | "model";
+
+export type IimlAlignmentControlPoint = {
+  modelUv: [number, number];
+  imageUv: [number, number];
+};
+
+export type IimlAlignment = {
+  version: 1;
+  calibratedAt: string;
+  calibratedBy?: string;
+  controlPoints: IimlAlignmentControlPoint[];
+  imageNaturalSize?: [number, number];
+  notes?: string;
+};
+
 export type IimlAnnotation = {
   id: string;
   type?: "Annotation";
   resourceId: string;
   target: IimlGeometry;
+  frame?: IimlAnnotationFrame;
   structuralLevel: "whole" | "scene" | "figure" | "component" | "trace" | "inscription" | "damage" | "unknown";
   label?: string;
+  color?: string;
+  // 标注填充区域的透明度 0..1；描边不透明。默认 0.15。
+  opacity?: number;
+  visible?: boolean;
+  locked?: boolean;
   semantics?: {
     name?: string;
     description?: string;
+    // 前图像志：可见对象纯描述，论文 35 ICON 三层的第一层。
+    preIconographic?: string;
     iconographicMeaning?: string;
     iconologicalMeaning?: string;
     inscription?: {
@@ -42,6 +74,7 @@ export type IimlAnnotation = {
     terms?: IimlTermRef[];
     attributes?: Record<string, string | number | boolean | null>;
   };
+  sources?: IimlSource[];
   contains?: IimlAnnotation[];
   partOf?: string;
   confidence?: number;
@@ -57,6 +90,7 @@ export type IimlAnnotation = {
   createdBy?: string;
   createdAt?: string;
   updatedAt?: string;
+  updatedBy?: string;
   notes?: string;
 };
 

@@ -8,6 +8,9 @@ import { AssemblyAdjustControls, type AdjustmentAxis, type AdjustmentMode } from
 import { ViewCube, type ViewCubeView } from "../shared/ViewCube";
 
 type AssemblyWorkspaceProps = {
+  // 当父级以 CSS 隐藏工作区时传 false，暂停 Three.js render loop，
+  // 避免后台 GPU 空转；重新激活时立刻 resize + render。
+  active?: boolean;
   items: AssemblyItem[];
   selectedItemId: string;
   adjustmentStep: number;
@@ -53,6 +56,7 @@ export type AssemblyCameraState = {
 const gridGroundY = -80;
 
 export function AssemblyWorkspace({
+  active = true,
   items,
   selectedItemId,
   adjustmentStep,
@@ -97,9 +101,14 @@ export function AssemblyWorkspace({
   const isDraggingRef = useRef(false);
   const clickStartRef = useRef<{ x: number; y: number } | undefined>(undefined);
   const loaderRef = useRef(new GLTFLoader());
+  const activeRef = useRef(active);
   const [loadingCount, setLoadingCount] = useState(0);
   const [readyItemIds, setReadyItemIds] = useState<Set<string>>(() => new Set());
   const isModelReady = readyItemIds.has(selectedItemId);
+
+  useEffect(() => {
+    activeRef.current = active;
+  }, [active]);
 
   useEffect(() => {
     selectedItemIdRef.current = selectedItemId;
@@ -259,6 +268,11 @@ export function AssemblyWorkspace({
 
     const animate = () => {
       if (disposed) {
+        return;
+      }
+      // 隐藏工作区时跳过更新与 render，省 GPU；保持 RAF 以便重新激活时立刻响应。
+      if (!activeRef.current) {
+        requestAnimationFrame(animate);
         return;
       }
       controls.update();

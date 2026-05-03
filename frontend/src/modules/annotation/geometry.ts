@@ -1,5 +1,6 @@
 import type {
   IimlAnnotation,
+  IimlAnnotationFrame,
   IimlGeometry,
   IimlPoint,
   IimlReviewStatus,
@@ -16,6 +17,7 @@ export function createAnnotationFromGeometry({
   label,
   structuralLevel = "unknown",
   reviewStatus = "reviewed",
+  frame = "model",
   generation
 }: {
   geometry: IimlGeometry;
@@ -24,6 +26,9 @@ export function createAnnotationFromGeometry({
   label?: string;
   structuralLevel?: IimlStructuralLevel;
   reviewStatus?: IimlReviewStatus;
+  // 标注创建时所在的坐标系。SAM/手绘工具应传入当前画布的 sourceMode，
+  // 这样跨 frame 显示和保存时坐标系信息不会丢。
+  frame?: IimlAnnotationFrame;
   generation?: IimlAnnotation["generation"];
 }): IimlAnnotation {
   const now = new Date().toISOString();
@@ -33,6 +38,7 @@ export function createAnnotationFromGeometry({
     type: "Annotation",
     resourceId,
     target: geometry,
+    frame,
     structuralLevel,
     label: label ?? defaultLabel(geometry.type),
     color,
@@ -182,6 +188,79 @@ export function screenToUV(point: { x: number; y: number }, projection: Projecti
 
 export function projectGeometryToScreen(geometry: IimlGeometry, projection: ProjectionContext) {
   return flattenUVs(geometry).map((uv) => uvToScreen(uv, projection));
+}
+
+/**
+ * 用一个 UV → UV 的纯函数把 geometry 的所有顶点重映射到新坐标系。
+ * 用于跨 frame 显示（model ↔ image）。变换函数返回 undefined 时整体放弃，
+ * 调用方应跳过该 geometry 的渲染（避免把单点漏算导致形状错乱）。
+ */
+export function mapGeometryUVs(
+  geometry: IimlGeometry,
+  map: (uv: UV) => UV | undefined
+): IimlGeometry | undefined {
+  let aborted = false;
+  const apply = (point: number[]): IimlPoint | undefined => {
+    const transformed = map({ u: Number(point[0] ?? 0), v: Number(point[1] ?? 0) });
+    if (!transformed) {
+      aborted = true;
+      return undefined;
+    }
+    return [clamp01(transformed.u), clamp01(transformed.v), point[2] ?? 0] as IimlPoint;
+  };
+
+  if (geometry.type === "BBox") {
+    const [minU, minV, maxU, maxV] = geometry.coordinates;
+    const corners = [
+      { u: minU, v: minV },
+      { u: maxU, v: minV },
+      { u: maxU, v: maxV },
+      { u: minU, v: maxV }
+    ].map(map);
+    if (corners.some((point) => !point)) {
+      return undefined;
+    }
+    const us = corners.map((point) => clamp01(point!.u));
+    const vs = corners.map((point) => clamp01(point!.v));
+    return {
+      type: "BBox",
+      coordinates: [Math.min(...us), Math.min(...vs), Math.max(...us), Math.max(...vs)]
+    };
+  }
+  if (geometry.type === "Point") {
+    const next = apply(geometry.coordinates);
+    if (!next || aborted) {
+      return undefined;
+    }
+    return { type: "Point", coordinates: next };
+  }
+  if (geometry.type === "LineString") {
+    const next = geometry.coordinates.map(apply);
+    if (aborted || next.some((point) => !point)) {
+      return undefined;
+    }
+    return { type: "LineString", coordinates: next as IimlPoint[] };
+  }
+  if (geometry.type === "Polygon") {
+    const rings = geometry.coordinates.map((ring) => ring.map(apply));
+    if (aborted || rings.some((ring) => ring.some((point) => !point))) {
+      return undefined;
+    }
+    return { type: "Polygon", coordinates: rings.map((ring) => ring as IimlPoint[]) };
+  }
+  if (geometry.type === "MultiPolygon") {
+    const polygons = geometry.coordinates.map((polygon) =>
+      polygon.map((ring) => ring.map(apply))
+    );
+    if (aborted || polygons.some((polygon) => polygon.some((ring) => ring.some((point) => !point)))) {
+      return undefined;
+    }
+    return {
+      type: "MultiPolygon",
+      coordinates: polygons.map((polygon) => polygon.map((ring) => ring as IimlPoint[]))
+    };
+  }
+  return undefined;
 }
 
 export function translateGeometry(geometry: IimlGeometry, du: number, dv: number): IimlGeometry {

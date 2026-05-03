@@ -5,4 +5,6 @@ pillow
 opencv-python
 torch
 ultralytics
+# MobileSAM 的 TinyViT backbone 依赖 timm 但官方 pyproject 没列，需要手动装。
+timm
 mobile-sam @ git+https://github.com/ChaoningZhang/MobileSAM.git

@@ -5,8 +5,11 @@ __pycache__/
 *.pyc
 ai-service/.venv/
 ai-service/weights/
+ai-service/cache/
 参考图/
 画像石结构化分档/
+# 高清原图（tif/tiff/jpg 几百 MB 量级，AI 服务通过 /ai/source-image 转码缓存读取）
+pic/
 
 # Local runtime data
 data/assembly-plans/

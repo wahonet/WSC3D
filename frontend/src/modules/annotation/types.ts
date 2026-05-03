@@ -1,5 +1,8 @@
 import type {
+  IimlAlignment,
+  IimlAlignmentControlPoint,
   IimlAnnotation,
+  IimlAnnotationFrame,
   IimlDocument,
   IimlGeometry,
   IimlPoint,
@@ -8,7 +11,7 @@ import type {
   VocabularyTerm
 } from "../../api/client";
 
-export type AnnotationTool = "select" | "rect" | "ellipse" | "point" | "pen";
+export type AnnotationTool = "select" | "rect" | "ellipse" | "point" | "pen" | "sam" | "calibrate";
 
 export type ProjectionContext = {
   corners: [
@@ -40,11 +43,15 @@ export type AnnotationAction =
   | { type: "add-annotation"; annotation: IimlAnnotation; asDraft?: boolean }
   | { type: "update-annotation"; id: string; patch: Partial<IimlAnnotation> }
   | { type: "delete-annotation"; id: string }
+  | { type: "set-alignment"; alignment: IimlAlignment | undefined }
   | { type: "undo" }
   | { type: "redo" };
 
 export type {
+  IimlAlignment,
+  IimlAlignmentControlPoint,
   IimlAnnotation,
+  IimlAnnotationFrame,
   IimlDocument,
   IimlGeometry,
   IimlPoint,

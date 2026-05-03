@@ -24,6 +24,7 @@
     "konva": "^10.3.0",
     "lucide-react": "^0.555.0",
     "morgan": "^1.10.1",
+    "polygon-clipping": "^0.15.7",
     "react": "^19.2.1",
     "react-dom": "^19.2.1",
     "react-konva": "^19.2.3",
