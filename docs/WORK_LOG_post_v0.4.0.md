@@ -183,3 +183,40 @@
 - AnnotationPanel 加新 tab "图谱"（在 列表 / 候选 / 标注 同级）
 - 如果 React 19 与 react-cytoscapejs 类型有冲突，回退到直接 use cytoscape
   + useRef + useEffect
+
+---
+
+### 2026-05-04 06:10 · B4 完成 — 知识图谱 tab
+
+**commit**: `64aef4e` (feat(annotation): B4 知识图谱 tab（Cytoscape.js 节点-边图）)
+
+**做了什么**
+
+- 新增依赖：`cytoscape ^3.x` + `@types/cytoscape`（dev）
+- 不用 `react-cytoscapejs`：React 19 兼容性 + 完全控制 cy 生命周期需求
+- 新建 `KnowledgeGraphView` 组件，AnnotationPanel 加 "图谱" tab
+  （Network 图标 + 关系数 badge）
+- 节点 = 标注，按 structuralLevel 着色（8 档）
+- 边 = 关系，按 4 组（叙事 / 层级 / 空间 / 解释）着色
+- origin != "manual" 的边显示虚线 + 半透明
+- 默认 cose 力导向布局 + "适应窗口" / "重新布局" 按钮
+- 双向联动：图上点节点 → 画布同步选中；画布选中 → 图上节点高亮（.is-selected）
+  + 关联边高亮（.is-incident）
+
+**怎么实现的**
+
+- 直接调 cytoscape API：useRef + useEffect 接管 mount / destroy
+- 用内容指纹（annotationsKey + relationsKey）做 useEffect 依赖：纯
+  selectionId 变化只刷高亮（cy.batch + addClass / removeClass），不重建
+  图，避免 layout 抖动
+- onSelect 用 ref 持有，cy 监听器永远拿到最新回调，不重绑
+- 防御性过滤：边两端必须都是已知 annotation；历史 doc 里悬空 source/
+  target 自动跳过
+- 图区高度 320 min；toolbar 显示节点 / 边数 + 操作按钮
+
+**下一步**
+
+B 方向 4 个子项全部完成，进入 **C 工程闭环**：
+- C2 键盘快捷键（R/E/P/S/V/F/Ctrl+Z/Y/Delete/Esc）
+- C6 候选 tab 类别 chip 过滤
+- C5' alignment 状态在画像石下拉里显示
