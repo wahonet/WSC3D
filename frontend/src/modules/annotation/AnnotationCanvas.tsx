@@ -33,6 +33,7 @@ import type {
   IimlAnnotation,
   IimlAnnotationFrame,
   IimlGeometry,
+  IimlRelation,
   ProjectionContext
 } from "./types";
 
@@ -46,6 +47,9 @@ export type CalibrationDraftView = {
 type AnnotationCanvasProps = {
   resourceId: string;
   annotations: IimlAnnotation[];
+  // B1 引入：显式传 doc.relations，让画布在选中标注时画关联连线。
+  // 缺省 [] 等同于无关系，不破坏向后兼容。
+  relations?: IimlRelation[];
   selectedAnnotationId?: string;
   draftAnnotationId?: string;
   activeTool: AnnotationTool;
@@ -137,6 +141,7 @@ function findStoneCanvas(host: HTMLElement | null): HTMLCanvasElement | null {
 export function AnnotationCanvas({
   resourceId,
   annotations,
+  relations = [],
   selectedAnnotationId,
   draftAnnotationId,
   activeTool,
@@ -741,6 +746,14 @@ export function AnnotationCanvas({
               alignmentMatrices={alignmentMatrices}
             />
           ) : null}
+          {selectedDisplay && projection && relations.length > 0 ? (
+            <RelationLines
+              selectedDisplay={selectedDisplay}
+              displayAnnotations={displayAnnotations}
+              relations={relations}
+              projection={projection}
+            />
+          ) : null}
           {activeTool === "sam" && projection ? (
             <SamPromptOverlay
               draft={samPromptDraft}
@@ -1077,6 +1090,67 @@ function CalibrationMarker({
         fill="#1d1a18"
         listening={false}
       />
+    </Group>
+  );
+}
+
+/**
+ * 关系连线（B3）：选中某个标注时，从该标注几何中心画线到所有相关标注的中心。
+ *   - 实线：origin = "manual" 的关系
+ *   - 虚线：origin = "spatial-auto" / "ai-suggest"（这些当前不入库，但兼容）
+ *   - 跨 frame 关系如果对方在 displayAnnotations 里（已校准 + 投影成功）才画线，
+ *     否则跳过（避免画到错位的位置）
+ *   - listening={false} 不拦截事件
+ */
+function RelationLines({
+  selectedDisplay,
+  displayAnnotations,
+  relations,
+  projection
+}: {
+  selectedDisplay: DisplayAnnotation;
+  displayAnnotations: DisplayAnnotation[];
+  relations: IimlRelation[];
+  projection: ProjectionContext;
+}) {
+  const selectedId = selectedDisplay.source.id;
+  const center = uvToScreen(geometryCenter(selectedDisplay.displayGeometry), projection);
+  const lookup = new Map<string, DisplayAnnotation>();
+  for (const entry of displayAnnotations) {
+    lookup.set(entry.source.id, entry);
+  }
+
+  const involved = relations.filter(
+    (relation) => relation.source === selectedId || relation.target === selectedId
+  );
+
+  return (
+    <Group listening={false}>
+      {involved.map((relation) => {
+        const otherId = relation.source === selectedId ? relation.target : relation.source;
+        const otherDisplay = lookup.get(otherId);
+        if (!otherDisplay) {
+          // 对方在另一坐标系且未校准（被过滤）或已删除，不画线
+          return null;
+        }
+        const otherCenter = uvToScreen(geometryCenter(otherDisplay.displayGeometry), projection);
+        const isAuto = relation.origin !== "manual";
+        const stroke = isAuto ? "#2ec4b6" : "#f3a712";
+        return (
+          <Group key={`relation-line-${relation.id}`}>
+            <Line
+              points={[center.x, center.y, otherCenter.x, otherCenter.y]}
+              stroke={stroke}
+              strokeWidth={isAuto ? 1.5 : 2}
+              dash={isAuto ? [6, 4] : undefined}
+              opacity={0.85}
+              listening={false}
+            />
+            <Circle x={otherCenter.x} y={otherCenter.y} radius={4} fill={stroke} stroke="#1d1a18" strokeWidth={1.5} listening={false} />
+          </Group>
+        );
+      })}
+      <Circle x={center.x} y={center.y} radius={5} fill="#f3a712" stroke="#1d1a18" strokeWidth={1.5} listening={false} />
     </Group>
   );
 }

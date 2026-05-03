@@ -1,10 +1,10 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { StoneListItem } from "../../api/client";
 import { SourceImageView, type SourceImageLayer } from "../viewer/SourceImageView";
 import { StoneViewer, type ScreenProjection } from "../viewer/StoneViewer";
 import { AnnotationCanvas, type CalibrationDraftView } from "./AnnotationCanvas";
 import type { UV } from "./geometry";
-import { getAlignment } from "./store";
+import { getAlignment, getRelations } from "./store";
 import type {
   AnnotationTool,
   IimlAlignment,
@@ -83,6 +83,8 @@ export function AnnotationWorkspace({
   const [imageLayer, setImageLayer] = useState<SourceImageLayer>("source");
   const resourceId = doc?.resources[0]?.id ?? `${stone.id}:model`;
   const alignment = getAlignment(doc);
+  // B3 关系连线需要的 relations 列表（与 RelationsEditor 用同一份 store 读出）
+  const relations = useMemo(() => getRelations(doc), [doc]);
 
   const handleProjectionChange = useCallback((next: ScreenProjection | undefined) => {
     if (!next) {
@@ -264,6 +266,7 @@ export function AnnotationWorkspace({
         calibrationDraft={calibrationDraftView}
         draftAnnotationId={draftAnnotationId}
         projection={projection}
+        relations={relations}
         resourceId={resourceId}
         selectedAnnotationId={selectedAnnotationId}
         sourceMode={sourceMode}
