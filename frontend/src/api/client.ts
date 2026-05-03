@@ -74,6 +74,45 @@ export type IimlReviewStatus = "candidate" | "reviewed" | "approved" | "rejected
 // 历史标注无该字段时默认按 "model" 处理（向后兼容）。
 export type IimlAnnotationFrame = "image" | "model";
 
+// 标注间关系：基于 IIML schema 的 relations[]。
+// kind 是受控词表，覆盖叙事关系（holds / rides / attacks 等）+ 层级关系
+// （partOf / contains）+ 解释并存（alternativeInterpretationOf）+ 空间关系
+// （above / below / leftOf / rightOf / overlaps / nextTo）。
+// 空间关系一般来自 origin="spatial-auto" 的运行时推导；用户在 UI 上"采纳"才
+// 升级为 origin="manual"，否则不写入 IIML 文档。
+export type IimlRelationKind =
+  | "holds"
+  | "rides"
+  | "attacks"
+  | "faces"
+  | "partOf"
+  | "contains"
+  | "nextTo"
+  | "above"
+  | "below"
+  | "leftOf"
+  | "rightOf"
+  | "overlaps"
+  | "alternativeInterpretationOf"
+  | "manual";
+
+export type IimlRelationOrigin = "manual" | "spatial-auto" | "ai-suggest";
+
+export type IimlRelation = {
+  id: string;
+  kind: IimlRelationKind;
+  // 来源 / 目标都是 annotation.id
+  source: string;
+  target: string;
+  // 自由文本描述（可选）
+  note?: string;
+  // 来源：人工创建 / 几何自动推导 / AI 推荐
+  origin: IimlRelationOrigin;
+  createdAt?: string;
+  createdBy?: string;
+  updatedAt?: string;
+};
+
 // 3D 模型 / 高清图坐标系之间的 4 点单应性标定。
 // controlPoints 至少 4 对，按用户采集顺序存储，渲染时用 4 个点解 3×3 矩阵。
 export type IimlAlignmentControlPoint = {
@@ -181,7 +220,7 @@ export type IimlDocument = {
   culturalObject?: Record<string, unknown>;
   resources: Array<Record<string, unknown> & { id: string; type: string; uri: string }>;
   annotations: IimlAnnotation[];
-  relations?: Array<Record<string, unknown>>;
+  relations?: IimlRelation[];
   vocabularies?: VocabularyTerm[];
   processingRuns?: Array<Record<string, unknown>>;
   provenance?: Record<string, unknown>;

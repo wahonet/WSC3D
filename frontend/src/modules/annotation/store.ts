@@ -1,4 +1,4 @@
-import type { AnnotationAction, AnnotationState, IimlAlignment, IimlAnnotation, IimlDocument } from "./types";
+import type { AnnotationAction, AnnotationState, IimlAlignment, IimlAnnotation, IimlDocument, IimlRelation } from "./types";
 
 const maxHistory = 40;
 
@@ -98,11 +98,49 @@ export function annotationReducer(state: AnnotationState, action: AnnotationActi
         state,
         (doc) => ({
           ...doc,
-          annotations: doc.annotations.filter((annotation) => annotation.id !== action.id)
+          annotations: doc.annotations.filter((annotation) => annotation.id !== action.id),
+          // 删标注同时清掉它涉及的关系，避免 doc.relations 里出现悬空 source/target
+          relations: (doc.relations ?? []).filter(
+            (relation) => relation.source !== action.id && relation.target !== action.id
+          )
         }),
         wasSelected ? undefined : state.selectedAnnotationId
       );
       return wasDraft ? { ...next, draftAnnotationId: undefined } : next;
+    }
+    case "add-relation": {
+      return updateDoc(
+        state,
+        (doc) => ({
+          ...doc,
+          relations: [...(doc.relations ?? []), action.relation]
+        }),
+        state.selectedAnnotationId
+      );
+    }
+    case "update-relation": {
+      return updateDoc(
+        state,
+        (doc) => ({
+          ...doc,
+          relations: (doc.relations ?? []).map((relation) =>
+            relation.id === action.id
+              ? { ...relation, ...action.patch, updatedAt: new Date().toISOString() }
+              : relation
+          )
+        }),
+        state.selectedAnnotationId
+      );
+    }
+    case "delete-relation": {
+      return updateDoc(
+        state,
+        (doc) => ({
+          ...doc,
+          relations: (doc.relations ?? []).filter((relation) => relation.id !== action.id)
+        }),
+        state.selectedAnnotationId
+      );
     }
     case "set-alignment": {
       // alignment 落在 culturalObject 下；undefined 表示清除已有标定。
@@ -171,6 +209,27 @@ function updateDoc(
 
 export function cloneDoc(doc: IimlDocument): IimlDocument {
   return JSON.parse(JSON.stringify(doc)) as IimlDocument;
+}
+
+/**
+ * 从 IIML 文档中取关系列表；缺失返回空数组。relations 字段在 v0.5.0 之前可能
+ * 没有（旧 schema 是 Record<string, unknown>），这里做最小校验保证类型安全。
+ */
+export function getRelations(doc: IimlDocument | undefined): IimlRelation[] {
+  const raw = doc?.relations;
+  if (!Array.isArray(raw)) {
+    return [];
+  }
+  return raw.filter((relation): relation is IimlRelation => {
+    if (!relation || typeof relation !== "object") return false;
+    const candidate = relation as Partial<IimlRelation>;
+    return (
+      typeof candidate.id === "string" &&
+      typeof candidate.kind === "string" &&
+      typeof candidate.source === "string" &&
+      typeof candidate.target === "string"
+    );
+  });
 }
 
 /**

@@ -6,6 +6,9 @@ import type {
   IimlDocument,
   IimlGeometry,
   IimlPoint,
+  IimlRelation,
+  IimlRelationKind,
+  IimlRelationOrigin,
   IimlReviewStatus,
   IimlStructuralLevel,
   VocabularyTerm
@@ -44,6 +47,9 @@ export type AnnotationAction =
   | { type: "update-annotation"; id: string; patch: Partial<IimlAnnotation> }
   | { type: "delete-annotation"; id: string }
   | { type: "set-alignment"; alignment: IimlAlignment | undefined }
+  | { type: "add-relation"; relation: IimlRelation }
+  | { type: "update-relation"; id: string; patch: Partial<IimlRelation> }
+  | { type: "delete-relation"; id: string }
   | { type: "undo" }
   | { type: "redo" };
 
@@ -55,6 +61,9 @@ export type {
   IimlDocument,
   IimlGeometry,
   IimlPoint,
+  IimlRelation,
+  IimlRelationKind,
+  IimlRelationOrigin,
   IimlReviewStatus,
   IimlStructuralLevel,
   VocabularyTerm

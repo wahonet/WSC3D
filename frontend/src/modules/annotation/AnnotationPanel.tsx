@@ -11,6 +11,7 @@ import type {
   VocabularyTerm
 } from "../../api/client";
 import { ColorPopover } from "./ColorPopover";
+import { RelationsEditor } from "./RelationsEditor";
 import { SourcesEditor } from "./SourcesEditor";
 import { TermPicker } from "./TermPicker";
 import { annotationPalette } from "./store";
@@ -37,6 +38,13 @@ type AnnotationPanelProps = {
   // 把多个候选做几何并集合并成一个新候选（保留外环、丢孔洞）。
   // 由 App 层调用 mergePolygonAnnotations，并替换 store 中的旧条目。
   onMergeCandidates: (ids: string[]) => void;
+  // 标注间关系：B1 引入。relations 已在 store getRelations 过滤后传入；
+  // spatialCandidates 由 App 层调 deriveSpatialRelations 实时算出（不入库）。
+  relations: import("./types").IimlRelation[];
+  spatialCandidates?: import("./RelationsEditor").SpatialRelationCandidate[];
+  onAddRelation: (relation: import("./types").IimlRelation) => void;
+  onUpdateRelation: (id: string, patch: Partial<import("./types").IimlRelation>) => void;
+  onDeleteRelation: (id: string) => void;
 };
 
 // 结构层级：按 IIML schema 顺序排列；label 使用纯中文，视觉更克制。
@@ -142,12 +150,19 @@ const DEFAULT_OPACITY = 0.15;
 function EditTab({
   annotation,
   draftAnnotationId,
+  doc,
   metadata,
+  relations,
+  spatialCandidates,
   vocabularyCategories,
   vocabularyTerms,
+  onAddRelation,
+  onDeleteRelation,
   onUpdateAnnotation,
+  onUpdateRelation,
   onDeleteAnnotation,
-  onConfirmDraft
+  onConfirmDraft,
+  onSelectAnnotation
 }: EditTabProps) {
   const [labelDraft, setLabelDraft] = useState("");
   const [preIconographicDraft, setPreIconographicDraft] = useState("");
@@ -420,6 +435,17 @@ function EditTab({
           onBlur={commitNotes}
         />
       </Field>
+
+      <RelationsEditor
+        annotation={annotation}
+        annotations={doc?.annotations ?? []}
+        relations={relations}
+        spatialCandidates={spatialCandidates}
+        onAddRelation={onAddRelation}
+        onUpdateRelation={onUpdateRelation}
+        onDeleteRelation={onDeleteRelation}
+        onSelectAnnotation={onSelectAnnotation}
+      />
 
       <div className="edit-actions">
         <button

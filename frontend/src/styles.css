@@ -1667,6 +1667,162 @@ button {
   cursor: not-allowed;
 }
 
+/* B1 标注间关系编辑面板：放在 EditTab 末尾"备注"和"删除按钮"之间 */
+.relations-editor {
+  display: grid;
+  gap: 6px;
+  padding: 10px 12px;
+  background: #1c1916;
+  border: 1px solid #2c2824;
+  border-radius: 6px;
+  margin-bottom: 10px;
+}
+
+.relations-editor-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12.5px;
+  color: #cfc7bd;
+}
+
+.relations-editor-title {
+  font-weight: 600;
+  color: #f4ece0;
+  font-size: 13px;
+}
+
+.relations-editor-head .muted-text {
+  flex: 1;
+  font-size: 11.5px;
+}
+
+.relations-editor-empty {
+  margin: 4px 0 0;
+  font-size: 12px;
+}
+
+.relations-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.relations-list--incoming {
+  margin-top: 2px;
+}
+
+.relations-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 6px;
+  background: #25211d;
+  border: 1px solid #2c2824;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.relations-item.is-candidate {
+  background: rgba(46, 196, 182, 0.08);
+  border-color: rgba(46, 196, 182, 0.4);
+}
+
+.relations-item-arrow {
+  color: #f3a712;
+  font-weight: 700;
+}
+
+.relations-item-target {
+  flex: 1;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  color: #eee8df;
+  cursor: pointer;
+  font-size: 12px;
+  padding: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.relations-item-target:hover {
+  color: #fff;
+  text-decoration: underline;
+}
+
+.relations-item-kind {
+  color: #a9a096;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.relations-item-origin {
+  padding: 1px 6px;
+  background: #2c2824;
+  border-radius: 999px;
+  color: #8f857a;
+  font-size: 10.5px;
+  white-space: nowrap;
+}
+
+.relations-form {
+  display: grid;
+  gap: 6px;
+  padding: 8px;
+  background: #25211d;
+  border: 1px dashed #3a342e;
+  border-radius: 4px;
+}
+
+.relations-form-row {
+  display: grid;
+  grid-template-columns: 48px 1fr;
+  align-items: center;
+  gap: 6px;
+}
+
+.relations-form-label {
+  color: #a9a096;
+  font-size: 11.5px;
+}
+
+.relations-form-select,
+.relations-form-input {
+  height: 28px;
+  padding: 0 8px;
+  background: #1c1916;
+  border: 1px solid #3a342e;
+  color: #eee8df;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.relations-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.relations-candidates {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px dashed #2c2824;
+}
+
+.relations-candidates-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: #cfc7bd;
+  margin-bottom: 4px;
+}
+
 .annotation-canvas {
   position: absolute !important;
   inset: 0;
