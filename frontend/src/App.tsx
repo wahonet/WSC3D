@@ -1,17 +1,28 @@
 import { Camera, MousePointer2, Ruler, RotateCcw, SquareDashedMousePointer, Trash2 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useReducer, useState } from "react";
 import * as THREE from "three";
 import {
   fetchAssemblyPlan,
   fetchAssemblyPlans,
+  fetchAiHealth,
+  fetchIimlDocument,
   fetchStoneMetadata,
   fetchStones,
+  fetchTerms,
+  importMarkdownAnnotations,
   saveAssemblyPlan,
+  saveIimlDocument,
   type AssemblyPlanRecord,
+  type IimlAnnotation,
   type StoneListItem,
   type StoneListResponse,
-  type StoneMetadata
+  type StoneMetadata,
+  type VocabularyTerm
 } from "./api/client";
+import { AnnotationPanel } from "./modules/annotation/AnnotationPanel";
+import { AnnotationToolbar } from "./modules/annotation/AnnotationToolbar";
+import { AnnotationWorkspace } from "./modules/annotation/AnnotationWorkspace";
+import { annotationReducer, initialAnnotationState } from "./modules/annotation/store";
 import { AssemblyPanel } from "./modules/assembly/AssemblyPanel";
 import { AssemblyWorkspace, type AssemblyCameraState } from "./modules/assembly/AssemblyWorkspace";
 import type { AdjustmentAxis, AdjustmentMode } from "./modules/assembly/AssemblyAdjustControls";
@@ -19,7 +30,7 @@ import type { AssemblyDimensions, AssemblyItem, AssemblyTransform } from "./modu
 import { StoneViewer, type MeasurementResult, type ViewerMode } from "./modules/viewer/StoneViewer";
 import type { ViewCubeView } from "./modules/shared/ViewCube";
 
-type WorkspaceMode = "viewer" | "assembly";
+type WorkspaceMode = "viewer" | "assembly" | "annotation";
 type BackgroundMode = "black" | "gray" | "white";
 
 const viewerModeLabels: Record<ViewerMode, string> = {
@@ -60,6 +71,11 @@ export function App() {
   const [savedPlans, setSavedPlans] = useState<AssemblyPlanRecord[]>([]);
   const [selectedPlanId, setSelectedPlanId] = useState("");
   const [currentPlanId, setCurrentPlanId] = useState<string>();
+  const [annotationState, dispatchAnnotation] = useReducer(annotationReducer, initialAnnotationState);
+  const [annotationTerms, setAnnotationTerms] = useState<VocabularyTerm[]>([]);
+  const [aiAvailable, setAiAvailable] = useState(false);
+  const [aiRequest, setAiRequest] = useState<"yolo" | "canny" | undefined>();
+  const [viewerAnnotations, setViewerAnnotations] = useState<IimlAnnotation[]>([]);
 
   useEffect(() => {
     fetchStones()
@@ -91,7 +107,69 @@ export function App() {
       .catch(() => setMetadata(undefined));
   }, [selectedId]);
 
+  useEffect(() => {
+    fetchTerms()
+      .then(({ terms }) => setAnnotationTerms(terms))
+      .catch(() => setAnnotationTerms([]));
+  }, []);
+
+  useEffect(() => {
+    let disposed = false;
+    const ping = () => {
+      fetchAiHealth()
+        .then((result) => {
+          if (!disposed) {
+            setAiAvailable(Boolean(result.ok));
+          }
+        })
+        .catch(() => {
+          if (!disposed) {
+            setAiAvailable(false);
+          }
+        });
+    };
+    ping();
+    const timer = window.setInterval(ping, 8000);
+    return () => {
+      disposed = true;
+      window.clearInterval(timer);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!selectedId) {
+      return;
+    }
+    fetchIimlDocument(selectedId)
+      .then((doc) => {
+        dispatchAnnotation({ type: "set-doc", doc });
+        setViewerAnnotations(doc.annotations);
+      })
+      .catch(() => {
+        setViewerAnnotations([]);
+      });
+  }, [selectedId]);
+
+  useEffect(() => {
+    if (workspaceMode !== "annotation" || !selectedId || !annotationState.doc) {
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      saveIimlDocument(selectedId, annotationState.doc!)
+        .then((doc) => {
+          setViewerAnnotations(doc.annotations);
+          dispatchAnnotation({ type: "set-status", status: "已自动保存" });
+        })
+        .catch((err: Error) => dispatchAnnotation({ type: "set-status", status: err.message }));
+    }, 900);
+    return () => window.clearTimeout(timer);
+  }, [annotationState.doc, selectedId, workspaceMode]);
+
   const selectedStone = useMemo(() => catalog?.stones.find((stone) => stone.id === selectedId), [catalog?.stones, selectedId]);
+  const selectedAnnotation = useMemo(
+    () => annotationState.doc?.annotations.find((annotation) => annotation.id === annotationState.selectedAnnotationId),
+    [annotationState.doc?.annotations, annotationState.selectedAnnotationId]
+  );
 
   useEffect(() => {
     if (workspaceMode === "assembly" && !planName) {
@@ -318,6 +396,46 @@ export function App() {
     }
   }, [catalog, selectedPlanId]);
 
+  const enterAnnotationMode = () => {
+    if (viewMode !== "2d") {
+      setViewMode("2d");
+    }
+    setWorkspaceMode("annotation");
+  };
+
+  const importMarkdownToAnnotation = async () => {
+    if (!selectedId) {
+      return;
+    }
+    dispatchAnnotation({ type: "set-status", status: "正在导入结构化档案..." });
+    try {
+      const doc = await importMarkdownAnnotations(selectedId);
+      dispatchAnnotation({ type: "set-doc", doc });
+      setViewerAnnotations(doc.annotations);
+      dispatchAnnotation({ type: "set-status", status: "已导入结构化档案骨架" });
+    } catch (err) {
+      dispatchAnnotation({ type: "set-status", status: err instanceof Error ? err.message : "导入失败" });
+    }
+  };
+
+  const exportIiml = () => {
+    if (!annotationState.doc) {
+      return;
+    }
+    const blob = new Blob([`${JSON.stringify(annotationState.doc, null, 2)}\n`], { type: "application/json" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `${selectedId || "annotation"}.iiml.json`;
+    link.click();
+    URL.revokeObjectURL(link.href);
+  };
+
+  const deleteSelectedAnnotation = () => {
+    if (annotationState.selectedAnnotationId) {
+      dispatchAnnotation({ type: "delete-annotation", id: annotationState.selectedAnnotationId });
+    }
+  };
+
   return (
     <div className="app-shell">
       <header className="topbar">
@@ -325,7 +443,9 @@ export function App() {
           <img className="brand-logo" src="/嘉logo.png" alt="" />
           <div>
             <strong>汉画像石数字化研究平台</strong>
-            <small>工作版</small>
+            <small>
+              工作版 · <span className={aiAvailable ? "ai-dot online" : "ai-dot"} /> AI {aiAvailable ? "在线" : "离线"}
+            </small>
           </div>
         </div>
 
@@ -336,7 +456,9 @@ export function App() {
           <button className={workspaceMode === "assembly" ? "active" : ""} onClick={() => setWorkspaceMode("assembly")}>
             拼接
           </button>
-          <button disabled>标注</button>
+          <button className={workspaceMode === "annotation" ? "active" : ""} disabled={!selectedStone?.hasModel} onClick={enterAnnotationMode}>
+            标注
+          </button>
         </nav>
 
         <label className="stone-select">
@@ -353,10 +475,25 @@ export function App() {
 
       <div className="workspace-grid">
         <aside className="tool-rail" aria-label="工具栏">
-          <IconButton title="选择" icon={<MousePointer2 size={18} />} active />
-          <IconButton title="框选预留" icon={<SquareDashedMousePointer size={18} />} disabled />
-          <IconButton title="重置视角" icon={<RotateCcw size={18} />} onClick={() => setResetToken((value) => value + 1)} />
-          <IconButton title="截图" icon={<Camera size={18} />} disabled />
+          {workspaceMode === "annotation" ? (
+            <AnnotationToolbar
+              activeTool={annotationState.activeTool}
+              aiAvailable={aiAvailable}
+              canRedo={annotationState.redoStack.length > 0}
+              canUndo={annotationState.undoStack.length > 0}
+              onClearSelected={deleteSelectedAnnotation}
+              onRedo={() => dispatchAnnotation({ type: "redo" })}
+              onToolChange={(tool) => dispatchAnnotation({ type: "set-tool", tool })}
+              onUndo={() => dispatchAnnotation({ type: "undo" })}
+            />
+          ) : (
+            <>
+              <IconButton title="选择" icon={<MousePointer2 size={18} />} active />
+              <IconButton title="框选预留" icon={<SquareDashedMousePointer size={18} />} disabled />
+              <IconButton title="重置视角" icon={<RotateCcw size={18} />} onClick={() => setResetToken((value) => value + 1)} />
+              <IconButton title="截图" icon={<Camera size={18} />} disabled />
+            </>
+          )}
         </aside>
 
         <main className="main-viewport">
@@ -367,6 +504,7 @@ export function App() {
               stone={selectedStone}
               viewMode={viewMode}
               background={background}
+              annotations={viewerAnnotations}
               measuring={measuring}
               measureToken={measureClearToken}
               cubeView={viewerCubeView}
@@ -395,6 +533,25 @@ export function App() {
               onTransformChange={handleTransformChange}
               onDimensionsReady={handleDimensionsReady}
               onCameraStateChange={setAssemblyCameraState}
+            />
+          ) : null}
+          {workspaceMode === "annotation" && selectedStone ? (
+            <AnnotationWorkspace
+              activeTool={annotationState.activeTool}
+              aiAvailable={aiAvailable}
+              aiRequest={aiRequest}
+              background={background}
+              doc={annotationState.doc}
+              selectedAnnotationId={annotationState.selectedAnnotationId}
+              stone={selectedStone}
+              onAddResource={(resource, processingRun) => dispatchAnnotation({ type: "add-resource", resource, processingRun })}
+              onAiBusy={(aiBusy) => dispatchAnnotation({ type: "set-ai-busy", aiBusy })}
+              onAiRequestHandled={() => setAiRequest(undefined)}
+              onCreate={(annotation) => dispatchAnnotation({ type: "add-annotation", annotation })}
+              onCreateMany={(annotations) => dispatchAnnotation({ type: "add-annotations", annotations })}
+              onSelect={(id) => dispatchAnnotation({ type: "select", id })}
+              onStatus={(status) => dispatchAnnotation({ type: "set-status", status })}
+              onUpdate={(id, patch) => dispatchAnnotation({ type: "update-annotation", id, patch })}
             />
           ) : null}
         </main>
@@ -444,6 +601,25 @@ export function App() {
 
               <IntroPanel metadata={metadata} />
             </>
+          ) : workspaceMode === "annotation" ? (
+            <AnnotationPanel
+              activeTab={annotationState.activeTab}
+              aiAvailable={aiAvailable}
+              aiBusy={annotationState.aiBusy}
+              doc={annotationState.doc}
+              filter={annotationState.filter}
+              selectedAnnotation={selectedAnnotation}
+              status={annotationState.status}
+              terms={annotationTerms}
+              onExport={exportIiml}
+              onFilterChange={(filter) => dispatchAnnotation({ type: "set-filter", filter })}
+              onImportMarkdown={importMarkdownToAnnotation}
+              onRunCanny={() => setAiRequest("canny")}
+              onRunYolo={() => setAiRequest("yolo")}
+              onSelectAnnotation={(id) => dispatchAnnotation({ type: "select", id })}
+              onTabChange={(tab) => dispatchAnnotation({ type: "set-tab", tab })}
+              onUpdateAnnotation={(id, patch) => dispatchAnnotation({ type: "update-annotation", id, patch })}
+            />
           ) : (
             <AssemblyPanel
               stones={catalog?.stones ?? []}

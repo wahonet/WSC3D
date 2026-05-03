@@ -1139,6 +1139,224 @@ button {
   padding: 0 10px;
 }
 
+.ai-dot {
+  width: 7px;
+  height: 7px;
+  display: inline-block;
+  margin: 0 3px 1px 0;
+  background: #655b50;
+  border-radius: 999px;
+}
+
+.ai-dot.online {
+  background: #45d483;
+  box-shadow: 0 0 8px rgba(69, 212, 131, 0.7);
+}
+
+.annotation-workspace {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: #141312;
+}
+
+.annotation-canvas {
+  position: absolute !important;
+  inset: 0;
+  z-index: 15;
+  pointer-events: none;
+}
+
+.annotation-canvas.active {
+  pointer-events: auto;
+}
+
+.annotation-bubbles {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 16;
+}
+
+.annotation-bubble {
+  position: absolute;
+  max-width: 110px;
+  transform: translate(-50%, -100%);
+  padding: 3px 6px;
+  color: #12110f;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  background: #2ec4b6;
+  border-radius: 5px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.32);
+}
+
+.annotation-bubble.status-candidate {
+  background: #f3a712;
+}
+
+.annotation-bubble.status-rejected {
+  background: #ff5f57;
+}
+
+.annotation-bubble.active {
+  background: #45d483;
+}
+
+.annotation-status-panel .annotation-actions,
+.annotation-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.secondary-action {
+  min-height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  color: #cfc7bd;
+  background: #302b26;
+  border: 1px solid #463f37;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.secondary-action:hover:not(:disabled) {
+  color: #11100f;
+  background: #f3a712;
+  border-color: #f3a712;
+}
+
+.secondary-action:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.annotation-tabs {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 4px;
+  margin-bottom: 10px;
+}
+
+.annotation-tabs button {
+  min-width: 0;
+  display: grid;
+  place-items: center;
+  gap: 3px;
+  min-height: 44px;
+  color: #a9a096;
+  background: #1d1a18;
+  border: 1px solid #403a33;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 11px;
+}
+
+.annotation-tabs button.active,
+.annotation-tabs button:hover {
+  color: #11100f;
+  background: #2ec4b6;
+  border-color: #2ec4b6;
+}
+
+.annotation-editor,
+.term-browser,
+.annotation-list-panel {
+  display: grid;
+  gap: 8px;
+}
+
+.annotation-editor label,
+.term-browser {
+  display: grid;
+  gap: 5px;
+  color: #cfc7bd;
+}
+
+.annotation-editor input,
+.annotation-editor select,
+.annotation-editor textarea,
+.term-browser input {
+  width: 100%;
+  min-width: 0;
+  color: #eee8df;
+  background: #1d1a18;
+  border: 1px solid #403a33;
+  border-radius: 6px;
+  padding: 7px 8px;
+}
+
+.annotation-editor textarea {
+  min-height: 68px;
+  resize: vertical;
+}
+
+.review-actions {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+
+.review-actions button,
+.term-list button,
+.annotation-list button {
+  min-height: 30px;
+  color: #cfc7bd;
+  background: #302b26;
+  border: 1px solid #463f37;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.review-actions button:hover,
+.term-list button.active,
+.term-list button:hover:not(:disabled),
+.annotation-list button.active,
+.annotation-list button:hover {
+  color: #11100f;
+  background: #f3a712;
+  border-color: #f3a712;
+}
+
+.term-list {
+  max-height: 280px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  overflow: auto;
+}
+
+.annotation-list {
+  display: grid;
+  gap: 6px;
+}
+
+.annotation-list button {
+  display: grid;
+  gap: 3px;
+  justify-items: start;
+  padding: 8px;
+  text-align: left;
+}
+
+.annotation-list button span {
+  color: inherit;
+  opacity: 0.8;
+  font-size: 12px;
+}
+
+.segmented.compact {
+  grid-auto-columns: 1fr;
+  width: 100%;
+}
+
 .empty-state {
   position: absolute;
   inset: 20px;

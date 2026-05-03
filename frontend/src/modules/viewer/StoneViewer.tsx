@@ -2,8 +2,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
-import type { StoneListItem } from "../../api/client";
+import type { IimlAnnotation, ProjectionState, StoneListItem } from "../../api/client";
 import { ViewCube, type ViewCubeView } from "../shared/ViewCube";
+import { geometryCenter } from "../annotation/geometry";
 
 export type ViewerMode = "3d" | "2d" | "ortho";
 
@@ -19,11 +20,15 @@ type StoneViewerProps = {
   stone: StoneListItem;
   viewMode: ViewerMode;
   background: "black" | "gray" | "white";
-  measuring: boolean;
-  measureToken: number;
-  cubeView: ViewCubeView;
-  onCubeViewChange: (view: ViewCubeView) => void;
-  onMeasureChange: (result: MeasurementResult | undefined) => void;
+  measuring?: boolean;
+  measureToken?: number;
+  cubeView?: ViewCubeView;
+  annotations?: IimlAnnotation[];
+  selectedAnnotationId?: string;
+  hideHud?: boolean;
+  onCubeViewChange?: (view: ViewCubeView) => void;
+  onMeasureChange?: (result: MeasurementResult | undefined) => void;
+  onProjectionReady?: (projection: ProjectionState) => void;
 };
 
 const backgroundColors: Record<StoneViewerProps["background"], number> = {
@@ -39,11 +44,15 @@ export function StoneViewer({
   stone,
   viewMode,
   background,
-  measuring,
-  measureToken,
-  cubeView,
+  measuring = false,
+  measureToken = 0,
+  cubeView = "front",
+  annotations = [],
+  selectedAnnotationId,
+  hideHud = false,
   onCubeViewChange,
-  onMeasureChange
+  onMeasureChange,
+  onProjectionReady
 }: StoneViewerProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const sceneRef = useRef<THREE.Scene | undefined>(undefined);
@@ -63,6 +72,7 @@ export function StoneViewer({
   const viewModeRef = useRef(viewMode);
   const onCubeViewChangeRef = useRef(onCubeViewChange);
   const onMeasureChangeRef = useRef(onMeasureChange);
+  const onProjectionReadyRef = useRef(onProjectionReady);
 
   const [progress, setProgress] = useState(0);
   const [status, setStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
@@ -88,6 +98,10 @@ export function StoneViewer({
     onMeasureChangeRef.current = onMeasureChange;
   }, [onMeasureChange]);
 
+  useEffect(() => {
+    onProjectionReadyRef.current = onProjectionReady;
+  }, [onProjectionReady]);
+
   const realScale = useCallback(() => {
     const dimensions = stone.metadata?.dimensions;
     if (!dimensions) {
@@ -103,12 +117,12 @@ export function StoneViewer({
   const emitMeasurement = useCallback(() => {
     const points = measurementPointsRef.current;
     if (points.length < 2) {
-      onMeasureChangeRef.current(undefined);
+      onMeasureChangeRef.current?.(undefined);
       return;
     }
     const distance = points[0].distanceTo(points[1]);
     const scale = realScale();
-    onMeasureChangeRef.current({
+    onMeasureChangeRef.current?.({
       modelDistance: distance,
       realDistance: scale ? distance * scale.ratio : undefined,
       unit: scale ? "cm" : "model",
@@ -161,7 +175,7 @@ export function StoneViewer({
     measurementPointsRef.current = [];
     refreshMeasurementVisuals();
     setPointCount(0);
-    onMeasureChangeRef.current(undefined);
+    onMeasureChangeRef.current?.(undefined);
   }, [refreshMeasurementVisuals]);
 
   useEffect(() => {
@@ -258,6 +272,7 @@ export function StoneViewer({
         if (viewModeRef.current === "2d") {
           snapCameraToView("front", perspectiveCamera, orthographicCamera, controls, modelBoxRef.current, "2d");
         }
+        emitProjection(modelBoxRef.current, renderer.domElement, onProjectionReadyRef.current);
         setStatus("ready");
       },
       (event) => {
@@ -323,6 +338,7 @@ export function StoneViewer({
       orthographicCamera.left = (-halfHeight * nextWidth) / nextHeight;
       orthographicCamera.right = (halfHeight * nextWidth) / nextHeight;
       orthographicCamera.updateProjectionMatrix();
+      emitProjection(modelBoxRef.current, renderer.domElement, onProjectionReadyRef.current);
     };
     const observer = new ResizeObserver(resize);
     observer.observe(container);
@@ -431,11 +447,14 @@ export function StoneViewer({
   return (
     <div className="viewer-shell">
       <div ref={containerRef} className="three-stage" />
-      <div className="viewer-hud top-left">
-        <strong>{modeLabel}</strong>
-        <span>{stone.hasMetadata ? "结构化数据已匹配" : "未匹配结构化数据"}</span>
-      </div>
-      {viewMode !== "2d" ? <ViewCube activeView={cubeView} onSelect={onCubeViewChange} /> : null}
+      {!hideHud ? (
+        <div className="viewer-hud top-left">
+          <strong>{modeLabel}</strong>
+          <span>{stone.hasMetadata ? "结构化数据已匹配" : "未匹配结构化数据"}</span>
+        </div>
+      ) : null}
+      {viewMode !== "2d" && onCubeViewChange ? <ViewCube activeView={cubeView} onSelect={onCubeViewChange} /> : null}
+      {annotations.length > 0 ? <AnnotationBubbles annotations={annotations} selectedAnnotationId={selectedAnnotationId} /> : null}
       {measuring ? (
         <div className="viewer-hud bottom-center measure-hint">
           <span>{pointCount === 0 ? "点击模型采第 1 个点" : pointCount === 1 ? "点击模型采第 2 个点" : "再次点击重新测量"}</span>
@@ -453,6 +472,40 @@ export function StoneViewer({
       {status === "error" ? <div className="load-panel error">模型加载失败</div> : null}
     </div>
   );
+}
+
+function AnnotationBubbles({ annotations, selectedAnnotationId }: { annotations: IimlAnnotation[]; selectedAnnotationId?: string }) {
+  return (
+    <div className="annotation-bubbles" aria-label="标注气泡">
+      {annotations.slice(0, 80).map((annotation) => {
+        const center = geometryCenter(annotation.target, 1, 1);
+        return (
+          <div
+            className={annotation.id === selectedAnnotationId ? "annotation-bubble active" : `annotation-bubble status-${annotation.reviewStatus ?? "reviewed"}`}
+            key={annotation.id}
+            style={{ left: `${center.x * 100}%`, top: `${center.y * 100}%` }}
+            title={annotation.notes || annotation.label || annotation.id}
+          >
+            {annotation.label || annotation.semantics?.name || "标注"}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function emitProjection(box: THREE.Box3, canvas: HTMLCanvasElement, onProjectionReady: ((projection: ProjectionState) => void) | undefined) {
+  if (!onProjectionReady || box.isEmpty()) {
+    return;
+  }
+  onProjectionReady({
+    width: canvas.clientWidth || canvas.width,
+    height: canvas.clientHeight || canvas.height,
+    modelBox: {
+      min: box.min.toArray() as [number, number, number],
+      max: box.max.toArray() as [number, number, number]
+    }
+  });
 }
 
 function applyControlsForMode(controls: OrbitControls, viewMode: ViewerMode) {

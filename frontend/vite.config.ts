@@ -12,7 +12,8 @@ export default defineConfig({
     strictPort: false,
     proxy: {
       "/api": "http://127.0.0.1:3100",
-      "/assets": "http://127.0.0.1:3100"
+      "/assets": "http://127.0.0.1:3100",
+      "/ai": "http://127.0.0.1:8000"
     }
   },
   build: {

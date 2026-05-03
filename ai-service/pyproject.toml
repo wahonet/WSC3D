@@ -1,0 +1,18 @@
+[project]
+name = "wsc3d-ai-service"
+version = "0.1.0"
+description = "FastAPI AI helpers for WSC3D annotation"
+requires-python = ">=3.10"
+dependencies = [
+  "fastapi",
+  "uvicorn[standard]",
+  "numpy",
+  "pillow",
+  "opencv-python",
+  "torch",
+  "ultralytics",
+  "mobile-sam @ git+https://github.com/ChaoningZhang/MobileSAM.git"
+]
+
+[tool.uv]
+package = false

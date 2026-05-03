@@ -4,9 +4,10 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "concurrently \"npm:dev:backend\" \"npm:dev:frontend\"",
+    "dev": "concurrently \"npm:dev:backend\" \"npm:dev:frontend\" \"npm:dev:ai\"",
     "dev:backend": "tsx watch backend/src/server.ts",
     "dev:frontend": "vite --config frontend/vite.config.ts --host 127.0.0.1",
+    "dev:ai": "cd ai-service && python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload",
     "build": "npm run build:backend && npm run build:frontend",
     "build:backend": "tsc -p backend/tsconfig.json",
     "build:frontend": "tsc -p frontend/tsconfig.json && vite build --config frontend/vite.config.ts",
@@ -16,13 +17,16 @@
   },
   "dependencies": {
     "@vitejs/plugin-react": "^5.1.1",
+    "ajv": "^8.20.0",
     "concurrently": "^9.2.1",
     "cors": "^2.8.5",
     "express": "^5.2.1",
+    "konva": "^10.3.0",
     "lucide-react": "^0.555.0",
     "morgan": "^1.10.1",
     "react": "^19.2.1",
     "react-dom": "^19.2.1",
+    "react-konva": "^19.2.3",
     "three": "^0.181.2"
   },
   "devDependencies": {

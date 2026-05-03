@@ -1,0 +1,8 @@
+fastapi
+uvicorn[standard]
+numpy
+pillow
+opencv-python
+torch
+ultralytics
+mobile-sam @ git+https://github.com/ChaoningZhang/MobileSAM.git

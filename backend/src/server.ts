@@ -5,6 +5,7 @@ import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { getCatalog, type CatalogConfig } from "./services/catalog.js";
+import { getIimlContext, importMarkdownIntoIiml, loadIimlDoc, loadVocabulary, saveIimlDoc } from "./services/iiml.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = process.env.WSC3D_ROOT
@@ -157,6 +158,42 @@ app.get("/api/reference-images", async (_req, res, next) => {
         url: `/assets/reference/${encodeURIComponent(image.fileName)}`
       }))
     );
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.get("/api/terms", async (_req, res, next) => {
+  try {
+    res.json(await loadVocabulary(projectRoot));
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.get("/api/iiml/context", (_req, res) => {
+  res.json(getIimlContext());
+});
+
+app.get("/api/iiml/:stoneId", async (req, res, next) => {
+  try {
+    res.json(await loadIimlDoc(projectRoot, config, getCatalog, req.params.stoneId));
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.put("/api/iiml/:stoneId", async (req, res, next) => {
+  try {
+    res.json(await saveIimlDoc(projectRoot, req.params.stoneId, req.body));
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post("/api/iiml/:stoneId/import-md", async (req, res, next) => {
+  try {
+    res.json(await importMarkdownIntoIiml(projectRoot, config, getCatalog, req.params.stoneId));
   } catch (error) {
     next(error);
   }
