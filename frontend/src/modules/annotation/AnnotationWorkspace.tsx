@@ -1,27 +1,21 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useState } from "react";
 import type { StoneListItem } from "../../api/client";
-import { runCannyLine, runSamSegmentation, runYoloDetection } from "../../api/client";
-import { StoneViewer } from "../viewer/StoneViewer";
+import { StoneViewer, type ScreenProjection } from "../viewer/StoneViewer";
 import { AnnotationCanvas } from "./AnnotationCanvas";
-import { bboxGeometry, createAnnotationFromGeometry, polygonGeometry } from "./geometry";
-import type { AnnotationTool, IimlAnnotation, IimlDocument } from "./types";
+import type { AnnotationTool, IimlAnnotation, IimlDocument, ProjectionContext } from "./types";
 
 type AnnotationWorkspaceProps = {
   stone: StoneListItem;
   background: "black" | "gray" | "white";
   doc?: IimlDocument;
   selectedAnnotationId?: string;
+  draftAnnotationId?: string;
   activeTool: AnnotationTool;
-  aiAvailable: boolean;
-  aiRequest?: "yolo" | "canny";
-  onAiRequestHandled: () => void;
-  onCreate: (annotation: IimlAnnotation) => void;
-  onCreateMany: (annotations: IimlAnnotation[]) => void;
+  onCreate: (annotation: IimlAnnotation, asDraft?: boolean) => void;
   onUpdate: (id: string, patch: Partial<IimlAnnotation>) => void;
+  onDelete: (id: string) => void;
   onSelect: (id?: string) => void;
-  onAddResource: (resource: IimlDocument["resources"][number], processingRun?: Record<string, unknown>) => void;
-  onStatus: (status?: string) => void;
-  onAiBusy: (busy?: "sam" | "yolo" | "canny") => void;
+  onToolChange: (tool: AnnotationTool) => void;
 };
 
 export function AnnotationWorkspace({
@@ -29,170 +23,31 @@ export function AnnotationWorkspace({
   background,
   doc,
   selectedAnnotationId,
+  draftAnnotationId,
   activeTool,
-  aiAvailable,
-  aiRequest,
-  onAiRequestHandled,
   onCreate,
-  onCreateMany,
   onUpdate,
+  onDelete,
   onSelect,
-  onAddResource,
-  onStatus,
-  onAiBusy
+  onToolChange
 }: AnnotationWorkspaceProps) {
-  const shellRef = useRef<HTMLDivElement | null>(null);
-  const [size, setSize] = useState({ width: 1, height: 1 });
-  const [, setProjectionReady] = useState(false);
+  const [projection, setProjection] = useState<ProjectionContext | undefined>(undefined);
   const resourceId = doc?.resources[0]?.id ?? `${stone.id}:model`;
 
-  useEffect(() => {
-    const element = shellRef.current;
-    if (!element) {
+  const handleProjectionChange = useCallback((next: ScreenProjection | undefined) => {
+    if (!next) {
+      setProjection(undefined);
       return;
     }
-    const resize = () => {
-      setSize({ width: element.clientWidth || 1, height: element.clientHeight || 1 });
-    };
-    resize();
-    const observer = new ResizeObserver(resize);
-    observer.observe(element);
-    return () => observer.disconnect();
+    setProjection({
+      canvasWidth: next.canvasWidth,
+      canvasHeight: next.canvasHeight,
+      corners: next.corners
+    });
   }, []);
 
-  useEffect(() => {
-    if (!aiRequest) {
-      return;
-    }
-    const run = aiRequest === "yolo" ? runYolo : runCanny;
-    run().finally(onAiRequestHandled);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [aiRequest]);
-
-  const captureImage = () => {
-    const canvas = shellRef.current?.querySelector("canvas");
-    if (!(canvas instanceof HTMLCanvasElement)) {
-      throw new Error("当前视图尚未准备好截图");
-    }
-    return canvas.toDataURL("image/png");
-  };
-
-  const handleSamPoint = async (point: { x: number; y: number }) => {
-    if (!aiAvailable) {
-      onStatus("AI 服务未连接，无法使用 SAM。");
-      return;
-    }
-    onAiBusy("sam");
-    onStatus("SAM 正在生成候选轮廓...");
-    try {
-      const result = await runSamSegmentation({
-        imageBase64: captureImage(),
-        prompts: [{ type: "point", x: point.x, y: point.y, label: 1 }]
-      });
-      const annotations = result.polygons.map((polygon) =>
-        createAnnotationFromGeometry({
-          geometry: polygonGeometry(
-            polygon.map((item) => ({ x: Number(item[0]) * size.width, y: Number(item[1]) * size.height })),
-            size.width,
-            size.height
-          ),
-          resourceId,
-          label: "SAM 候选区域",
-          structuralLevel: "unknown",
-          reviewStatus: "candidate",
-          generation: {
-            method: "sam",
-            model: result.model,
-            modelVersion: "local",
-            confidence: result.confidence,
-            reviewStatus: "candidate",
-            prompt: { point }
-          }
-        })
-      );
-      onCreateMany(annotations);
-      onStatus(`SAM 已生成 ${annotations.length} 条候选标注。`);
-    } catch (error) {
-      onStatus(error instanceof Error ? error.message : "SAM 标注失败");
-    } finally {
-      onAiBusy(undefined);
-    }
-  };
-
-  const runYolo = async () => {
-    if (!aiAvailable) {
-      onStatus("AI 服务未连接，无法使用 YOLO。");
-      return;
-    }
-    onAiBusy("yolo");
-    onStatus("YOLO 正在扫描当前视图...");
-    try {
-      const result = await runYoloDetection({ imageBase64: captureImage() });
-      const annotations = result.detections.map((detection) =>
-        createAnnotationFromGeometry({
-          geometry: bboxGeometry({ x: detection.bbox[0], y: detection.bbox[1] }, { x: detection.bbox[2], y: detection.bbox[3] }, size.width, size.height),
-          resourceId,
-          label: detection.label,
-          structuralLevel: "figure",
-          reviewStatus: "candidate",
-          generation: {
-            method: "model-assisted",
-            model: result.model,
-            confidence: detection.confidence,
-            reviewStatus: "candidate"
-          }
-        })
-      );
-      onCreateMany(annotations);
-      onStatus(`YOLO 已生成 ${annotations.length} 条候选框。`);
-    } catch (error) {
-      onStatus(error instanceof Error ? error.message : "YOLO 检测失败");
-    } finally {
-      onAiBusy(undefined);
-    }
-  };
-
-  const runCanny = async () => {
-    if (!aiAvailable) {
-      onStatus("AI 服务未连接，无法生成线图。");
-      return;
-    }
-    onAiBusy("canny");
-    onStatus("正在生成快速线图...");
-    try {
-      const result = await runCannyLine({ imageBase64: captureImage(), low: 60, high: 140 });
-      const resourceIdFromAi = result.resourceId || `${stone.id}:line:${Date.now()}`;
-      onAddResource(
-        {
-          id: resourceIdFromAi,
-          type: "LineDrawing",
-          uri: result.imageBase64,
-          name: "OpenCV 快速线图",
-          format: "image/png",
-          derivedFrom: [resourceId],
-          metadata: { generatedBy: result.model }
-        },
-        {
-          id: `run-${Date.now()}`,
-          method: "line-extraction",
-          software: result.model,
-          parameters: { low: 60, high: 140 },
-          inputResourceIds: [resourceId],
-          outputResourceIds: [resourceIdFromAi],
-          createdAt: new Date().toISOString(),
-          createdBy: "ai-service"
-        }
-      );
-      onStatus("快速线图已作为 LineDrawing 资源写入 IIML。");
-    } catch (error) {
-      onStatus(error instanceof Error ? error.message : "线图生成失败");
-    } finally {
-      onAiBusy(undefined);
-    }
-  };
-
   return (
-    <div className="annotation-workspace" ref={shellRef}>
+    <div className="annotation-workspace">
       <StoneViewer
         background={background}
         cubeView="front"
@@ -200,28 +55,44 @@ export function AnnotationWorkspace({
         measuring={false}
         stone={stone}
         viewMode="2d"
-        annotations={doc?.annotations ?? []}
         hideHud
         onCubeViewChange={() => undefined}
         onMeasureChange={() => undefined}
-        onProjectionReady={() => setProjectionReady(true)}
+        onScreenProjectionChange={handleProjectionChange}
       />
       <AnnotationCanvas
         activeTool={activeTool}
         annotations={doc?.annotations ?? []}
-        height={size.height}
-        onCreate={onCreate}
-        onSamPoint={handleSamPoint}
-        onSelect={onSelect}
-        onUpdate={onUpdate}
+        draftAnnotationId={draftAnnotationId}
+        projection={projection}
         resourceId={resourceId}
         selectedAnnotationId={selectedAnnotationId}
-        width={size.width}
+        onCreate={onCreate}
+        onDelete={onDelete}
+        onSelect={onSelect}
+        onToolChange={onToolChange}
+        onUpdate={onUpdate}
       />
-      <div className="viewer-hud top-left">
+      <div className="viewer-hud top-left annotation-hint">
         <strong>标注工作区</strong>
-        <span>{activeTool === "sam" ? "点击模型生成 SAM 候选区域" : "2D 正投影上创建结构化标注"}</span>
+        <span>{toolHint(activeTool)}</span>
       </div>
     </div>
   );
+}
+
+function toolHint(tool: AnnotationTool) {
+  switch (tool) {
+    case "rect":
+      return "按住左键拖动绘制矩形，松开即完成";
+    case "ellipse":
+      return "按住左键拖动绘制圆形 / 椭圆，松开即完成";
+    case "point":
+      return "单击图像放置一个点标注";
+    case "pen":
+      return "依次点击添加节点，双击或回车闭合多边形";
+    case "select":
+    default:
+      return "选中标注后可拖动整体或四角调整尺寸；按 Delete 删除";
+  }
 }

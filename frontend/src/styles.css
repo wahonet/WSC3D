@@ -1160,10 +1160,20 @@ button {
   background: #141312;
 }
 
+.annotation-canvas-host {
+  position: absolute;
+  inset: 0;
+  z-index: 15;
+  pointer-events: none;
+}
+
+.annotation-canvas-host.active {
+  pointer-events: auto;
+}
+
 .annotation-canvas {
   position: absolute !important;
   inset: 0;
-  z-index: 15;
   pointer-events: none;
 }
 
@@ -1171,47 +1181,35 @@ button {
   pointer-events: auto;
 }
 
-.annotation-bubbles {
+.annotation-canvas-placeholder {
   position: absolute;
   inset: 0;
-  pointer-events: none;
-  z-index: 16;
-}
-
-.annotation-bubble {
-  position: absolute;
-  max-width: 110px;
-  transform: translate(-50%, -100%);
-  padding: 3px 6px;
-  color: #12110f;
-  font-size: 11px;
-  font-weight: 700;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  background: #2ec4b6;
-  border-radius: 5px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.32);
-}
-
-.annotation-bubble.status-candidate {
-  background: #f3a712;
-}
-
-.annotation-bubble.status-rejected {
-  background: #ff5f57;
-}
-
-.annotation-bubble.active {
-  background: #45d483;
-}
-
-.annotation-status-panel .annotation-actions,
-.annotation-actions {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 6px;
-  margin-bottom: 8px;
+  place-items: center;
+  pointer-events: none;
+  color: #cfc7bd;
+  font-size: 12px;
+  background: rgba(20, 19, 18, 0.35);
+}
+
+.annotation-hint {
+  pointer-events: none;
+}
+
+.rail-divider {
+  height: 1px;
+  margin: 4px 6px;
+  background: #34302b;
+}
+
+.rail-button.danger {
+  color: #ffb4a3;
+}
+
+.rail-button.danger:hover:not(:disabled) {
+  color: #fff;
+  background: #ff5f57;
+  border-color: #ff5f57;
 }
 
 .secondary-action {
@@ -1238,43 +1236,27 @@ button {
   cursor: not-allowed;
 }
 
-.annotation-tabs {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 4px;
-  margin-bottom: 10px;
+.section-title-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 9px;
 }
 
-.annotation-tabs button {
-  min-width: 0;
-  display: grid;
-  place-items: center;
-  gap: 3px;
-  min-height: 44px;
-  color: #a9a096;
-  background: #1d1a18;
-  border: 1px solid #403a33;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 11px;
+.section-title-row .section-title {
+  margin-bottom: 0;
 }
 
-.annotation-tabs button.active,
-.annotation-tabs button:hover {
-  color: #11100f;
-  background: #2ec4b6;
-  border-color: #2ec4b6;
+.muted-text.small {
+  font-size: 12px;
 }
 
-.annotation-editor,
-.term-browser,
-.annotation-list-panel {
+.annotation-editor {
   display: grid;
   gap: 8px;
 }
 
-.annotation-editor label,
-.term-browser {
+.annotation-editor label {
   display: grid;
   gap: 5px;
   color: #cfc7bd;
@@ -1282,8 +1264,7 @@ button {
 
 .annotation-editor input,
 .annotation-editor select,
-.annotation-editor textarea,
-.term-browser input {
+.annotation-editor textarea {
   width: 100%;
   min-width: 0;
   color: #eee8df;
@@ -1298,63 +1279,120 @@ button {
   resize: vertical;
 }
 
-.review-actions {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
+.annotation-editor-actions {
+  display: flex;
+  flex-wrap: wrap;
   gap: 6px;
+  margin-top: 6px;
 }
 
-.review-actions button,
-.term-list button,
-.annotation-list button {
+.annotation-editor-actions .primary-action {
+  width: auto;
+  flex: 1 1 auto;
+}
+
+.annotation-editor-actions .secondary-action {
+  width: auto;
+  flex: 0 0 auto;
+  padding: 0 12px;
+}
+
+.primary-action.small,
+.secondary-action.small {
   min-height: 30px;
-  color: #cfc7bd;
-  background: #302b26;
-  border: 1px solid #463f37;
+  padding: 0 12px;
+}
+
+.primary-action.small {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: auto;
+  background: #f3a712;
+  color: #11100f;
+  border: 1px solid #f3a712;
   border-radius: 6px;
   cursor: pointer;
 }
 
-.review-actions button:hover,
-.term-list button.active,
-.term-list button:hover:not(:disabled),
-.annotation-list button.active,
-.annotation-list button:hover {
-  color: #11100f;
-  background: #f3a712;
-  border-color: #f3a712;
+.primary-action.small:hover:not(:disabled) {
+  background: #ffb733;
+  border-color: #ffb733;
 }
 
-.term-list {
-  max-height: 280px;
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 6px;
-  overflow: auto;
+.secondary-action.danger {
+  color: #ffb4a3;
+  border-color: #6f3b2f;
+  background: #2a1b18;
+}
+
+.secondary-action.danger:hover:not(:disabled) {
+  color: #fff;
+  background: #ff5f57;
+  border-color: #ff5f57;
 }
 
 .annotation-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
   display: grid;
+  gap: 4px;
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.annotation-row {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr) auto auto auto;
   gap: 6px;
+  align-items: center;
+  padding: 5px 8px;
+  background: #1f1c19;
+  border: 1px solid #403a33;
+  border-radius: 6px;
 }
 
-.annotation-list button {
-  display: grid;
-  gap: 3px;
-  justify-items: start;
-  padding: 8px;
-  text-align: left;
+.annotation-row.active {
+  border-color: #f3a712;
+  box-shadow: inset 0 0 0 1px rgba(243, 167, 18, 0.35);
 }
 
-.annotation-list button span {
-  color: inherit;
-  opacity: 0.8;
-  font-size: 12px;
+.annotation-color-dot {
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  cursor: pointer;
+  padding: 0;
 }
 
-.segmented.compact {
-  grid-auto-columns: 1fr;
+.annotation-name-input {
   width: 100%;
+  min-width: 0;
+  height: 28px;
+  color: #eee8df;
+  background: transparent;
+  border: 1px dashed transparent;
+  border-radius: 4px;
+  padding: 0 6px;
+}
+
+.annotation-name-input:focus {
+  outline: none;
+  border-color: rgba(243, 167, 18, 0.45);
+  background: #14110f;
+}
+
+.mini-icon.danger {
+  color: #ffb4a3;
+}
+
+.mini-icon.danger:hover:not(:disabled) {
+  color: #fff;
+  background: #ff5f57;
+  border-color: #ff5f57;
 }
 
 .empty-state {

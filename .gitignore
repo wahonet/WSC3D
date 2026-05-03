@@ -10,6 +10,8 @@ ai-service/weights/
 
 # Local runtime data
 data/assembly-plans/
+data/iiml/
+temp/verify-*.mjs
 *.log
 *.err.log
 *.dev.log

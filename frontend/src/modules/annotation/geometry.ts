@@ -1,8 +1,18 @@
-import type { IimlAnnotation, IimlGeometry, IimlPoint, IimlReviewStatus, IimlStructuralLevel } from "./types";
+import type {
+  IimlAnnotation,
+  IimlGeometry,
+  IimlPoint,
+  IimlReviewStatus,
+  IimlStructuralLevel,
+  ProjectionContext
+} from "./types";
+
+export type UV = { u: number; v: number };
 
 export function createAnnotationFromGeometry({
   geometry,
   resourceId,
+  color,
   label,
   structuralLevel = "unknown",
   reviewStatus = "reviewed",
@@ -10,6 +20,7 @@ export function createAnnotationFromGeometry({
 }: {
   geometry: IimlGeometry;
   resourceId: string;
+  color?: string;
   label?: string;
   structuralLevel?: IimlStructuralLevel;
   reviewStatus?: IimlReviewStatus;
@@ -24,10 +35,9 @@ export function createAnnotationFromGeometry({
     target: geometry,
     structuralLevel,
     label: label ?? defaultLabel(geometry.type),
-    semantics: {
-      name: label ?? defaultLabel(geometry.type),
-      terms: []
-    },
+    color,
+    visible: true,
+    locked: false,
     reviewStatus,
     generation: generation ?? { method: "manual", reviewStatus },
     createdBy: "local-user",
@@ -36,97 +46,214 @@ export function createAnnotationFromGeometry({
   };
 }
 
-export function normalizePoint(x: number, y: number, width: number, height: number): IimlPoint {
-  return [clamp(x / Math.max(width, 1), 0, 1), clamp(y / Math.max(height, 1), 0, 1), 0];
+function clamp01(value: number) {
+  return Math.min(1, Math.max(0, Number.isFinite(value) ? value : 0));
 }
 
-export function denormalizePoint(point: IimlPoint, width: number, height: number) {
-  return {
-    x: Number(point[0] ?? 0) * width,
-    y: Number(point[1] ?? 0) * height
-  };
-}
-
-export function bboxGeometry(start: { x: number; y: number }, end: { x: number; y: number }, width: number, height: number): IimlGeometry {
-  const minX = Math.min(start.x, end.x);
-  const minY = Math.min(start.y, end.y);
-  const maxX = Math.max(start.x, end.x);
-  const maxY = Math.max(start.y, end.y);
+export function bboxFromUV(a: UV, b: UV): IimlGeometry {
+  const minU = Math.min(a.u, b.u);
+  const minV = Math.min(a.v, b.v);
+  const maxU = Math.max(a.u, b.u);
+  const maxV = Math.max(a.v, b.v);
   return {
     type: "BBox",
-    coordinates: [minX / width, minY / height, maxX / width, maxY / height].map((value) => clamp(value, 0, 1)) as [number, number, number, number]
+    coordinates: [clamp01(minU), clamp01(minV), clamp01(maxU), clamp01(maxV)]
   };
 }
 
-export function ellipsePolygon(start: { x: number; y: number }, end: { x: number; y: number }, width: number, height: number): IimlGeometry {
-  const centerX = (start.x + end.x) / 2;
-  const centerY = (start.y + end.y) / 2;
-  const radiusX = Math.abs(end.x - start.x) / 2;
-  const radiusY = Math.abs(end.y - start.y) / 2;
-  const ring: IimlPoint[] = [];
-  for (let index = 0; index <= 32; index += 1) {
-    const angle = (index / 32) * Math.PI * 2;
-    ring.push(normalizePoint(centerX + Math.cos(angle) * radiusX, centerY + Math.sin(angle) * radiusY, width, height));
-  }
-  return { type: "Polygon", coordinates: [ring] };
+export function pointFromUV(uv: UV): IimlGeometry {
+  return { type: "Point", coordinates: [clamp01(uv.u), clamp01(uv.v), 0] };
 }
 
-export function lineStringGeometry(points: Array<{ x: number; y: number }>, width: number, height: number): IimlGeometry {
-  return { type: "LineString", coordinates: points.map((point) => normalizePoint(point.x, point.y, width, height)) };
-}
-
-export function polygonGeometry(points: Array<{ x: number; y: number }>, width: number, height: number): IimlGeometry {
-  const ring = points.map((point) => normalizePoint(point.x, point.y, width, height));
+export function polygonFromUVs(points: UV[]): IimlGeometry {
+  const ring: IimlPoint[] = points.map((point) => [clamp01(point.u), clamp01(point.v), 0] as IimlPoint);
   if (ring.length > 0) {
     ring.push([...ring[0]] as IimlPoint);
   }
   return { type: "Polygon", coordinates: [ring] };
 }
 
-export function pointGeometry(point: { x: number; y: number }, width: number, height: number): IimlGeometry {
-  return { type: "Point", coordinates: normalizePoint(point.x, point.y, width, height) };
+export function ellipsePolygonFromUV(a: UV, b: UV, samples = 48): IimlGeometry {
+  const centerU = (a.u + b.u) / 2;
+  const centerV = (a.v + b.v) / 2;
+  const radiusU = Math.abs(b.u - a.u) / 2;
+  const radiusV = Math.abs(b.v - a.v) / 2;
+  const ring: IimlPoint[] = [];
+  for (let index = 0; index <= samples; index += 1) {
+    const angle = (index / samples) * Math.PI * 2;
+    ring.push([clamp01(centerU + Math.cos(angle) * radiusU), clamp01(centerV + Math.sin(angle) * radiusV), 0] as IimlPoint);
+  }
+  return { type: "Polygon", coordinates: [ring] };
 }
 
-export function geometryCenter(geometry: IimlGeometry, width: number, height: number) {
-  if (geometry.type === "BBox") {
-    const [minX, minY, maxX, maxY] = geometry.coordinates;
-    return { x: ((minX + maxX) / 2) * width, y: ((minY + maxY) / 2) * height };
+export function bboxToUV(geometry: IimlGeometry): { min: UV; max: UV } | undefined {
+  if (geometry.type !== "BBox") {
+    return undefined;
   }
-  if (geometry.type === "Point") {
-    return denormalizePoint(geometry.coordinates, width, height);
-  }
-  const points = flattenPoints(geometry);
-  if (points.length === 0) {
-    return { x: width / 2, y: height / 2 };
-  }
-  const total = points.reduce((acc, point) => ({ x: acc.x + Number(point[0] ?? 0) * width, y: acc.y + Number(point[1] ?? 0) * height }), { x: 0, y: 0 });
-  return { x: total.x / points.length, y: total.y / points.length };
+  const [minU, minV, maxU, maxV] = geometry.coordinates;
+  return { min: { u: minU, v: minV }, max: { u: maxU, v: maxV } };
 }
 
-export function flattenPoints(geometry: IimlGeometry): IimlPoint[] {
+export function ellipseBoundsToUV(geometry: IimlGeometry): { min: UV; max: UV } | undefined {
+  if (geometry.type !== "Polygon") {
+    return undefined;
+  }
+  const ring = geometry.coordinates[0];
+  if (!ring || ring.length === 0) {
+    return undefined;
+  }
+  let minU = 1;
+  let minV = 1;
+  let maxU = 0;
+  let maxV = 0;
+  for (const point of ring) {
+    const u = Number(point[0] ?? 0);
+    const v = Number(point[1] ?? 0);
+    if (u < minU) minU = u;
+    if (v < minV) minV = v;
+    if (u > maxU) maxU = u;
+    if (v > maxV) maxV = v;
+  }
+  return { min: { u: minU, v: minV }, max: { u: maxU, v: maxV } };
+}
+
+export function flattenUVs(geometry: IimlGeometry): UV[] {
   if (geometry.type === "Point") {
-    return [geometry.coordinates];
+    const [u, v] = geometry.coordinates;
+    return [{ u: Number(u ?? 0), v: Number(v ?? 0) }];
   }
   if (geometry.type === "LineString") {
-    return geometry.coordinates;
+    return geometry.coordinates.map((point) => ({ u: Number(point[0] ?? 0), v: Number(point[1] ?? 0) }));
   }
   if (geometry.type === "Polygon") {
-    return geometry.coordinates.flat();
+    return geometry.coordinates.flat().map((point) => ({ u: Number(point[0] ?? 0), v: Number(point[1] ?? 0) }));
   }
   if (geometry.type === "MultiPolygon") {
-    return geometry.coordinates.flat(2);
+    return geometry.coordinates.flat(2).map((point) => ({ u: Number(point[0] ?? 0), v: Number(point[1] ?? 0) }));
   }
-  const [minX, minY, maxX, maxY] = geometry.coordinates;
+  const [minU, minV, maxU, maxV] = geometry.coordinates;
   return [
-    [minX, minY, 0],
-    [maxX, minY, 0],
-    [maxX, maxY, 0],
-    [minX, maxY, 0]
+    { u: minU, v: minV },
+    { u: maxU, v: minV },
+    { u: maxU, v: maxV },
+    { u: minU, v: maxV }
   ];
 }
 
-export function screenPoints(geometry: IimlGeometry, width: number, height: number) {
-  return flattenPoints(geometry).map((point) => denormalizePoint(point, width, height));
+export function geometryCenter(geometry: IimlGeometry): UV {
+  if (geometry.type === "BBox") {
+    const [minU, minV, maxU, maxV] = geometry.coordinates;
+    return { u: (minU + maxU) / 2, v: (minV + maxV) / 2 };
+  }
+  if (geometry.type === "Point") {
+    return { u: Number(geometry.coordinates[0] ?? 0), v: Number(geometry.coordinates[1] ?? 0) };
+  }
+  const points = flattenUVs(geometry);
+  if (points.length === 0) {
+    return { u: 0.5, v: 0.5 };
+  }
+  const sum = points.reduce((acc, point) => ({ u: acc.u + point.u, v: acc.v + point.v }), { u: 0, v: 0 });
+  return { u: sum.u / points.length, v: sum.v / points.length };
+}
+
+export function uvToScreen(uv: UV, projection: ProjectionContext): { x: number; y: number } {
+  const left = projection.corners[3].x;
+  const top = projection.corners[3].y;
+  const right = projection.corners[2].x;
+  const bottom = projection.corners[0].y;
+  return {
+    x: left + uv.u * (right - left),
+    y: top + uv.v * (bottom - top)
+  };
+}
+
+export function screenToUV(point: { x: number; y: number }, projection: ProjectionContext): UV {
+  const left = projection.corners[3].x;
+  const top = projection.corners[3].y;
+  const right = projection.corners[2].x;
+  const bottom = projection.corners[0].y;
+  const widthSpan = right - left || 1;
+  const heightSpan = bottom - top || 1;
+  return {
+    u: (point.x - left) / widthSpan,
+    v: (point.y - top) / heightSpan
+  };
+}
+
+export function projectGeometryToScreen(geometry: IimlGeometry, projection: ProjectionContext) {
+  return flattenUVs(geometry).map((uv) => uvToScreen(uv, projection));
+}
+
+export function translateGeometry(geometry: IimlGeometry, du: number, dv: number): IimlGeometry {
+  const move = (point: number[]) => [clamp01((point[0] ?? 0) + du), clamp01((point[1] ?? 0) + dv), point[2] ?? 0] as IimlPoint;
+  if (geometry.type === "BBox") {
+    const [minU, minV, maxU, maxV] = geometry.coordinates;
+    return { type: "BBox", coordinates: [clamp01(minU + du), clamp01(minV + dv), clamp01(maxU + du), clamp01(maxV + dv)] };
+  }
+  if (geometry.type === "Point") {
+    return { type: "Point", coordinates: move(geometry.coordinates) };
+  }
+  if (geometry.type === "LineString") {
+    return { type: "LineString", coordinates: geometry.coordinates.map(move) };
+  }
+  if (geometry.type === "Polygon") {
+    return { type: "Polygon", coordinates: geometry.coordinates.map((ring) => ring.map(move)) };
+  }
+  return { type: "MultiPolygon", coordinates: geometry.coordinates.map((polygon) => polygon.map((ring) => ring.map(move))) };
+}
+
+export function resizeBBoxByCorner(geometry: IimlGeometry, cornerIndex: 0 | 1 | 2 | 3, target: UV): IimlGeometry {
+  if (geometry.type !== "BBox") {
+    return geometry;
+  }
+  const [minU, minV, maxU, maxV] = geometry.coordinates;
+  const corners: Array<{ u: number; v: number }> = [
+    { u: minU, v: maxV },
+    { u: maxU, v: maxV },
+    { u: maxU, v: minV },
+    { u: minU, v: minV }
+  ];
+  corners[cornerIndex] = target;
+  const opposite = corners[(cornerIndex + 2) % 4];
+  return bboxFromUV(opposite, target);
+}
+
+export function resizeEllipseByCorner(geometry: IimlGeometry, cornerIndex: 0 | 1 | 2 | 3, target: UV): IimlGeometry | undefined {
+  const bounds = ellipseBoundsToUV(geometry);
+  if (!bounds) {
+    return undefined;
+  }
+  const corners: Array<{ u: number; v: number }> = [
+    { u: bounds.min.u, v: bounds.max.v },
+    { u: bounds.max.u, v: bounds.max.v },
+    { u: bounds.max.u, v: bounds.min.v },
+    { u: bounds.min.u, v: bounds.min.v }
+  ];
+  corners[cornerIndex] = target;
+  const opposite = corners[(cornerIndex + 2) % 4];
+  return ellipsePolygonFromUV(opposite, target);
+}
+
+export function bboxCornersOnScreen(geometry: IimlGeometry, projection: ProjectionContext) {
+  if (geometry.type !== "BBox") {
+    const bounds = ellipseBoundsToUV(geometry);
+    if (!bounds) {
+      return [];
+    }
+    return computeBoundsCorners(bounds, projection);
+  }
+  const [minU, minV, maxU, maxV] = geometry.coordinates;
+  return computeBoundsCorners({ min: { u: minU, v: minV }, max: { u: maxU, v: maxV } }, projection);
+}
+
+function computeBoundsCorners(bounds: { min: UV; max: UV }, projection: ProjectionContext) {
+  const order: Array<{ uv: UV; index: 0 | 1 | 2 | 3 }> = [
+    { uv: { u: bounds.min.u, v: bounds.max.v }, index: 0 },
+    { uv: { u: bounds.max.u, v: bounds.max.v }, index: 1 },
+    { uv: { u: bounds.max.u, v: bounds.min.v }, index: 2 },
+    { uv: { u: bounds.min.u, v: bounds.min.v }, index: 3 }
+  ];
+  return order.map(({ uv, index }) => ({ ...uvToScreen(uv, projection), index }));
 }
 
 function defaultLabel(type: IimlGeometry["type"]) {
@@ -138,8 +265,4 @@ function defaultLabel(type: IimlGeometry["type"]) {
     Polygon: "区域标注"
   };
   return labels[type];
-}
-
-function clamp(value: number, min: number, max: number) {
-  return Math.min(max, Math.max(min, Number.isFinite(value) ? value : min));
 }

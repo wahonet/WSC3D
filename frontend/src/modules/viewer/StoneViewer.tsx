@@ -2,9 +2,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
-import type { IimlAnnotation, ProjectionState, StoneListItem } from "../../api/client";
+import type { ProjectionState, StoneListItem } from "../../api/client";
 import { ViewCube, type ViewCubeView } from "../shared/ViewCube";
-import { geometryCenter } from "../annotation/geometry";
 
 export type ViewerMode = "3d" | "2d" | "ortho";
 
@@ -16,6 +15,17 @@ export type MeasurementResult = {
   pointB: [number, number, number];
 };
 
+export type ScreenProjection = {
+  canvasWidth: number;
+  canvasHeight: number;
+  corners: [
+    { x: number; y: number },
+    { x: number; y: number },
+    { x: number; y: number },
+    { x: number; y: number }
+  ];
+};
+
 type StoneViewerProps = {
   stone: StoneListItem;
   viewMode: ViewerMode;
@@ -23,12 +33,11 @@ type StoneViewerProps = {
   measuring?: boolean;
   measureToken?: number;
   cubeView?: ViewCubeView;
-  annotations?: IimlAnnotation[];
-  selectedAnnotationId?: string;
   hideHud?: boolean;
   onCubeViewChange?: (view: ViewCubeView) => void;
   onMeasureChange?: (result: MeasurementResult | undefined) => void;
   onProjectionReady?: (projection: ProjectionState) => void;
+  onScreenProjectionChange?: (projection: ScreenProjection | undefined) => void;
 };
 
 const backgroundColors: Record<StoneViewerProps["background"], number> = {
@@ -47,12 +56,11 @@ export function StoneViewer({
   measuring = false,
   measureToken = 0,
   cubeView = "front",
-  annotations = [],
-  selectedAnnotationId,
   hideHud = false,
   onCubeViewChange,
   onMeasureChange,
-  onProjectionReady
+  onProjectionReady,
+  onScreenProjectionChange
 }: StoneViewerProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const sceneRef = useRef<THREE.Scene | undefined>(undefined);
@@ -73,6 +81,7 @@ export function StoneViewer({
   const onCubeViewChangeRef = useRef(onCubeViewChange);
   const onMeasureChangeRef = useRef(onMeasureChange);
   const onProjectionReadyRef = useRef(onProjectionReady);
+  const onScreenProjectionChangeRef = useRef(onScreenProjectionChange);
 
   const [progress, setProgress] = useState(0);
   const [status, setStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
@@ -102,6 +111,10 @@ export function StoneViewer({
     onProjectionReadyRef.current = onProjectionReady;
   }, [onProjectionReady]);
 
+  useEffect(() => {
+    onScreenProjectionChangeRef.current = onScreenProjectionChange;
+  }, [onScreenProjectionChange]);
+
   const realScale = useCallback(() => {
     const dimensions = stone.metadata?.dimensions;
     if (!dimensions) {
@@ -113,6 +126,40 @@ export function StoneViewer({
     }
     return { ratio: realLong / modelLongEdgeRef.current, unit: "cm" as const };
   }, [stone.metadata?.dimensions]);
+
+  const emitScreenProjection = useCallback(() => {
+    const callback = onScreenProjectionChangeRef.current;
+    if (!callback) {
+      return;
+    }
+    const renderer = rendererRef.current;
+    const camera = activeCameraRef.current;
+    const box = modelBoxRef.current;
+    if (!renderer || !camera || box.isEmpty()) {
+      callback(undefined);
+      return;
+    }
+    const canvasWidth = renderer.domElement.clientWidth || renderer.domElement.width;
+    const canvasHeight = renderer.domElement.clientHeight || renderer.domElement.height;
+    const cornersWorld: Array<[number, number]> = [
+      [box.min.x, box.min.y],
+      [box.max.x, box.min.y],
+      [box.max.x, box.max.y],
+      [box.min.x, box.max.y]
+    ];
+    const screen = cornersWorld.map(([x, y]) => {
+      const ndc = new THREE.Vector3(x, y, 0).project(camera);
+      return {
+        x: ((ndc.x + 1) / 2) * canvasWidth,
+        y: ((1 - ndc.y) / 2) * canvasHeight
+      };
+    });
+    callback({
+      canvasWidth,
+      canvasHeight,
+      corners: [screen[0], screen[1], screen[2], screen[3]] as ScreenProjection["corners"]
+    });
+  }, []);
 
   const emitMeasurement = useCallback(() => {
     const points = measurementPointsRef.current;
@@ -223,6 +270,8 @@ export function StoneViewer({
     controls.enableDamping = true;
     controlsRef.current = controls;
     applyControlsForMode(controls, viewMode);
+    const handleControlsChange = () => emitScreenProjection();
+    controls.addEventListener("change", handleControlsChange);
 
     const ambient = new THREE.AmbientLight(0xffffff, 0.52);
     const hemisphere = new THREE.HemisphereLight(0xffffff, 0x403a33, 0.9);
@@ -273,6 +322,7 @@ export function StoneViewer({
           snapCameraToView("front", perspectiveCamera, orthographicCamera, controls, modelBoxRef.current, "2d");
         }
         emitProjection(modelBoxRef.current, renderer.domElement, onProjectionReadyRef.current);
+        emitScreenProjection();
         setStatus("ready");
       },
       (event) => {
@@ -339,6 +389,7 @@ export function StoneViewer({
       orthographicCamera.right = (halfHeight * nextWidth) / nextHeight;
       orthographicCamera.updateProjectionMatrix();
       emitProjection(modelBoxRef.current, renderer.domElement, onProjectionReadyRef.current);
+      emitScreenProjection();
     };
     const observer = new ResizeObserver(resize);
     observer.observe(container);
@@ -359,6 +410,7 @@ export function StoneViewer({
       observer.disconnect();
       renderer.domElement.removeEventListener("pointerdown", pointerDown);
       renderer.domElement.removeEventListener("pointerup", pointerUp);
+      controls.removeEventListener("change", handleControlsChange);
       controls.dispose();
       renderer.dispose();
       disposeObject(scene);
@@ -374,8 +426,9 @@ export function StoneViewer({
       measurementPointsRef.current = [];
       modelLongEdgeRef.current = 0;
       modelBoxRef.current.makeEmpty();
+      onScreenProjectionChangeRef.current?.(undefined);
     };
-  }, [stone.modelUrl, emitMeasurement, refreshMeasurementVisuals]);
+  }, [stone.modelUrl, emitMeasurement, emitScreenProjection, refreshMeasurementVisuals]);
 
   useEffect(() => {
     const scene = sceneRef.current;
@@ -414,7 +467,8 @@ export function StoneViewer({
       grid.visible = viewMode === "3d";
     }
     controls.update();
-  }, [viewMode]);
+    emitScreenProjection();
+  }, [emitScreenProjection, viewMode]);
 
   useEffect(() => {
     const perspective = perspectiveCameraRef.current;
@@ -424,7 +478,8 @@ export function StoneViewer({
       return;
     }
     snapCameraToView(cubeView, perspective, orthographic, controls, modelBoxRef.current, viewModeRef.current);
-  }, [cubeView]);
+    emitScreenProjection();
+  }, [cubeView, emitScreenProjection]);
 
   useEffect(() => {
     if (!measuring) {
@@ -454,7 +509,6 @@ export function StoneViewer({
         </div>
       ) : null}
       {viewMode !== "2d" && onCubeViewChange ? <ViewCube activeView={cubeView} onSelect={onCubeViewChange} /> : null}
-      {annotations.length > 0 ? <AnnotationBubbles annotations={annotations} selectedAnnotationId={selectedAnnotationId} /> : null}
       {measuring ? (
         <div className="viewer-hud bottom-center measure-hint">
           <span>{pointCount === 0 ? "点击模型采第 1 个点" : pointCount === 1 ? "点击模型采第 2 个点" : "再次点击重新测量"}</span>
@@ -470,26 +524,6 @@ export function StoneViewer({
         </div>
       ) : null}
       {status === "error" ? <div className="load-panel error">模型加载失败</div> : null}
-    </div>
-  );
-}
-
-function AnnotationBubbles({ annotations, selectedAnnotationId }: { annotations: IimlAnnotation[]; selectedAnnotationId?: string }) {
-  return (
-    <div className="annotation-bubbles" aria-label="标注气泡">
-      {annotations.slice(0, 80).map((annotation) => {
-        const center = geometryCenter(annotation.target, 1, 1);
-        return (
-          <div
-            className={annotation.id === selectedAnnotationId ? "annotation-bubble active" : `annotation-bubble status-${annotation.reviewStatus ?? "reviewed"}`}
-            key={annotation.id}
-            style={{ left: `${center.x * 100}%`, top: `${center.y * 100}%` }}
-            title={annotation.notes || annotation.label || annotation.id}
-          >
-            {annotation.label || annotation.semantics?.name || "标注"}
-          </div>
-        );
-      })}
     </div>
   );
 }

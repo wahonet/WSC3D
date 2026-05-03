@@ -84,6 +84,9 @@ export type IimlAnnotation = {
   target: IimlGeometry;
   structuralLevel: IimlStructuralLevel;
   label?: string;
+  color?: string;
+  visible?: boolean;
+  locked?: boolean;
   semantics?: {
     name?: string;
     description?: string;

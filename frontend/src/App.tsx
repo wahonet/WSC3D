@@ -4,20 +4,15 @@ import * as THREE from "three";
 import {
   fetchAssemblyPlan,
   fetchAssemblyPlans,
-  fetchAiHealth,
   fetchIimlDocument,
   fetchStoneMetadata,
   fetchStones,
-  fetchTerms,
-  importMarkdownAnnotations,
   saveAssemblyPlan,
   saveIimlDocument,
   type AssemblyPlanRecord,
-  type IimlAnnotation,
   type StoneListItem,
   type StoneListResponse,
-  type StoneMetadata,
-  type VocabularyTerm
+  type StoneMetadata
 } from "./api/client";
 import { AnnotationPanel } from "./modules/annotation/AnnotationPanel";
 import { AnnotationToolbar } from "./modules/annotation/AnnotationToolbar";
@@ -72,10 +67,6 @@ export function App() {
   const [selectedPlanId, setSelectedPlanId] = useState("");
   const [currentPlanId, setCurrentPlanId] = useState<string>();
   const [annotationState, dispatchAnnotation] = useReducer(annotationReducer, initialAnnotationState);
-  const [annotationTerms, setAnnotationTerms] = useState<VocabularyTerm[]>([]);
-  const [aiAvailable, setAiAvailable] = useState(false);
-  const [aiRequest, setAiRequest] = useState<"yolo" | "canny" | undefined>();
-  const [viewerAnnotations, setViewerAnnotations] = useState<IimlAnnotation[]>([]);
 
   useEffect(() => {
     fetchStones()
@@ -108,46 +99,14 @@ export function App() {
   }, [selectedId]);
 
   useEffect(() => {
-    fetchTerms()
-      .then(({ terms }) => setAnnotationTerms(terms))
-      .catch(() => setAnnotationTerms([]));
-  }, []);
-
-  useEffect(() => {
-    let disposed = false;
-    const ping = () => {
-      fetchAiHealth()
-        .then((result) => {
-          if (!disposed) {
-            setAiAvailable(Boolean(result.ok));
-          }
-        })
-        .catch(() => {
-          if (!disposed) {
-            setAiAvailable(false);
-          }
-        });
-    };
-    ping();
-    const timer = window.setInterval(ping, 8000);
-    return () => {
-      disposed = true;
-      window.clearInterval(timer);
-    };
-  }, []);
-
-  useEffect(() => {
     if (!selectedId) {
       return;
     }
     fetchIimlDocument(selectedId)
       .then((doc) => {
         dispatchAnnotation({ type: "set-doc", doc });
-        setViewerAnnotations(doc.annotations);
       })
-      .catch(() => {
-        setViewerAnnotations([]);
-      });
+      .catch(() => undefined);
   }, [selectedId]);
 
   useEffect(() => {
@@ -156,8 +115,7 @@ export function App() {
     }
     const timer = window.setTimeout(() => {
       saveIimlDocument(selectedId, annotationState.doc!)
-        .then((doc) => {
-          setViewerAnnotations(doc.annotations);
+        .then(() => {
           dispatchAnnotation({ type: "set-status", status: "已自动保存" });
         })
         .catch((err: Error) => dispatchAnnotation({ type: "set-status", status: err.message }));
@@ -401,33 +359,7 @@ export function App() {
       setViewMode("2d");
     }
     setWorkspaceMode("annotation");
-  };
-
-  const importMarkdownToAnnotation = async () => {
-    if (!selectedId) {
-      return;
-    }
-    dispatchAnnotation({ type: "set-status", status: "正在导入结构化档案..." });
-    try {
-      const doc = await importMarkdownAnnotations(selectedId);
-      dispatchAnnotation({ type: "set-doc", doc });
-      setViewerAnnotations(doc.annotations);
-      dispatchAnnotation({ type: "set-status", status: "已导入结构化档案骨架" });
-    } catch (err) {
-      dispatchAnnotation({ type: "set-status", status: err instanceof Error ? err.message : "导入失败" });
-    }
-  };
-
-  const exportIiml = () => {
-    if (!annotationState.doc) {
-      return;
-    }
-    const blob = new Blob([`${JSON.stringify(annotationState.doc, null, 2)}\n`], { type: "application/json" });
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
-    link.download = `${selectedId || "annotation"}.iiml.json`;
-    link.click();
-    URL.revokeObjectURL(link.href);
+    dispatchAnnotation({ type: "set-tool", tool: "select" });
   };
 
   const deleteSelectedAnnotation = () => {
@@ -443,9 +375,7 @@ export function App() {
           <img className="brand-logo" src="/嘉logo.png" alt="" />
           <div>
             <strong>汉画像石数字化研究平台</strong>
-            <small>
-              工作版 · <span className={aiAvailable ? "ai-dot online" : "ai-dot"} /> AI {aiAvailable ? "在线" : "离线"}
-            </small>
+            <small>工作版</small>
           </div>
         </div>
 
@@ -478,10 +408,10 @@ export function App() {
           {workspaceMode === "annotation" ? (
             <AnnotationToolbar
               activeTool={annotationState.activeTool}
-              aiAvailable={aiAvailable}
+              canDelete={Boolean(annotationState.selectedAnnotationId)}
               canRedo={annotationState.redoStack.length > 0}
               canUndo={annotationState.undoStack.length > 0}
-              onClearSelected={deleteSelectedAnnotation}
+              onDeleteSelected={deleteSelectedAnnotation}
               onRedo={() => dispatchAnnotation({ type: "redo" })}
               onToolChange={(tool) => dispatchAnnotation({ type: "set-tool", tool })}
               onUndo={() => dispatchAnnotation({ type: "undo" })}
@@ -504,7 +434,6 @@ export function App() {
               stone={selectedStone}
               viewMode={viewMode}
               background={background}
-              annotations={viewerAnnotations}
               measuring={measuring}
               measureToken={measureClearToken}
               cubeView={viewerCubeView}
@@ -538,19 +467,15 @@ export function App() {
           {workspaceMode === "annotation" && selectedStone ? (
             <AnnotationWorkspace
               activeTool={annotationState.activeTool}
-              aiAvailable={aiAvailable}
-              aiRequest={aiRequest}
               background={background}
               doc={annotationState.doc}
+              draftAnnotationId={annotationState.draftAnnotationId}
               selectedAnnotationId={annotationState.selectedAnnotationId}
               stone={selectedStone}
-              onAddResource={(resource, processingRun) => dispatchAnnotation({ type: "add-resource", resource, processingRun })}
-              onAiBusy={(aiBusy) => dispatchAnnotation({ type: "set-ai-busy", aiBusy })}
-              onAiRequestHandled={() => setAiRequest(undefined)}
-              onCreate={(annotation) => dispatchAnnotation({ type: "add-annotation", annotation })}
-              onCreateMany={(annotations) => dispatchAnnotation({ type: "add-annotations", annotations })}
+              onCreate={(annotation, asDraft) => dispatchAnnotation({ type: "add-annotation", annotation, asDraft })}
+              onDelete={(id) => dispatchAnnotation({ type: "delete-annotation", id })}
               onSelect={(id) => dispatchAnnotation({ type: "select", id })}
-              onStatus={(status) => dispatchAnnotation({ type: "set-status", status })}
+              onToolChange={(tool) => dispatchAnnotation({ type: "set-tool", tool })}
               onUpdate={(id, patch) => dispatchAnnotation({ type: "update-annotation", id, patch })}
             />
           ) : null}
@@ -603,21 +528,16 @@ export function App() {
             </>
           ) : workspaceMode === "annotation" ? (
             <AnnotationPanel
-              activeTab={annotationState.activeTab}
-              aiAvailable={aiAvailable}
-              aiBusy={annotationState.aiBusy}
               doc={annotationState.doc}
-              filter={annotationState.filter}
+              draftAnnotationId={annotationState.draftAnnotationId}
               selectedAnnotation={selectedAnnotation}
               status={annotationState.status}
-              terms={annotationTerms}
-              onExport={exportIiml}
-              onFilterChange={(filter) => dispatchAnnotation({ type: "set-filter", filter })}
-              onImportMarkdown={importMarkdownToAnnotation}
-              onRunCanny={() => setAiRequest("canny")}
-              onRunYolo={() => setAiRequest("yolo")}
+              onConfirmDraft={() => {
+                dispatchAnnotation({ type: "set-draft", id: undefined });
+                dispatchAnnotation({ type: "set-status", status: "标注已完成" });
+              }}
+              onDeleteAnnotation={(id) => dispatchAnnotation({ type: "delete-annotation", id })}
               onSelectAnnotation={(id) => dispatchAnnotation({ type: "select", id })}
-              onTabChange={(tab) => dispatchAnnotation({ type: "set-tab", tab })}
               onUpdateAnnotation={(id, patch) => dispatchAnnotation({ type: "update-annotation", id, patch })}
             />
           ) : (

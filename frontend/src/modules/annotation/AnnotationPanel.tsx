@@ -1,280 +1,247 @@
-import { Bot, Download, FileText, GitBranch, Network, ScanSearch, Search, Sparkles } from "lucide-react";
-import { useMemo, useState } from "react";
-import type React from "react";
-import type { AnnotationFilter, AnnotationTab, IimlAnnotation, IimlDocument, IimlReviewStatus, IimlStructuralLevel, VocabularyTerm } from "./types";
+import { Check, Eye, EyeOff, Lock, Trash2, Unlock, X } from "lucide-react";
+import { useEffect, useState } from "react";
+import { annotationPalette } from "./store";
+import type { IimlAnnotation, IimlDocument } from "./types";
 
 type AnnotationPanelProps = {
   doc?: IimlDocument;
-  terms: VocabularyTerm[];
   selectedAnnotation?: IimlAnnotation;
-  activeTab: AnnotationTab;
-  filter: AnnotationFilter;
+  draftAnnotationId?: string;
   status?: string;
-  aiBusy?: "sam" | "yolo" | "canny";
-  aiAvailable: boolean;
-  onTabChange: (tab: AnnotationTab) => void;
-  onFilterChange: (filter: AnnotationFilter) => void;
   onSelectAnnotation: (id?: string) => void;
   onUpdateAnnotation: (id: string, patch: Partial<IimlAnnotation>) => void;
-  onImportMarkdown: () => void;
-  onExport: () => void;
-  onRunYolo: () => void;
-  onRunCanny: () => void;
-};
-
-const tabs: Array<{ id: AnnotationTab; label: string; icon: React.ReactNode }> = [
-  { id: "object", label: "对象", icon: <FileText size={14} /> },
-  { id: "terms", label: "术语表", icon: <Search size={14} /> },
-  { id: "annotations", label: "我的标注", icon: <Sparkles size={14} /> },
-  { id: "graph", label: "知识图谱", icon: <Network size={14} /> },
-  { id: "history", label: "历史", icon: <GitBranch size={14} /> }
-];
-
-const structuralLabels: Record<IimlStructuralLevel, string> = {
-  whole: "整体",
-  scene: "场景",
-  figure: "人物 / 对象",
-  component: "部件",
-  trace: "刻痕 / 线迹",
-  inscription: "题刻",
-  damage: "病害",
-  unknown: "未定"
-};
-
-const reviewLabels: Record<IimlReviewStatus, string> = {
-  candidate: "候选",
-  reviewed: "已复核",
-  approved: "通过",
-  rejected: "拒绝"
+  onDeleteAnnotation: (id: string) => void;
+  onConfirmDraft: (id: string) => void;
 };
 
 export function AnnotationPanel({
   doc,
-  terms,
   selectedAnnotation,
-  activeTab,
-  filter,
+  draftAnnotationId,
   status,
-  aiBusy,
-  aiAvailable,
-  onTabChange,
-  onFilterChange,
   onSelectAnnotation,
   onUpdateAnnotation,
-  onImportMarkdown,
-  onExport,
-  onRunYolo,
-  onRunCanny
+  onDeleteAnnotation,
+  onConfirmDraft
 }: AnnotationPanelProps) {
+  const annotations = doc?.annotations ?? [];
+
   return (
     <>
       <section className="panel-section annotation-status-panel">
         <div className="section-title">标注</div>
-        <div className="annotation-actions">
-          <button className="secondary-action" onClick={onImportMarkdown}>
-            <FileText size={15} />
-            导入档案骨架
-          </button>
-          <button className="secondary-action" onClick={onExport} disabled={!doc}>
-            <Download size={15} />
-            导出 IIML
-          </button>
-        </div>
-        <div className="annotation-actions">
-          <button className="secondary-action" onClick={onRunYolo} disabled={!aiAvailable || aiBusy !== undefined}>
-            <ScanSearch size={15} />
-            YOLO 扫描
-          </button>
-          <button className="secondary-action" onClick={onRunCanny} disabled={!aiAvailable || aiBusy !== undefined}>
-            <Bot size={15} />
-            快速线图
-          </button>
-        </div>
-        <p className="muted-text">{status ?? (aiAvailable ? "AI 服务已连接" : "AI 服务未连接，手工标注可继续使用")}</p>
+        <p className="muted-text">
+          {status ?? "在视图中按住拖动以创建矩形或圆形，单击放置点；钢笔双击闭合多边形。"}
+        </p>
       </section>
 
-      <section className="panel-section annotation-tabs-panel">
-        <div className="annotation-tabs">
-          {tabs.map((tab) => (
-            <button className={activeTab === tab.id ? "active" : ""} key={tab.id} onClick={() => onTabChange(tab.id)}>
-              {tab.icon}
-              <span>{tab.label}</span>
-            </button>
-          ))}
+      <section className="panel-section annotation-list-section">
+        <div className="section-title-row">
+          <span className="section-title">标注列表</span>
+          <span className="muted-text small">{annotations.length} 条</span>
         </div>
-        {activeTab === "object" ? (
-          <ObjectEditor annotation={selectedAnnotation} terms={terms} onUpdate={onUpdateAnnotation} />
-        ) : activeTab === "terms" ? (
-          <TermBrowser terms={terms} selectedAnnotation={selectedAnnotation} onUpdate={onUpdateAnnotation} />
-        ) : activeTab === "annotations" ? (
-          <AnnotationList doc={doc} filter={filter} selectedAnnotationId={selectedAnnotation?.id} onFilterChange={onFilterChange} onSelect={onSelectAnnotation} />
-        ) : activeTab === "graph" ? (
-          <p className="muted-text">知识图谱将在 M3 接入 Cytoscape.js。当前 M1 已保留 relations 字段。</p>
+        {annotations.length === 0 ? (
+          <p className="muted-text">暂无标注。选择一个工具开始创建。</p>
         ) : (
-          <p className="muted-text">类 Git 历史将在 M3 接入。当前 M1 已提供撤销/重做和 IIML 导出。</p>
+          <ul className="annotation-list">
+            {annotations.map((annotation, index) => (
+              <AnnotationRow
+                annotation={annotation}
+                fallbackColor={annotationPalette[index % annotationPalette.length]}
+                isSelected={annotation.id === selectedAnnotation?.id}
+                key={annotation.id}
+                onDelete={() => onDeleteAnnotation(annotation.id)}
+                onRename={(label) => onUpdateAnnotation(annotation.id, { label })}
+                onSelect={() => onSelectAnnotation(annotation.id)}
+                onToggleLocked={() => onUpdateAnnotation(annotation.id, { locked: !(annotation.locked === true) })}
+                onToggleVisible={() => onUpdateAnnotation(annotation.id, { visible: annotation.visible === false })}
+              />
+            ))}
+          </ul>
         )}
+      </section>
+
+      <section className="panel-section annotation-detail-section">
+        <ObjectEditor
+          annotation={selectedAnnotation}
+          isDraft={Boolean(selectedAnnotation && selectedAnnotation.id === draftAnnotationId)}
+          onUpdate={onUpdateAnnotation}
+          onDelete={onDeleteAnnotation}
+          onConfirm={onConfirmDraft}
+        />
       </section>
     </>
   );
 }
 
+function AnnotationRow({
+  annotation,
+  fallbackColor,
+  isSelected,
+  onDelete,
+  onRename,
+  onSelect,
+  onToggleLocked,
+  onToggleVisible
+}: {
+  annotation: IimlAnnotation;
+  fallbackColor: string;
+  isSelected: boolean;
+  onDelete: () => void;
+  onRename: (label: string) => void;
+  onSelect: () => void;
+  onToggleLocked: () => void;
+  onToggleVisible: () => void;
+}) {
+  const [draftLabel, setDraftLabel] = useState(annotation.label ?? "");
+  useEffect(() => {
+    setDraftLabel(annotation.label ?? "");
+  }, [annotation.id, annotation.label]);
+
+  const visible = annotation.visible !== false;
+  const locked = annotation.locked === true;
+  const color = annotation.color ?? fallbackColor;
+
+  return (
+    <li className={isSelected ? "annotation-row active" : "annotation-row"}>
+      <button
+        className="annotation-color-dot"
+        style={{ background: color }}
+        title="选中此标注"
+        onClick={onSelect}
+        aria-pressed={isSelected}
+      />
+      <input
+        className="annotation-name-input"
+        value={draftLabel}
+        placeholder="未命名标注"
+        onChange={(event) => setDraftLabel(event.target.value)}
+        onBlur={() => {
+          if (draftLabel !== (annotation.label ?? "")) {
+            onRename(draftLabel);
+          }
+        }}
+        onClick={onSelect}
+      />
+      <button
+        className="mini-icon"
+        title={visible ? "隐藏标注" : "显示标注"}
+        onClick={onToggleVisible}
+      >
+        {visible ? <Eye size={14} /> : <EyeOff size={14} />}
+      </button>
+      <button
+        className="mini-icon"
+        title={locked ? "解锁（允许调整）" : "锁定（防止误改）"}
+        onClick={onToggleLocked}
+      >
+        {locked ? <Lock size={14} /> : <Unlock size={14} />}
+      </button>
+      <button
+        className="mini-icon danger"
+        title="删除该标注"
+        onClick={onDelete}
+      >
+        <Trash2 size={14} />
+      </button>
+    </li>
+  );
+}
+
 function ObjectEditor({
   annotation,
-  terms,
-  onUpdate
+  isDraft,
+  onUpdate,
+  onDelete,
+  onConfirm
 }: {
   annotation?: IimlAnnotation;
-  terms: VocabularyTerm[];
+  isDraft: boolean;
   onUpdate: (id: string, patch: Partial<IimlAnnotation>) => void;
+  onDelete: (id: string) => void;
+  onConfirm: (id: string) => void;
 }) {
+  const [labelDraft, setLabelDraft] = useState("");
+  const [notesDraft, setNotesDraft] = useState("");
+
+  useEffect(() => {
+    setLabelDraft(annotation?.label ?? "");
+    setNotesDraft(annotation?.notes ?? "");
+  }, [annotation?.id]);
+
   if (!annotation) {
-    return <p className="muted-text">请选择或新建一个标注。</p>;
+    return (
+      <>
+        <div className="section-title">标注详情</div>
+        <p className="muted-text">在画布或上方列表中选择一个标注以编辑。</p>
+      </>
+    );
   }
 
-  const updateSemantics = (patch: NonNullable<IimlAnnotation["semantics"]>) => {
-    onUpdate(annotation.id, { semantics: { ...(annotation.semantics ?? {}), ...patch } });
+  const commitLabel = () => {
+    if (labelDraft !== (annotation.label ?? "")) {
+      onUpdate(annotation.id, { label: labelDraft });
+    }
+  };
+  const commitNotes = () => {
+    if (notesDraft !== (annotation.notes ?? "")) {
+      onUpdate(annotation.id, { notes: notesDraft });
+    }
   };
 
   return (
-    <div className="annotation-editor">
-      <label>
-        <span>标签</span>
-        <input value={annotation.label ?? ""} onChange={(event) => onUpdate(annotation.id, { label: event.target.value })} />
-      </label>
-      <label>
-        <span>结构层级</span>
-        <select value={annotation.structuralLevel} onChange={(event) => onUpdate(annotation.id, { structuralLevel: event.target.value as IimlStructuralLevel })}>
-          {Object.entries(structuralLabels).map(([value, label]) => (
-            <option key={value} value={value}>
-              {label}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label>
-        <span>前图像志 / 对象识别</span>
-        <textarea value={annotation.semantics?.iconographicMeaning ?? ""} onChange={(event) => updateSemantics({ iconographicMeaning: event.target.value })} />
-      </label>
-      <label>
-        <span>图像学解释</span>
-        <textarea value={annotation.semantics?.iconologicalMeaning ?? ""} onChange={(event) => updateSemantics({ iconologicalMeaning: event.target.value })} />
-      </label>
-      <label>
-        <span>题刻释文</span>
-        <input
-          value={annotation.semantics?.inscription?.transcription ?? ""}
-          onChange={(event) =>
-            updateSemantics({ inscription: { ...(annotation.semantics?.inscription ?? {}), transcription: event.target.value } })
-          }
-        />
-      </label>
-      <label>
-        <span>备注</span>
-        <textarea value={annotation.notes ?? ""} onChange={(event) => onUpdate(annotation.id, { notes: event.target.value })} />
-      </label>
-      <label>
-        <span>审核状态</span>
-        <select value={annotation.reviewStatus ?? "reviewed"} onChange={(event) => onUpdate(annotation.id, { reviewStatus: event.target.value as IimlReviewStatus })}>
-          {Object.entries(reviewLabels).map(([value, label]) => (
-            <option key={value} value={value}>
-              {label}
-            </option>
-          ))}
-        </select>
-      </label>
-      <div className="review-actions">
-        <button onClick={() => onUpdate(annotation.id, { reviewStatus: "approved" })}>通过</button>
-        <button onClick={() => onUpdate(annotation.id, { reviewStatus: "reviewed" })}>需修改</button>
-        <button onClick={() => onUpdate(annotation.id, { reviewStatus: "rejected" })}>拒绝</button>
-      </div>
-      <p className="muted-text">已绑定术语：{annotation.semantics?.terms?.map((term) => term.label).join("、") || "无"}（术语表共 {terms.length} 项）</p>
-    </div>
-  );
-}
-
-function TermBrowser({
-  terms,
-  selectedAnnotation,
-  onUpdate
-}: {
-  terms: VocabularyTerm[];
-  selectedAnnotation?: IimlAnnotation;
-  onUpdate: (id: string, patch: Partial<IimlAnnotation>) => void;
-}) {
-  const [query, setQuery] = useState("");
-  const filtered = useMemo(() => terms.filter((term) => term.prefLabel.includes(query) || term.id.includes(query)), [query, terms]);
-  const selectedTerms = selectedAnnotation?.semantics?.terms ?? [];
-  return (
-    <div className="term-browser">
-      <input placeholder="搜索术语" value={query} onChange={(event) => setQuery(event.target.value)} />
-      <div className="term-list">
-        {filtered.map((term) => {
-          const checked = selectedTerms.some((item) => item.id === term.id);
-          return (
+    <>
+      <div className="section-title">{isDraft ? "新建标注" : "标注详情"}</div>
+      <div className="annotation-editor">
+        <label>
+          <span>标签</span>
+          <input
+            autoFocus={isDraft}
+            value={labelDraft}
+            onChange={(event) => setLabelDraft(event.target.value)}
+            onBlur={commitLabel}
+            placeholder="例如：青龙"
+          />
+        </label>
+        <label>
+          <span>备注</span>
+          <textarea
+            value={notesDraft}
+            onChange={(event) => setNotesDraft(event.target.value)}
+            onBlur={commitNotes}
+            placeholder="可填写说明、释文、出处等..."
+          />
+        </label>
+        <div className="annotation-editor-actions">
+          {isDraft ? (
             <button
-              className={checked ? "active" : ""}
-              disabled={!selectedAnnotation}
-              key={term.id}
+              className="primary-action small"
               onClick={() => {
-                if (!selectedAnnotation) {
-                  return;
-                }
-                const nextTerms = checked
-                  ? selectedTerms.filter((item) => item.id !== term.id)
-                  : [...selectedTerms, { id: term.id, label: term.prefLabel, scheme: term.scheme, role: "iconographic" }];
-                onUpdate(selectedAnnotation.id, { semantics: { ...(selectedAnnotation.semantics ?? {}), terms: nextTerms } });
+                commitLabel();
+                commitNotes();
+                onConfirm(annotation.id);
               }}
             >
-              {term.prefLabel}
+              <Check size={14} /> 确定
             </button>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-function AnnotationList({
-  doc,
-  filter,
-  selectedAnnotationId,
-  onFilterChange,
-  onSelect
-}: {
-  doc?: IimlDocument;
-  filter: AnnotationFilter;
-  selectedAnnotationId?: string;
-  onFilterChange: (filter: AnnotationFilter) => void;
-  onSelect: (id?: string) => void;
-}) {
-  const annotations = (doc?.annotations ?? []).filter((annotation) => {
-    if (filter === "candidate") {
-      return annotation.reviewStatus === "candidate";
-    }
-    if (filter === "approved") {
-      return annotation.reviewStatus === "approved" || annotation.reviewStatus === "reviewed";
-    }
-    return true;
-  });
-
-  return (
-    <div className="annotation-list-panel">
-      <div className="segmented compact">
-        {(["all", "candidate", "approved"] as AnnotationFilter[]).map((item) => (
-          <button className={filter === item ? "active" : ""} key={item} onClick={() => onFilterChange(item)}>
-            {item === "all" ? "全部" : item === "candidate" ? "候选" : "已确认"}
+          ) : null}
+          <button
+            className="secondary-action danger"
+            onClick={() => onDelete(annotation.id)}
+          >
+            <Trash2 size={14} /> 删除
           </button>
-        ))}
+          {isDraft ? (
+            <button
+              className="secondary-action"
+              onClick={() => onDelete(annotation.id)}
+              title="放弃此次标注"
+            >
+              <X size={14} /> 取消
+            </button>
+          ) : null}
+        </div>
       </div>
-      <div className="annotation-list">
-        {annotations.map((annotation) => (
-          <button className={annotation.id === selectedAnnotationId ? "active" : ""} key={annotation.id} onClick={() => onSelect(annotation.id)}>
-            <strong>{annotation.label || annotation.id}</strong>
-            <span>{reviewLabels[annotation.reviewStatus ?? "reviewed"]} · {structuralLabels[annotation.structuralLevel]}</span>
-          </button>
-        ))}
-        {annotations.length === 0 ? <p className="muted-text">暂无标注。</p> : null}
-      </div>
-    </div>
+    </>
   );
 }
