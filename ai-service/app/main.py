@@ -10,7 +10,7 @@ from .sam import get_status as get_sam_status
 from .sam import kickoff_load as sam_kickoff_load
 from .sam import sam_segment, sam_segment_by_stone
 from .utils import ok_response
-from .yolo import yolo_detect
+from .yolo import yolo_detect, yolo_detect_by_stone
 
 app = FastAPI(title="WSC3D AI Service", version="0.1.0")
 
@@ -48,8 +48,12 @@ class SamRequest(BaseModel):
 
 
 class YoloRequest(BaseModel):
-    imageBase64: str
+    # 与 SamRequest 同型：stoneId 优先（走 pic 高清图），否则用 imageBase64 截图。
+    stoneId: str | None = None
+    imageBase64: str | None = None
     classFilter: list[str] | None = None
+    confThreshold: float = 0.25
+    maxDetections: int = 80
 
 
 class CannyRequest(BaseModel):
@@ -84,7 +88,26 @@ def sam(request: SamRequest):
 
 @app.post("/ai/yolo")
 def yolo(request: YoloRequest):
-    return yolo_detect(request.imageBase64, request.classFilter)
+    if request.stoneId:
+        return yolo_detect_by_stone(
+            request.stoneId,
+            class_filter=request.classFilter,
+            conf_threshold=request.confThreshold,
+            max_detections=request.maxDetections,
+        )
+    if request.imageBase64:
+        return yolo_detect(
+            request.imageBase64,
+            class_filter=request.classFilter,
+            conf_threshold=request.confThreshold,
+            max_detections=request.maxDetections,
+        )
+    return {
+        "error": "stoneId_or_imageBase64_required",
+        "detections": [],
+        "model": "unavailable",
+        "coordinateSystem": "image-normalized",
+    }
 
 
 @app.post("/ai/canny")

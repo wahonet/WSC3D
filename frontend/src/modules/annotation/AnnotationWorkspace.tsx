@@ -13,6 +13,7 @@ import type {
   IimlDocument,
   ProjectionContext
 } from "./types";
+import { YoloScanDialog, type YoloScanOptions } from "./YoloScanDialog";
 
 // 标注底图来源：默认 3D 模型（modelBox UV 坐标），也可切到高清图原图（图自身归一化）。
 // 高清图模式下 SAM 候选与显示天然在同一坐标系下。
@@ -38,6 +39,11 @@ type AnnotationWorkspaceProps = {
   onSourceModeChange: (mode: AnnotationSourceMode) => void;
   // 4 点对齐校准结果保存到 IIML doc.culturalObject.alignment。
   onSaveAlignment: (alignment: IimlAlignment | undefined) => void;
+  // YOLO 扫描 dialog：状态由 App 层持有（与 SAM 候选审定相邻），结果通过回调返回。
+  yoloDialogOpen?: boolean;
+  yoloScanning?: boolean;
+  onYoloSubmit?: (options: YoloScanOptions) => void;
+  onYoloCancel?: () => void;
 };
 
 type CalibrationDraft = {
@@ -64,7 +70,11 @@ export function AnnotationWorkspace({
   onSelect,
   onToolChange,
   onSourceModeChange,
-  onSaveAlignment
+  onSaveAlignment,
+  yoloDialogOpen = false,
+  yoloScanning = false,
+  onYoloSubmit,
+  onYoloCancel
 }: AnnotationWorkspaceProps) {
   const [projection, setProjection] = useState<ProjectionContext | undefined>(undefined);
   const [calibration, setCalibration] = useState<CalibrationDraft | undefined>(undefined);
@@ -315,6 +325,12 @@ export function AnnotationWorkspace({
           onSourceModeChange={onSourceModeChange}
         />
       ) : null}
+      <YoloScanDialog
+        open={yoloDialogOpen}
+        scanning={yoloScanning}
+        onSubmit={(options) => onYoloSubmit?.(options)}
+        onCancel={() => onYoloCancel?.()}
+      />
     </div>
   );
 }

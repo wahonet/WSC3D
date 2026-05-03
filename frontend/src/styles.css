@@ -1512,6 +1512,161 @@ button {
   cursor: not-allowed;
 }
 
+/* YOLO 扫描 dialog：顶层模态浮层，centered，与画布事件解耦 */
+.yolo-dialog-mask {
+  position: absolute;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(10, 9, 8, 0.55);
+  backdrop-filter: blur(2px);
+}
+
+.yolo-dialog {
+  width: min(560px, 88%);
+  max-height: 80vh;
+  display: grid;
+  gap: 14px;
+  padding: 18px 20px;
+  background: #1f1c19;
+  border: 1px solid rgba(243, 167, 18, 0.45);
+  border-radius: 12px;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.5);
+  overflow: auto;
+}
+
+.yolo-dialog-header h3 {
+  margin: 0 0 4px;
+  color: #f3a712;
+  font-size: 16px;
+}
+
+.yolo-dialog-header .muted-text {
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+.yolo-dialog-section {
+  display: grid;
+  gap: 8px;
+}
+
+.yolo-dialog-section-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #f4ece0;
+}
+
+.yolo-dialog-section-title .muted-text {
+  font-weight: 400;
+  flex: 1;
+}
+
+.ghost-link {
+  background: transparent;
+  border: none;
+  color: #f3a712;
+  cursor: pointer;
+  font-size: 12px;
+  padding: 0 4px;
+}
+
+.ghost-link:hover {
+  color: #f8b834;
+  text-decoration: underline;
+}
+
+.yolo-dialog-classes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  max-height: 180px;
+  overflow-y: auto;
+  padding: 4px;
+}
+
+.yolo-class-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  font-size: 12px;
+  color: #cfc7bd;
+  background: #2a2622;
+  border: 1px solid #3d3731;
+  border-radius: 999px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.yolo-class-chip input[type="checkbox"] {
+  display: none;
+}
+
+.yolo-class-chip.is-on {
+  color: #11100f;
+  background: #f3a712;
+  border-color: #f3a712;
+}
+
+.yolo-dialog-slider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.yolo-dialog-slider input[type="range"] {
+  flex: 1;
+  accent-color: #f3a712;
+}
+
+.yolo-dialog-value {
+  flex: 0 0 auto;
+  min-width: 48px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  font-size: 13px;
+  color: #f4ece0;
+}
+
+.yolo-dialog-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.yolo-dialog-footer .ghost-cta,
+.yolo-dialog-footer .primary-cta {
+  width: auto;
+  padding: 0 16px;
+  height: 32px;
+  font-size: 13px;
+  border-radius: 6px;
+}
+
+.yolo-dialog-footer .primary-cta {
+  font-weight: 600;
+  color: #11100f;
+  background: #f3a712;
+  border: none;
+  cursor: pointer;
+}
+
+.yolo-dialog-footer .primary-cta:hover:not(:disabled) {
+  background: #f8b834;
+}
+
+.yolo-dialog-footer .primary-cta:disabled,
+.yolo-dialog-footer .ghost-cta:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 .annotation-canvas {
   position: absolute !important;
   inset: 0;

@@ -1,4 +1,17 @@
-import { Circle, Crosshair, MousePointer2, PenLine, Redo2, RotateCcw, Square, Trash2, Undo2, Wand2, Waypoints } from "lucide-react";
+import {
+  Circle,
+  Crosshair,
+  MousePointer2,
+  PenLine,
+  Radar,
+  Redo2,
+  RotateCcw,
+  Square,
+  Trash2,
+  Undo2,
+  Wand2,
+  Waypoints
+} from "lucide-react";
 import type React from "react";
 import type { AnnotationTool } from "./types";
 import type { SamStatus } from "../../api/client";
@@ -14,6 +27,8 @@ type AnnotationToolbarProps = {
   hasAlignment?: boolean;
   // 当前是否处于标定流程中（采点 / review）。
   calibrating?: boolean;
+  // YOLO 扫描进行中：按钮显示 spinner，避免重复触发。
+  yoloScanning?: boolean;
   onToolChange: (tool: AnnotationTool) => void;
   onUndo: () => void;
   onRedo: () => void;
@@ -23,6 +38,8 @@ type AnnotationToolbarProps = {
   // 启动 / 停止 4 点标定流程。
   onStartCalibration: () => void;
   onCancelCalibration: () => void;
+  // 启动 YOLO 批量扫描（弹设置浮窗）。
+  onStartYoloScan: () => void;
 };
 
 const tools: Array<{ id: AnnotationTool; title: string; icon: React.ReactNode }> = [
@@ -64,13 +81,15 @@ export function AnnotationToolbar({
   samStatus,
   hasAlignment,
   calibrating,
+  yoloScanning,
   onToolChange,
   onUndo,
   onRedo,
   onDeleteSelected,
   onResetView,
   onStartCalibration,
-  onCancelCalibration
+  onCancelCalibration,
+  onStartYoloScan
 }: AnnotationToolbarProps) {
   const sam = describeSam(samStatus);
   const calibrationTitle = calibrating
@@ -98,6 +117,18 @@ export function AnnotationToolbar({
         onClick={() => onToolChange("sam")}
       >
         <Wand2 size={18} />
+      </button>
+      <button
+        className={`rail-button${yoloScanning ? " active" : ""}`}
+        disabled={calibrating || yoloScanning}
+        title={
+          yoloScanning
+            ? "YOLO 扫描中…"
+            : "YOLO 批量扫描（通用模型，给候选 tab 喂一批 bbox 后用 SAM 二次精修）"
+        }
+        onClick={onStartYoloScan}
+      >
+        <Radar size={18} />
       </button>
       <div className="rail-divider" aria-hidden />
       <button

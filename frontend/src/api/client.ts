@@ -198,9 +198,56 @@ export type ProjectionState = {
 
 export type AiDetection = {
   bbox: [number, number, number, number];
+  // 图像归一化坐标（0..1，v 向下；与 SAM polygon 同约定，前端可以直接当 BBox UV 使用）
+  bbox_uv?: [number, number, number, number];
   confidence: number;
   label: string;
 };
+
+export type YoloDetectionResponse = {
+  detections: AiDetection[];
+  model: string;
+  imageSize?: [number, number];
+  coordinateSystem?: "image-normalized";
+  sourceMode?: "screenshot" | "source";
+  sourceImage?: string;
+  error?: string;
+};
+
+// COCO 类别中"通常对汉画像石可用"的子集，UI 默认勾选这一组以减少噪声候选。
+// 真要做精确识别需要专门微调，这是 v0.4.0 的取舍。
+export const yoloCocoUsefulClasses = [
+  "person",
+  "bird",
+  "cat",
+  "dog",
+  "horse",
+  "sheep",
+  "cow",
+  "elephant",
+  "bear",
+  "zebra",
+  "giraffe",
+  "umbrella",
+  "knife",
+  "fork",
+  "spoon",
+  "cup",
+  "bottle",
+  "vase",
+  "chair",
+  "couch",
+  "bed",
+  "dining table",
+  "kite",
+  "bicycle",
+  "car",
+  "motorcycle",
+  "bus",
+  "truck",
+  "boat",
+  "potted plant"
+];
 
 export type AssemblyPlanTransform = {
   position: [number, number, number];
@@ -395,7 +442,15 @@ export async function runSamSegmentationBySource(payload: {
   return response.json();
 }
 
-export async function runYoloDetection(payload: { imageBase64: string; classFilter?: string[] }): Promise<{ detections: AiDetection[]; model: string }> {
+// 通用 YOLO 检测：stoneId 优先（高清图路径），否则 imageBase64（截图）。
+// 后端会按 confThreshold 与 maxDetections 过滤；class_filter 仅保留你关心的标签。
+export async function runYoloDetection(payload: {
+  stoneId?: string;
+  imageBase64?: string;
+  classFilter?: string[];
+  confThreshold?: number;
+  maxDetections?: number;
+}): Promise<YoloDetectionResponse> {
   const response = await fetch("/ai/yolo", {
     method: "POST",
     headers: { "Content-Type": "application/json" },

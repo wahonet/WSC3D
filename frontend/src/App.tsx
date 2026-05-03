@@ -9,6 +9,7 @@ import {
   fetchStoneMetadata,
   fetchStones,
   fetchTerms,
+  runYoloDetection,
   saveAssemblyPlan,
   saveIimlDocument,
   type AssemblyPlanRecord,
@@ -21,9 +22,11 @@ import {
   type VocabularyCategory,
   type VocabularyTerm
 } from "./api/client";
-import { annotationReducer, initialAnnotationState } from "./modules/annotation/store";
+import { createAnnotationFromGeometry } from "./modules/annotation/geometry";
 import { describeMergeFailure, mergePolygonAnnotations } from "./modules/annotation/merge";
+import { annotationPalette, annotationReducer, initialAnnotationState } from "./modules/annotation/store";
 import type { AnnotationSourceMode } from "./modules/annotation/AnnotationWorkspace";
+import type { YoloScanOptions } from "./modules/annotation/YoloScanDialog";
 import type { AdjustmentAxis, AdjustmentMode } from "./modules/assembly/AssemblyAdjustControls";
 import type { AssemblyCameraState } from "./modules/assembly/AssemblyWorkspace";
 import type { AssemblyDimensions, AssemblyItem, AssemblyTransform } from "./modules/assembly/types";
@@ -98,6 +101,9 @@ export function App() {
     annotationState.doc?.culturalObject &&
       (annotationState.doc.culturalObject as { alignment?: unknown }).alignment
   );
+  // YOLO 批量扫描：dialog 状态 + 推理进行中标记
+  const [yoloDialogOpen, setYoloDialogOpen] = useState(false);
+  const [yoloScanning, setYoloScanning] = useState(false);
   const [vocabularyCategories, setVocabularyCategories] = useState<VocabularyCategory[]>([]);
   const [vocabularyTerms, setVocabularyTerms] = useState<VocabularyTerm[]>([]);
   // AI 服务健康状态；/ai/health 轮询到 sam.ready 就停止，断连则持续重试。
@@ -538,6 +544,95 @@ export function App() {
     [annotationState.doc]
   );
 
+  // YOLO 批量扫描：调 /ai/yolo 后把每个 bbox 转为 candidate IimlAnnotation 落入 store。
+  // 走高清图路径（stoneId）；当前不做截图回退，因为 3D viewport 截图分辨率太低
+  // 出来的 bbox 用处有限，等用户反馈再补。
+  const handleStartYoloScan = useCallback(() => {
+    setYoloDialogOpen(true);
+  }, []);
+
+  const handleCancelYoloScan = useCallback(() => {
+    if (yoloScanning) {
+      return;
+    }
+    setYoloDialogOpen(false);
+  }, [yoloScanning]);
+
+  const handleSubmitYoloScan = useCallback(
+    async (options: YoloScanOptions) => {
+      if (!selectedStone) {
+        return;
+      }
+      const doc = annotationState.doc;
+      const resourceId = doc?.resources[0]?.id ?? `${selectedStone.id}:model`;
+      setYoloScanning(true);
+      dispatchAnnotation({ type: "set-status", status: "YOLO 扫描中…" });
+      try {
+        const response = await runYoloDetection({
+          stoneId: selectedStone.id,
+          classFilter: options.classFilter,
+          confThreshold: options.confThreshold,
+          maxDetections: options.maxDetections
+        });
+        if (response.error) {
+          dispatchAnnotation({ type: "set-status", status: `YOLO 扫描失败：${response.error}` });
+          return;
+        }
+        const detections = response.detections ?? [];
+        if (detections.length === 0) {
+          dispatchAnnotation({ type: "set-status", status: "YOLO 没找到符合条件的候选，可降低阈值再试" });
+          return;
+        }
+        // 把每个 bbox 转成 candidate annotation。frame 跟随当前 sourceMode；
+        // bbox_uv 已经是 image-normalized（v 向下），与前端 UV 约定一致，直接用。
+        const baseColorIndex = doc?.annotations.length ?? 0;
+        let createdCount = 0;
+        detections.forEach((detection, index) => {
+          // 后端总是输出 bbox_uv（image-normalized 与前端 UV 一致）。pixel bbox 仅作为
+          // 旧接口兼容，新代码这里只信任 bbox_uv，缺失就跳过。
+          const uv = detection.bbox_uv;
+          if (!uv) {
+            return;
+          }
+          const annotation = createAnnotationFromGeometry({
+            geometry: { type: "BBox", coordinates: uv },
+            resourceId,
+            color: annotationPalette[(baseColorIndex + index) % annotationPalette.length],
+            frame: annotationSourceMode,
+            label: `YOLO 候选：${detection.label}`,
+            structuralLevel: "figure",
+            reviewStatus: "candidate",
+            generation: {
+              method: "yolo",
+              model: response.model,
+              confidence: detection.confidence,
+              prompt: {
+                stoneId: selectedStone.id,
+                classFilter: options.classFilter ?? null,
+                confThreshold: options.confThreshold,
+                maxDetections: options.maxDetections,
+                label: detection.label
+              }
+            }
+          });
+          dispatchAnnotation({ type: "add-annotation", annotation });
+          createdCount += 1;
+        });
+        dispatchAnnotation({
+          type: "set-status",
+          status: `YOLO 扫描完成，落入 ${createdCount} 个候选（model=${response.model}）`
+        });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        dispatchAnnotation({ type: "set-status", status: `YOLO 扫描出错：${message}` });
+      } finally {
+        setYoloScanning(false);
+        setYoloDialogOpen(false);
+      }
+    },
+    [annotationSourceMode, annotationState.doc, selectedStone]
+  );
+
   return (
     <div className="app-shell">
       <header className="topbar">
@@ -585,11 +680,13 @@ export function App() {
                 canUndo={annotationState.undoStack.length > 0}
                 hasAlignment={hasAlignment}
                 samStatus={samStatus}
+                yoloScanning={yoloScanning}
                 onCancelCalibration={() => dispatchAnnotation({ type: "set-tool", tool: "select" })}
                 onDeleteSelected={deleteSelectedAnnotation}
                 onRedo={() => dispatchAnnotation({ type: "redo" })}
                 onResetView={() => setResetToken((value) => value + 1)}
                 onStartCalibration={() => dispatchAnnotation({ type: "set-tool", tool: "calibrate" })}
+                onStartYoloScan={handleStartYoloScan}
                 onToolChange={(tool) => dispatchAnnotation({ type: "set-tool", tool })}
                 onUndo={() => dispatchAnnotation({ type: "undo" })}
               />
@@ -660,6 +757,8 @@ export function App() {
                   selectedAnnotationId={annotationState.selectedAnnotationId}
                   sourceMode={annotationSourceMode}
                   stone={selectedStone}
+                  yoloDialogOpen={yoloDialogOpen}
+                  yoloScanning={yoloScanning}
                   onCreate={(annotation, asDraft) => dispatchAnnotation({ type: "add-annotation", annotation, asDraft })}
                   onDelete={(id) => dispatchAnnotation({ type: "delete-annotation", id })}
                   onSaveAlignment={(alignment) => dispatchAnnotation({ type: "set-alignment", alignment })}
@@ -667,6 +766,8 @@ export function App() {
                   onSourceModeChange={setAnnotationSourceMode}
                   onToolChange={(tool) => dispatchAnnotation({ type: "set-tool", tool })}
                   onUpdate={(id, patch) => dispatchAnnotation({ type: "update-annotation", id, patch })}
+                  onYoloCancel={handleCancelYoloScan}
+                  onYoloSubmit={handleSubmitYoloScan}
                 />
               </div>
             </Suspense>
