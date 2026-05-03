@@ -5,7 +5,7 @@ import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { getCatalog, type CatalogConfig } from "./services/catalog.js";
-import { getIimlContext, importMarkdownIntoIiml, loadIimlDoc, loadVocabulary, saveIimlDoc } from "./services/iiml.js";
+import { getIimlContext, importMarkdownIntoIiml, listAlignments, loadIimlDoc, loadVocabulary, saveIimlDoc } from "./services/iiml.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = process.env.WSC3D_ROOT
@@ -173,6 +173,14 @@ app.get("/api/terms", async (_req, res, next) => {
 
 app.get("/api/iiml/context", (_req, res) => {
   res.json(getIimlContext());
+});
+
+app.get("/api/iiml/alignments", async (_req, res, next) => {
+  try {
+    res.json(await listAlignments(projectRoot));
+  } catch (error) {
+    next(error);
+  }
 });
 
 app.get("/api/iiml/:stoneId", async (req, res, next) => {

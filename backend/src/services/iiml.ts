@@ -270,6 +270,45 @@ export async function importMarkdownIntoIiml(
   return saveIimlDoc(projectRoot, id, doc);
 }
 
+/**
+ * 扫描 data/iiml/*.iiml.json，对每条返回 stoneId → 是否含 culturalObject.alignment。
+ * 仅做最小校验（controlPoints 是数组且 ≥ 4），与前端 store.getAlignment 一致。
+ *
+ * 性能：一次读 N 个文件（当前 < 20）；JSON.parse 后只读 culturalObject 节就丢，
+ * 不全文校验。前端可以在切画像石时，决定是否提示用户"该石头还没做对齐校准"。
+ */
+export async function listAlignments(projectRoot: string): Promise<Record<string, boolean>> {
+  const dir = path.join(projectRoot, "data", "iiml");
+  let entries: string[];
+  try {
+    entries = await import("node:fs/promises").then((fs) => fs.readdir(dir));
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      return {};
+    }
+    throw error;
+  }
+  const result: Record<string, boolean> = {};
+  await Promise.all(
+    entries
+      .filter((name) => name.endsWith(".iiml.json"))
+      .map(async (name) => {
+        const stoneId = name.replace(/\.iiml\.json$/u, "");
+        try {
+          const raw = await readFile(path.join(dir, name), "utf8");
+          const doc = JSON.parse(raw) as { culturalObject?: { alignment?: { controlPoints?: unknown } } };
+          const alignment = doc.culturalObject?.alignment;
+          const points = alignment && Array.isArray(alignment.controlPoints) ? alignment.controlPoints : [];
+          result[stoneId] = points.length >= 4;
+        } catch {
+          // 单文件解析失败不影响其它文件；记为未校准
+          result[stoneId] = false;
+        }
+      })
+  );
+  return result;
+}
+
 export async function loadVocabulary(projectRoot: string): Promise<{ categories: VocabularyCategory[]; terms: VocabularyTerm[] }> {
   const raw = await readFile(path.join(projectRoot, "data", "terms.json"), "utf8");
   const source = JSON.parse(raw) as { categories?: VocabularyCategory[] };

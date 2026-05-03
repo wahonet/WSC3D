@@ -3,6 +3,7 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useReducer, useState }
 import * as THREE from "three";
 import {
   fetchAiHealth,
+  fetchAlignmentStatuses,
   fetchAssemblyPlan,
   fetchAssemblyPlans,
   fetchIimlDocument,
@@ -105,6 +106,8 @@ export function App() {
   // YOLO 批量扫描：dialog 状态 + 推理进行中标记
   const [yoloDialogOpen, setYoloDialogOpen] = useState(false);
   const [yoloScanning, setYoloScanning] = useState(false);
+  // C5' 头部画像石下拉：每块石头是否已做 4 点对齐校准
+  const [alignmentStatuses, setAlignmentStatuses] = useState<Record<string, boolean>>({});
   const [vocabularyCategories, setVocabularyCategories] = useState<VocabularyCategory[]>([]);
   const [vocabularyTerms, setVocabularyTerms] = useState<VocabularyTerm[]>([]);
   // AI 服务健康状态；/ai/health 轮询到 sam.ready 就停止，断连则持续重试。
@@ -193,6 +196,23 @@ export function App() {
       })
       .catch(() => setSavedPlans([]));
   }, []);
+
+  // 启动时一次性拉所有画像石的 alignment 状态，供下拉显示 ✓ / 未校准提示。
+  // 当前 doc 改动（保存对齐 / 清除）时本地直接维护 map，避免重复请求 backend。
+  useEffect(() => {
+    fetchAlignmentStatuses().then(setAlignmentStatuses).catch(() => undefined);
+  }, []);
+
+  // 当本地 alignment 改动（dispatchAnnotation 'set-alignment' 后），同步本地 map
+  // 让下拉立即反映 —— autosave 写盘后下次刷新也能持久。
+  useEffect(() => {
+    if (!selectedId) return;
+    setAlignmentStatuses((prev) => {
+      const next = { ...prev };
+      next[selectedId] = hasAlignment;
+      return next;
+    });
+  }, [hasAlignment, selectedId]);
 
   // C2 全局键盘快捷键：仅在标注模式 + 焦点不在 input/textarea/contenteditable
   // 时生效，避免在编辑标签 / 备注 / 释文等输入框时被打断。
@@ -758,11 +778,17 @@ export function App() {
         <label className="stone-select">
           <span>画像石</span>
           <select value={selectedId} onChange={(event) => setSelectedId(event.target.value)}>
-            {catalog?.stones.map((stone) => (
-              <option value={stone.id} key={stone.id}>
-                {stone.id.replace("asset-", "#")} {stone.displayName}
-              </option>
-            ))}
+            {catalog?.stones.map((stone) => {
+              // ✓ 表示已完成 4 点对齐校准；前缀让用户在下拉里一眼区分
+              const aligned = alignmentStatuses[stone.id];
+              const prefix = aligned ? "✓ " : "  ";
+              return (
+                <option value={stone.id} key={stone.id}>
+                  {prefix}
+                  {stone.id.replace("asset-", "#")} {stone.displayName}
+                </option>
+              );
+            })}
           </select>
         </label>
       </header>

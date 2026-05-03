@@ -349,6 +349,20 @@ export async function fetchIimlDocument(stoneId: string): Promise<IimlDocument> 
   return response.json();
 }
 
+// 一次性返回所有画像石的 4 点对齐状态：{ stoneId: hasAlignment }
+// 头部画像石下拉用它在 option 文本前加 ✓ 标识。
+export async function fetchAlignmentStatuses(): Promise<Record<string, boolean>> {
+  try {
+    const response = await fetch("/api/iiml/alignments");
+    if (!response.ok) {
+      return {};
+    }
+    return (await response.json()) as Record<string, boolean>;
+  } catch {
+    return {};
+  }
+}
+
 export async function saveIimlDocument(stoneId: string, document: IimlDocument): Promise<IimlDocument> {
   const response = await fetch(`/api/iiml/${encodeURIComponent(stoneId)}`, {
     method: "PUT",
