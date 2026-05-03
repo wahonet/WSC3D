@@ -194,6 +194,95 @@ export function App() {
       .catch(() => setSavedPlans([]));
   }, []);
 
+  // C2 全局键盘快捷键：仅在标注模式 + 焦点不在 input/textarea/contenteditable
+  // 时生效，避免在编辑标签 / 备注 / 释文等输入框时被打断。
+  useEffect(() => {
+    if (!isAnnotationActive) {
+      return;
+    }
+    const isEditableTarget = (target: EventTarget | null): boolean => {
+      if (!(target instanceof HTMLElement)) return false;
+      const tag = target.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return true;
+      if (target.isContentEditable) return true;
+      return false;
+    };
+    const onKey = (event: KeyboardEvent) => {
+      if (isEditableTarget(event.target)) {
+        return;
+      }
+      const key = event.key.toLowerCase();
+      const ctrl = event.ctrlKey || event.metaKey;
+      // 撤销 / 重做
+      if (ctrl && key === "z") {
+        event.preventDefault();
+        if (event.shiftKey) {
+          dispatchAnnotation({ type: "redo" });
+        } else {
+          dispatchAnnotation({ type: "undo" });
+        }
+        return;
+      }
+      if (ctrl && key === "y") {
+        event.preventDefault();
+        dispatchAnnotation({ type: "redo" });
+        return;
+      }
+      // 标定流程中不让 R/E/P/V/S 这种工具切换抢走
+      if (annotationState.activeTool === "calibrate") {
+        return;
+      }
+      // 工具切换
+      if (!ctrl && !event.shiftKey && !event.altKey) {
+        if (key === "v" || key === "escape") {
+          if (key === "v") {
+            event.preventDefault();
+            dispatchAnnotation({ type: "set-tool", tool: "select" });
+          }
+          // Esc 已经在 AnnotationCanvas 内监听做更细致的"清 SAM / pen"处理；
+          // 这里只在 v 上触发，不重复处理 Esc
+          return;
+        }
+        if (key === "r") {
+          event.preventDefault();
+          dispatchAnnotation({ type: "set-tool", tool: "rect" });
+          return;
+        }
+        if (key === "e") {
+          event.preventDefault();
+          dispatchAnnotation({ type: "set-tool", tool: "ellipse" });
+          return;
+        }
+        if (key === "p") {
+          event.preventDefault();
+          dispatchAnnotation({ type: "set-tool", tool: "pen" });
+          return;
+        }
+        if (key === "n") {
+          // n = poiNt（s 给 SAM 占用了）
+          event.preventDefault();
+          dispatchAnnotation({ type: "set-tool", tool: "point" });
+          return;
+        }
+        if (key === "s") {
+          // SAM 未就绪时静默忽略
+          if (samStatus?.ready) {
+            event.preventDefault();
+            dispatchAnnotation({ type: "set-tool", tool: "sam" });
+          }
+          return;
+        }
+        if (key === "f") {
+          event.preventDefault();
+          setResetToken((value) => value + 1);
+          return;
+        }
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [annotationState.activeTool, isAnnotationActive, samStatus?.ready]);
+
   useEffect(() => {
     if (!selectedId) {
       return;
