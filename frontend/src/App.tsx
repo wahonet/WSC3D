@@ -1,4 +1,4 @@
-import { Camera, MousePointer2, RotateCcw, SquareDashedMousePointer } from "lucide-react";
+import { Camera, MousePointer2, Ruler, RotateCcw, SquareDashedMousePointer, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import * as THREE from "three";
 import {
@@ -13,14 +13,20 @@ import {
   type StoneMetadata
 } from "./api/client";
 import { AssemblyPanel } from "./modules/assembly/AssemblyPanel";
-import { AssemblyWorkspace, type AssemblyCameraState, type AssemblyView } from "./modules/assembly/AssemblyWorkspace";
+import { AssemblyWorkspace, type AssemblyCameraState } from "./modules/assembly/AssemblyWorkspace";
 import type { AdjustmentAxis, AdjustmentMode } from "./modules/assembly/AssemblyAdjustControls";
 import type { AssemblyDimensions, AssemblyItem, AssemblyTransform } from "./modules/assembly/types";
-import { StoneViewer } from "./modules/viewer/StoneViewer";
+import { StoneViewer, type MeasurementResult, type ViewerMode } from "./modules/viewer/StoneViewer";
+import type { ViewCubeView } from "./modules/shared/ViewCube";
 
 type WorkspaceMode = "viewer" | "assembly";
-type ViewMode = "3d" | "2d";
 type BackgroundMode = "black" | "gray" | "white";
+
+const viewerModeLabels: Record<ViewerMode, string> = {
+  "3d": "3D",
+  "2d": "2D",
+  ortho: "正射"
+};
 
 const backgroundLabels: Record<BackgroundMode, string> = {
   black: "黑",
@@ -33,9 +39,13 @@ export function App() {
   const [metadata, setMetadata] = useState<StoneMetadata>();
   const [selectedId, setSelectedId] = useState("");
   const [workspaceMode, setWorkspaceMode] = useState<WorkspaceMode>("viewer");
-  const [viewMode, setViewMode] = useState<ViewMode>("3d");
+  const [viewMode, setViewMode] = useState<ViewerMode>("3d");
   const [background, setBackground] = useState<BackgroundMode>("black");
   const [resetToken, setResetToken] = useState(0);
+  const [viewerCubeView, setViewerCubeView] = useState<ViewCubeView>("front");
+  const [measuring, setMeasuring] = useState(false);
+  const [measureClearToken, setMeasureClearToken] = useState(0);
+  const [measurement, setMeasurement] = useState<MeasurementResult>();
   const [error, setError] = useState<string>();
   const [assemblyItems, setAssemblyItems] = useState<AssemblyItem[]>([]);
   const [addStoneId, setAddStoneId] = useState("");
@@ -44,7 +54,7 @@ export function App() {
   const [rotationStep, setRotationStep] = useState(5);
   const [gizmoMode, setGizmoMode] = useState<AdjustmentMode>("translate");
   const [assemblyCameraState, setAssemblyCameraState] = useState<AssemblyCameraState>();
-  const [assemblyView, setAssemblyView] = useState<AssemblyView>("front");
+  const [assemblyView, setAssemblyView] = useState<ViewCubeView>("front");
   const [planName, setPlanName] = useState("");
   const [saveStatus, setSaveStatus] = useState<string>();
   const [savedPlans, setSavedPlans] = useState<AssemblyPlanRecord[]>([]);
@@ -352,7 +362,17 @@ export function App() {
         <main className="main-viewport">
           {error ? <div className="empty-state">{error}</div> : null}
           {workspaceMode === "viewer" && selectedStone ? (
-            <StoneViewer key={`${selectedStone.id}-${resetToken}`} stone={selectedStone} viewMode={viewMode} background={background} />
+            <StoneViewer
+              key={`${selectedStone.id}-${resetToken}`}
+              stone={selectedStone}
+              viewMode={viewMode}
+              background={background}
+              measuring={measuring}
+              measureToken={measureClearToken}
+              cubeView={viewerCubeView}
+              onCubeViewChange={setViewerCubeView}
+              onMeasureChange={setMeasurement}
+            />
           ) : null}
           {workspaceMode === "assembly" ? (
             <AssemblyWorkspace
@@ -387,12 +407,11 @@ export function App() {
               <section className="panel-section">
                 <div className="section-title">视图</div>
                 <div className="segmented">
-                  <button className={viewMode === "3d" ? "active" : ""} onClick={() => setViewMode("3d")}>
-                    3D
-                  </button>
-                  <button className={viewMode === "2d" ? "active" : ""} onClick={() => setViewMode("2d")}>
-                    2D
-                  </button>
+                  {(Object.keys(viewerModeLabels) as ViewerMode[]).map((mode) => (
+                    <button key={mode} className={viewMode === mode ? "active" : ""} onClick={() => setViewMode(mode)}>
+                      {viewerModeLabels[mode]}
+                    </button>
+                  ))}
                 </div>
               </section>
 
@@ -408,6 +427,20 @@ export function App() {
                   </select>
                 </label>
               </section>
+
+              <MeasurePanel
+                stone={selectedStone}
+                measuring={measuring}
+                measurement={measurement}
+                onToggle={() => {
+                  setMeasuring((value) => !value);
+                  setMeasurement(undefined);
+                }}
+                onClear={() => {
+                  setMeasurement(undefined);
+                  setMeasureClearToken((value) => value + 1);
+                }}
+              />
 
               <IntroPanel metadata={metadata} />
             </>
@@ -443,6 +476,62 @@ export function App() {
         </aside>
       </div>
     </div>
+  );
+}
+
+function MeasurePanel({
+  stone,
+  measuring,
+  measurement,
+  onToggle,
+  onClear
+}: {
+  stone?: StoneListItem;
+  measuring: boolean;
+  measurement?: MeasurementResult;
+  onToggle: () => void;
+  onClear: () => void;
+}) {
+  const dimensions = stone?.metadata?.dimensions;
+  const realLong = dimensions ? Math.max(dimensions.width ?? 0, dimensions.height ?? 0, dimensions.thickness ?? 0) : 0;
+  const hasRealScale = realLong > 0;
+
+  return (
+    <section className="panel-section">
+      <div className="section-title">测量</div>
+      <div className="measure-row">
+        <button className={`segmented-cta${measuring ? " active" : ""}`} onClick={onToggle}>
+          <Ruler size={15} />
+          <span>{measuring ? "退出测距" : "开启测距"}</span>
+        </button>
+        {measurement ? (
+          <button className="ghost-cta" onClick={onClear} title="清除测量">
+            <Trash2 size={14} />
+          </button>
+        ) : null}
+      </div>
+      <p className="muted-text measure-hint-text">
+        {hasRealScale ? "已按结构化尺寸校准" : "未匹配结构化尺寸，按模型单位显示"}
+      </p>
+      {measurement ? (
+        <dl className="measure-readout">
+          <dt>距离</dt>
+          <dd>
+            {measurement.realDistance !== undefined
+              ? `${measurement.realDistance.toFixed(2)} cm`
+              : `${measurement.modelDistance.toFixed(3)} 模型单位`}
+          </dd>
+          {measurement.realDistance !== undefined ? (
+            <>
+              <dt>模型距离</dt>
+              <dd>{measurement.modelDistance.toFixed(3)} 单位</dd>
+            </>
+          ) : null}
+        </dl>
+      ) : (
+        <p className="muted-text">{measuring ? "在视图中点击两个点完成一次测量。" : "开启后在模型上拾取两个点。"}</p>
+      )}
+    </section>
   );
 }
 

@@ -5,6 +5,7 @@ import { TransformControls } from "three/examples/jsm/controls/TransformControls
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import type { AssemblyDimensions, AssemblyItem, AssemblyTransform } from "./types";
 import { AssemblyAdjustControls, type AdjustmentAxis, type AdjustmentMode } from "./AssemblyAdjustControls";
+import { ViewCube, type ViewCubeView } from "../shared/ViewCube";
 
 type AssemblyWorkspaceProps = {
   items: AssemblyItem[];
@@ -41,7 +42,7 @@ const tmpBox = new THREE.Box3();
 const tmpVecA = new THREE.Vector3();
 const tmpVecB = new THREE.Vector3();
 
-export type AssemblyView = "front" | "back" | "left" | "right" | "top" | "bottom";
+export type AssemblyView = ViewCubeView;
 
 export type AssemblyCameraState = {
   position: [number, number, number];
@@ -50,26 +51,6 @@ export type AssemblyCameraState = {
 };
 
 const gridGroundY = -80;
-
-const assemblyViews: AssemblyView[] = ["front", "back", "left", "right", "top", "bottom"];
-
-const viewLabels: Record<AssemblyView, string> = {
-  front: "正",
-  back: "背",
-  left: "左",
-  right: "右",
-  top: "上",
-  bottom: "下"
-};
-
-const viewCubeTransforms: Record<AssemblyView, string> = {
-  front: "rotateX(-22deg) rotateY(34deg)",
-  back: "rotateX(-22deg) rotateY(214deg)",
-  left: "rotateX(-22deg) rotateY(124deg)",
-  right: "rotateX(-22deg) rotateY(-56deg)",
-  top: "rotateX(-64deg) rotateY(34deg)",
-  bottom: "rotateX(48deg) rotateY(34deg)"
-};
 
 export function AssemblyWorkspace({
   items,
@@ -422,20 +403,7 @@ export function AssemblyWorkspace({
         <strong>拼接工作区</strong>
         <span>{selectedItemId ? "拖动中心操作轴调整石块" : "点击画像石进入调整"}</span>
       </div>
-      <div className="view-cube" aria-label="立面视角">
-        <div className="view-cube-inner" style={{ transform: viewCubeTransforms[activeView] }}>
-          {assemblyViews.map((view) => (
-            <button
-              className={view === activeView ? `cube-face cube-face-${view} active` : `cube-face cube-face-${view}`}
-              key={view}
-              title={`${viewLabels[view]}面`}
-              onClick={() => setView(view)}
-            >
-              {viewLabels[view]}
-            </button>
-          ))}
-        </div>
-      </div>
+      <ViewCube activeView={activeView} onSelect={setView} />
       {loadingCount > 0 ? <div className="load-panel">正在加载 {loadingCount} 块模型</div> : null}
       {isModelReady ? (
         <AssemblyAdjustControls
