@@ -1,11 +1,13 @@
 # 下一步工作计划
 
-> 当前版本：`v0.3.0` —— 在 v0.2.2（M2 ICON 化）基础上完成 M3 第一波：SAM 标注闭环、多源底图（3D / 高清图）、4 点对齐校准、视图交互一致化。
+> 当前版本：`v0.4.0` —— 在 v0.3.0（AI 标注闭环）基础上完成 M3 第二波：
+> SAM 多 prompt（正点 / 负点 / box 一次提交）、AI Canny 线图叠加、YOLO 批量候选检测。
+> 标注模块已经形成完整的 "AI 启动 → 人工 + AI 协同精修 → IIML 入库" 管线。
 > 本文档面向 AI IDE 与协作者，按"近期 → 中期 → 远期"列出下一步要做的工作。
 
 ---
 
-## 0. 当前已交付（截至 v0.3.0）
+## 0. 当前已交付（截至 v0.4.0）
 
 ### 浏览模块
 
@@ -29,7 +31,9 @@
 #### 工具
 
 - 选择 / 矩形 / 圆 - 椭圆 / 点 / 钢笔（双击或回车闭合）
-- **SAM 智能分割**：单击对象出多边形候选；高清图直读路径（`stoneId` + MobileSAM ViT-T）+ 当前视角截图回退。
+- **SAM 多 prompt 智能分割**（v0.4.0 升级）：左键正点 / 右键负点 / Shift+左键拖框 → Enter 提交一次推理；MobileSAM ViT-T；高清图直读 + 截图 fallback。
+- **YOLO 批量扫描**（v0.4.0 新增）：工具栏 Radar 按钮 + 设置 dialog（类别过滤 / 置信度阈值 / 最大检测数）；YOLOv8n COCO 通用模型；落入候选 tab。
+- **AI Canny 线图**（v0.4.0 新增）：高清图模式下 mini segmented 切 "+线图"；后端 OpenCV Canny + 落盘缓存 + 前端半透明叠加。
 - **对齐校准**（v0.3.0 新增）：工具栏 `Crosshair` 按钮，"乒乓式" 4 对点采集，标定结果写入 `culturalObject.alignment`。
 
 #### 数据模型（IIML / ICON 三层 + 双坐标系）
@@ -53,9 +57,11 @@
 ### AI 子服务（FastAPI）
 
 - `/ai/health`：服务健康检查 + SAM 加载状态轮询（pending / downloading / loading / ready / error）。
-- `/ai/sam`：MobileSAM ViT-T 推理；支持 `imageBase64` 截图路径与 `stoneId` 高清图路径。
+- `/ai/sam`：MobileSAM ViT-T 推理；多 prompt（正点 / 负点 / box 一次提交）；`imageBase64` 截图路径与 `stoneId` 高清图路径。
+- `/ai/yolo`（v0.4.0 实装）：YOLOv8n COCO 推理；`stoneId` / `imageBase64` 双路径；返回 bbox（带 `bbox_uv` image-normalized 与 SAM polygon 同约定）。
 - `/ai/source-image/{stone_id}`（v0.3.0 新增）：tif → PNG 转码 + 落盘缓存（`max_edge` 可调，默认 4096）。
-- `/ai/yolo`、`/ai/canny`：占位接口（M3 后续启用）。
+- `/ai/lineart/{stone_id}`（v0.4.0 新增）：Canny 线图 PNG（白线 + alpha），落盘缓存 `cache/lineart/`，预留 `method` 参数扩展 Sobel / HED / Relic2Contour。
+- `/ai/canny`：旧 base64 路径，保留兼容。
 
 ---
 
@@ -79,14 +85,15 @@
 
 ---
 
-## 2. M3 — AI 标注接入与多解释（进行中）
+## 2. M3 — AI 标注接入与多解释（v0.3.0 / v0.4.0 已完成 SAM 与 YOLO，关系图谱进行中）
 
-### 2.1 SAM 智能分割（已完成 v0.3.0）
+### 2.1 SAM 智能分割（已完成 v0.3.0 + v0.4.0）
 
 - [x] **阶段 1**：MobileSAM ViT-T 启动时自动从 GitHub 拉取权重（`weights/mobile_sam.pt`）；单点 prompt；OpenCV Canny fallback。
 - [x] **阶段 2**：高清图直读路径（`stoneId` + 后端 PIL 解码 + tif→PNG 转码缓存）；前后端 v 轴方向统一；多 mask 候选启发式（丢面积 > 50% 的"场景级"大块、必须包含 prompt 点、选最紧凑那个）。
 - [x] **候选合并**（polygon union）：候选 / 列表两个 tab 都支持。
-- [ ] **阶段 3**：多 prompt 点累积（含负点）+ box prompt；处理运行记录写入 IIML `processingRuns`。
+- [x] **阶段 3**：多 prompt 点累积（含负点）+ box prompt；prompt 元数据记录在 `generation.prompt`，已为 IIML `processingRuns[]` 做好准备。
+- [ ] **阶段 4（待）**：把每次 SAM 调用作为一条独立 record 写入 `processingRuns[]`（model / version / parameters / timestamp / 输入 prompt / 输出 mask 区域），便于研究溯源。
 
 ### 2.2 多源底图与对齐校准（已完成 v0.3.0）
 
@@ -95,17 +102,20 @@
 - [ ] **更精细的对齐**：4 点扩展到 N 点（≥ 4），用 SVD 而不是 8 元 DLT 求解，提升标定精度；当前 4 点对小型不规则画像石已足够。
 - [ ] **跨 frame 标注就地编辑**：当前跨 frame 标注只能查看，需要切回原 frame 编辑。如确有研究流程上的需要（如在 3D 上拖动一个图坐标系标注），再加反向投影路径。
 
-### 2.3 YOLO 候选检测
+### 2.3 YOLO 候选检测（已完成 v0.4.0 第一阶段）
 
-- [ ] **批量审阅流程**：扫描 → 列表展示候选 → 单条 Approve / Reject / Edit → 进入正式标注。
-- [ ] **类别从高价值 5–6 个开始**（论文 24）：人物、车马、鸟兽、建筑、礼器。
-- [ ] **类别置信度阈值**：UI 暴露调整滑杆，避免一次倾倒大量低置信度候选。
+- [x] **批量审阅流程**：工具栏 Radar 触发；扫描 → bbox 落入候选 tab → 用 SAM 二次精修。
+- [x] **类别过滤 + 置信度阈值**：YoloScanDialog 提供 `classFilter` chip 多选 + 阈值滑杆 + 最大检测数。
+- [x] **通用 COCO 模型起点**：默认勾选"通常对汉画像石可用"的 30 种 COCO 子集（人物 / 鸟兽 / 常见物）。
+- [ ] **微调汉画像石专用模型**：YOLOv8 在标注积累足够后微调，识别"祥瑞 / 礼器 / 车马 / 建筑"等高价值类（论文 24 提示）。需要先用现有手工 + 半自动标注积累 ~1000 个 bbox 训练集。
+- [ ] **候选 tab 类别筛选**：候选数 > 30 时按 label chip 筛选。
 
-### 2.4 AI 线图
+### 2.4 AI 线图（已完成 v0.4.0 第一阶段）
 
-- [ ] **Canny 线图层**：作为可切换的图像层（与 3D / 高清图互斥），便于辨识浅浮雕轮廓。
-- [ ] **Relic2Contour / 论文 25**：当其变成成熟开源模型后接入；当前先占位。
-- [ ] **风格化线图严格审核**（论文 34 LoRA 扩散）：所有 AI 线图标记为 candidate，必须人工确认才进入 IIML。
+- [x] **Canny 线图叠加层**：在高清图模式下半透明叠加，辨识浅浮雕轮廓；后端落盘缓存 + 前端 mini segmented 切换。
+- [ ] **Sobel / HED 等其它线图算法**：`/ai/lineart?method=...` 已预留 `method` 参数，扩展时仅添 backend 实现。
+- [ ] **Relic2Contour / 论文 25**：等其变成成熟开源模型后接入；当前先占位。
+- [ ] **风格化线图严格审核**（论文 34 LoRA 扩散）：所有 AI 生成的线图标记为 candidate，必须人工确认才进入 IIML（当前 Canny 是纯算法不写库，不需要审核流程）。
 
 ### 2.5 多解释并存与标注间关系
 
