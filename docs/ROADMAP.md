@@ -1,13 +1,14 @@
 # 下一步工作计划
 
-> 当前版本：`v0.4.0` —— 在 v0.3.0（AI 标注闭环）基础上完成 M3 第二波：
-> SAM 多 prompt（正点 / 负点 / box 一次提交）、AI Canny 线图叠加、YOLO 批量候选检测。
-> 标注模块已经形成完整的 "AI 启动 → 人工 + AI 协同精修 → IIML 入库" 管线。
+> 当前版本：`v0.5.0` —— 在 v0.4.0（AI 加深）基础上完成 M3 第三波：
+> 标注间关系基础（IIML relations）+ 空间关系自动推导 + 画布关联连线 + Cytoscape
+> 知识图谱 tab + 键盘快捷键 + 候选类别 chip 过滤 + alignment 状态显示。
+> 标注模块从"独立条目"升级为"叙事网络 + 知识图谱"。
 > 本文档面向 AI IDE 与协作者，按"近期 → 中期 → 远期"列出下一步要做的工作。
 
 ---
 
-## 0. 当前已交付（截至 v0.4.0）
+## 0. 当前已交付（截至 v0.5.0）
 
 ### 浏览模块
 
@@ -53,6 +54,24 @@
 - 候选 tab + 列表 tab 都支持 checkbox 多选 + "合并选中"按钮。
 - `polygon-clipping` 做几何并集，只保留每个 polygon 的外环（丢孔洞），符合"只保留最外面的边缘"。
 - 合并产物的 reviewStatus 智能继承：任一源是候选 → 候选；否则跟随第一个源（避免已 approved 标注被打回未审）。
+
+#### 关系网络（v0.5.0 新增）
+
+- **标注间关系**：IimlRelation { kind, source, target, origin, note }；
+  受控 14 种 kind / 4 组（叙事 / 层级 / 空间 / 解释）；origin 区分 manual /
+  spatial-auto / ai-suggest。
+- **RelationsEditor**：详情面板末尾 inline 表单创建关系；显示作为 source / target
+  的关系列表；支持单条删除与跳转。
+- **空间关系自动推导**：纯运行时算 above/below/leftOf/rightOf/overlaps/nextTo；
+  不入库；用户"采纳"才升 manual。
+- **画布关联连线**：选中标注时 manual 实线 + auto 虚线连到所有相关标注。
+- **知识图谱 tab**：Cytoscape.js 节点 / 边图；与画布双向联动。
+
+#### 工程闭环（v0.5.0 新增）
+
+- 键盘快捷键：V/R/E/N/P/S/F + Ctrl+Z/Y。
+- 候选 tab 类别 chip 过滤。
+- 头部画像石下拉显示 alignment 状态（"✓ " 前缀）。
 
 ### AI 子服务（FastAPI）
 
@@ -117,17 +136,30 @@
 - [ ] **Relic2Contour / 论文 25**：等其变成成熟开源模型后接入；当前先占位。
 - [ ] **风格化线图严格审核**（论文 34 LoRA 扩散）：所有 AI 生成的线图标记为 candidate，必须人工确认才进入 IIML（当前 Canny 是纯算法不写库，不需要审核流程）。
 
-### 2.5 多解释并存与标注间关系
+### 2.5 多解释并存与标注间关系（v0.5.0 完成大半）
 
-- [ ] **多解释并存**：同一区域可保留不同研究者的释读，用 `relations.alternativeInterpretationOf` 表达。
-- [ ] **叙事关系**：`holds / rides / attacks / partOf / contains` 等受控谓词，UI 用拖拽连线 + 关系类型选择器。
-- [ ] **空间关系自动推导**：`above / below / leftOf / rightOf / overlaps` 由几何自动判定，作为知识图谱的边。
+- [x] **叙事 / 层级关系**：14 种受控谓词（holds / rides / attacks / faces /
+  partOf / contains / nextTo / above / below / leftOf / rightOf / overlaps /
+  alternativeInterpretationOf / manual）；RelationsEditor inline 表单创建。
+- [x] **空间关系自动推导**：deriveSpatialRelations 按几何推导 6 种空间关系；
+  不入库，"采纳"才升级为 manual。
+- [x] **画布关联连线**：选中标注时画 manual 实线 + auto 虚线连到所有相关。
+- [ ] **多解释并存**：alternativeInterpretationOf 类型已支持，但 UI 上还没专门
+  的"多视角对比"展示（同一区域多个解释并排）；下个版本做。
+- [ ] **关系筛选 / 高亮**：选某个 kind / origin 时，知识图谱与画布只显示对应
+  边。当前是全部显示。
 
-### 2.6 知识图谱可视化
+### 2.6 知识图谱可视化（v0.5.0 完成基础版）
 
-- [ ] 右侧增加"知识图谱" tab，[Cytoscape.js](https://js.cytoscape.org/) 渲染节点 / 边图。节点点击 → 画布上高亮对应标注。
-- [ ] **共现推荐**：标注完"西王母"后，自动推荐"玉兔 / 九尾狐 / 三足乌"等共现术语。
-- [ ] **关系筛选 / 高亮**：选某个关系类型时，只显示对应的边。
+- [x] **Cytoscape 节点 / 边图**：标注按 structuralLevel 着色，关系按 4 组着色；
+  cose 力导向布局；适应窗口 / 重新布局按钮。
+- [x] **双向联动**：图上点节点 → 画布选中；画布选中 → 图上节点高亮 + 关联
+  边高亮。
+- [ ] **共现推荐**：标注完"西王母"后，自动推荐"玉兔 / 九尾狐 / 三足乌"等共
+  现术语。需要先积累 100+ 标注数据。
+- [ ] **关系筛选 / 高亮**：见 2.5 末项。
+- [ ] **大图性能**：> 200 节点时 cose 慢 1-2s，可加按数量切换布局
+  （concentric / breadthfirst）。
 
 ### 2.7 类 Git 版本管理（可选，待评估）
 

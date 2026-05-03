@@ -1,12 +1,12 @@
 # 汉画像石数字化研究平台 (WSC3D)
 
-> 当前版本：`v0.4.0` —— AI 加深：SAM 多 prompt · AI 线图 · YOLO 批量候选
+> 当前版本：`v0.5.0` —— 关系网络 · 知识图谱 · 工程闭环
 
 面向汉画像石数字化研究的本地化工作台，目前提供三大模块：
 
 - **浏览**：单块画像石的 3D / 2D / 正射视图，可切换光照、背景、视角骰子，支持基于结构化尺寸的真实距离测量。
 - **拼接**：多块画像石加载至同一拼接场景，提供平移/旋转微调、长边等比缩放、面对面贴合，方案可保存为 JSON。
-- **标注**：基于 IIML 的图像志标注工作台。**3D 模型 / 高清原图双底图**自由切换；高清图模式下可叠加半透明 **AI Canny 线图**辅助辨识浅浮雕轮廓；**YOLO 批量扫描**一键给候选 tab 喂 N 个 bbox 候选；**SAM 多 prompt**（左键正点 / 右键负点 / Shift+左键拖框）一次推理精修候选轮廓；候选可多选**几何并集**合并；4 点单应性**对齐校准**让两种底图下的标注双向投影。
+- **标注**：基于 IIML 的图像志标注工作台。**3D 模型 / 高清原图双底图**自由切换；**AI Canny 线图**叠加辅助辨识浅浮雕轮廓；**YOLO 批量扫描** + **SAM 多 prompt 精修**（左键正点 / 右键负点 / Shift+左键拖框）双管线 AI 候选；候选可多选**几何并集**合并；4 点单应性**对齐校准**让两种底图下的标注双向投影；**标注间关系**（叙事 / 层级 / 空间 / 解释 14 种受控词）+ **空间关系自动推导**+ **Cytoscape 知识图谱 tab**形成完整的叙事网络；快捷键覆盖工具切换 / 撤销重做 / fit 视角。
 
 ## 快速开始
 
@@ -182,17 +182,21 @@ pic/               高清原图 tif/jpg/png（不入库，AI 服务读这里）
 
 | 版本 | 主题 | 链接 |
 | --- | --- | --- |
+| v0.5.0 | 关系网络 · 知识图谱 · 工程闭环 | [Release Notes](docs/RELEASE_NOTES_v0.5.0.md) |
 | v0.4.0 | AI 加深：SAM 多 prompt · AI 线图 · YOLO 批量候选 | [Release Notes](docs/RELEASE_NOTES_v0.4.0.md) |
 | v0.3.0 | AI 标注闭环 · 多源底图 · 4 点对齐校准 | [Release Notes](docs/RELEASE_NOTES_v0.3.0.md) |
 | v0.2.2 | 标注模块 ICON 化与工程小修 | [Release Notes](docs/RELEASE_NOTES_v0.2.2.md) |
 | v0.2.1 | 拼接模块多石拖动修复 | [Release Notes](docs/RELEASE_NOTES_v0.2.1.md) |
 | v0.2.0 | 标注模块「一标注一图层」重构 | [Release Notes](docs/RELEASE_NOTES_v0.2.0.md) |
 
+> 工作日志：v0.4.0 → v0.5.0 由 AI agent 在用户睡觉期间连续推进，详见
+> [`docs/WORK_LOG_post_v0.4.0.md`](docs/WORK_LOG_post_v0.4.0.md)。
+
 ## 下一步计划
 
 详细计划见 [`docs/ROADMAP.md`](docs/ROADMAP.md)。简要：
 
-- **M3 剩余**：标注间关系（IIML relations）、空间关系自动推导、多解释并存、共现术语推荐、知识图谱可视化（Cytoscape.js）。
+- **M3 收尾**：共现术语推荐（基于 relations + terms 数据）；多解释并存的 UI 专项打磨。
 - **AI 加深后续**：针对汉画像石微调 YOLO（"祥瑞 / 礼器 / 车马"等高价值类）；AI 线图扩展 Sobel / HED / Relic2Contour。
 - **M4**：多资源版本切换（原图 / RTI / 拓片 / 线图 / 法线图）、IIIF Web Annotation / COCO JSON / `.hpsml` 自定义研究包导出。
-- **工程**：Playwright 端到端覆盖 SAM 多 prompt + YOLO + 合并 + 校准 全流程；主 chunk 进一步拆分（StoneViewer 也 lazy）到 < 600 KB。
+- **工程**：Playwright 端到端覆盖（SAM 多 prompt + YOLO + 合并 + 校准 + 关系 + 图谱）；主 chunk 进一步拆分（StoneViewer 也 lazy）到 < 600 KB。
