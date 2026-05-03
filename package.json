@@ -12,6 +12,7 @@
     "build:backend": "tsc -p backend/tsconfig.json",
     "build:frontend": "tsc -p frontend/tsconfig.json && vite build --config frontend/vite.config.ts",
     "scan": "tsx backend/src/scripts/scan.ts",
+    "migrate:iiml-frame": "tsx backend/src/scripts/migrate-iiml-frame.ts",
     "start:backend": "node dist/backend/server.js",
     "typecheck": "tsc -p backend/tsconfig.json --noEmit && tsc -p frontend/tsconfig.json --noEmit"
   },

@@ -32,9 +32,14 @@ function ensureAnnotationDefaults(doc: IimlDocument): IimlDocument {
     if (!annotation.color) {
       assignedIndex += 1;
     }
+    // 历史 IIML 文档没有 frame 字段（v0.3.0 之前所有标注都在 modelBox 坐标系），
+    // 这里在 load 时统一补 "model"，下次 autosave 就把字段写进磁盘，
+    // 与 backend/src/scripts/migrate-iiml-frame.ts 形成"一次性脚本 + 长期 runtime 兜底"。
+    const frame = annotation.frame ?? "model";
     return {
       ...annotation,
       color,
+      frame,
       visible: annotation.visible !== false,
       locked: annotation.locked === true
     };
