@@ -220,3 +220,34 @@ B 方向 4 个子项全部完成，进入 **C 工程闭环**：
 - C2 键盘快捷键（R/E/P/S/V/F/Ctrl+Z/Y/Delete/Esc）
 - C6 候选 tab 类别 chip 过滤
 - C5' alignment 状态在画像石下拉里显示
+
+---
+
+### 2026-05-04 06:25 · C2 完成 — 键盘快捷键
+
+**commit**: `3598918` (feat(annotation): C2 键盘快捷键（工具切换 / 撤销重做 / fit 视角）)
+
+**做了什么**
+
+App.tsx 顶层 useEffect 监听 window keydown，仅在 isAnnotationActive 时激活：
+
+- 工具切换：`V` select / `R` rect / `E` ellipse / `N` poi**N**t / `P` pen / `S` sam（仅 ready 时）
+- `F` 重置视角（resetToken++）
+- `Ctrl+Z` / `Cmd+Z` undo；`Ctrl+Shift+Z` / `Ctrl+Y` redo
+- `Esc` / `Delete` / `Enter` 仍由 AnnotationCanvas 内部监听更细致处理
+  （清 SAM 采点 / 清 pen / 提交 SAM / 删选中），全局层不重复
+
+**怎么实现的**
+
+- 防误触：焦点在 input / textarea / select / contenteditable 静默
+- 标定流程中（activeTool === "calibrate"）不让工具切换键抢走
+- SAM 未就绪静默忽略 S 键
+- 用 N（poi**N**t）而不是 P（point）避免与 pen 冲突
+
+**下一步**
+
+进入 **C6 — 候选 tab 类别 chip 过滤**：
+- ReviewTab 在 banner 下方加一组 chip，每个 chip 对应一个候选 label
+  + 数量
+- 点 chip toggle 过滤；多选 OR
+- chip 数据从 candidates.map(a => a.label) 去重得来
