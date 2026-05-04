@@ -1,3 +1,37 @@
+"""
+YOLO 目标检测服务（YOLOv8 nano 通用模型）
+
+提供轻量级目标检测能力，主要作为 SAM 二次精修的起点：YOLO 给出粗 bbox 候选，
+SAM 在每个 bbox 内输出精确 polygon，得到"高 recall + 高 precision"的标注
+候选，**这是当前 v0.8.0 标注模块批量化生产候选的核心链路**。
+
+输入路径（与 SAM 同型）：
+1. **imageUri**（v0.8.0 J 起）—— 正射图 / 拓片 / 法线图等任意资源
+2. **stoneId** —— pic/ 高清原图
+3. **imageBase64** —— 前端截图
+
+CLAHE 双跑：
+- 对汉画像石灰度浮雕，YOLO 在原图上检测置信度普遍偏低（COCO 类别不完全
+  匹配 + 灰度对比度低）。本服务做"原图 + CLAHE 增强图"两跑后并集去重，
+  显著改善检出率。``debug.enhancedPasses`` 字段反馈是否启用了双跑。
+
+诊断信息：
+- 响应里的 ``debug`` 字段包含模型实际输出的检测条数 / 类别分布 / 过滤后剩余等
+  信息，方便前端 UI 给出更有针对性的提示（"模型只识别出 8 个 person，但你
+  关心的'马'未被识别"）。
+
+模型加载：
+- 与 SAM 类似，懒加载 + 线程锁保护
+- 权重文件按 ``ai-service/yolov8n.pt`` → ``ai-service/weights/yolov8n.pt`` →
+  ``yolov8n.pt`` 顺序查找，没有时让 ultralytics 走它的下载逻辑
+
+类别过滤：
+- ``classFilter`` 只保留指定的 COCO 标签，前端默认勾选"人物 / 动物 /
+  常见器物"等 30 个对汉画像石可能有用的类别（``yoloCocoUsefulClasses``）
+- 默认 confThreshold 0.10：汉画像石普遍偏低，0.25 会过滤掉绝大多数检测；
+  前端 UI 想要严格筛选可拉滑杆
+"""
+
 from __future__ import annotations
 
 import threading

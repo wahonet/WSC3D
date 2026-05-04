@@ -1,3 +1,25 @@
+/**
+ * 标注画布 `AnnotationCanvas`
+ *
+ * 标注模块的核心交互层，承载所有几何标注的绘制、选取、编辑与 AI 候选交互。
+ *
+ * 主要职责：
+ * - 用 Konva 画 Bounding Box / Polygon / Ellipse / Point / LineString 五种几何
+ * - 处理工具栏当前工具（select / rect / ellipse / pen / point / sam / calibrate）
+ *   下的鼠标交互，把屏幕坐标转换为对应坐标系的 UV
+ * - 跨 frame（model ↔ image）的标注用 4 点单应性矩阵投影显示，未校准时给出
+ *   温和的 hint
+ * - SAM 多 prompt 浮窗：左键正点、右键负点、Shift+左键拖框，回车提交一次推理
+ * - 4 点对齐校准的"乒乓采集 + review"流程
+ *
+ * 设计要点：
+ * - 画布始终绝对定位铺满父容器；通过 `pointer-events` 与 sourceMode 双重控制，
+ *   不抢占下层 3D / 高清图视图的相机操作
+ * - 坐标系切换：父级 `AnnotationWorkspace` 切换 sourceMode 时，画布按 frame
+ *   重新投影所有标注；与父级 `projection` 字段共同决定屏幕 ↔ UV 转换
+ * - 跨 frame 标注用稀疏虚线 + 半透明显示（"投影态"），仅可点选不可拖拽
+ */
+
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Circle, Group, Layer, Line, Rect, Stage, Text } from "react-konva";
 import type { KonvaEventObject } from "konva/lib/Node";

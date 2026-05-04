@@ -1,16 +1,23 @@
-import { CheckCircle2, Loader2, X, XCircle } from "lucide-react";
+/**
+ * 批量任务进度面板 `TaskProgressPanel`（右下角浮窗）
+ *
+ * 长任务（SAM 批量精修 / 多石头 YOLO / 多步导出）的统一进度展示：
+ * - 每条任务显示：标题 / 状态图标 / 进度条 / 当前消息 / 取消或关闭按钮
+ * - 状态：running / done / failed / cancelled
+ * - progress 0..1；undefined 时显示不确定 spinner 而非进度条
+ * - cancellable 为 true 时允许中途取消
+ *
+ * 配合机制：
+ * - 父组件用一个 `Set<string>` 记录被请求取消的任务 id
+ * - 任务循环里每步检查 `cancelRequestedRef.current.has(taskId)`，命中则提前 return
+ * - 面板本身只负责显示与触发回调，不持有任何业务逻辑
+ *
+ * 设计要点：
+ * - 最多同时显示 6 条；超过部分被父级裁剪（先入先出）
+ * - done / failed / cancelled 的任务保留若干秒方便用户确认，再由用户点关闭按钮 dismiss
+ */
 
-// G3：批量任务进度面板（右下角浮窗）
-//
-// 当前用 useReducer 管理任务时显得过重；统一用一个简单的 TaskProgressState 类型
-// + 父组件持有 state 即可。任务支持：
-//   - status: pending / running / done / failed / cancelled
-//   - progress: 0..1
-//   - message: 当前正在做什么的描述（"SAM 批量精修 [3/12] 青龙…"）
-//   - cancellable: 是否允许中途取消（默认 true）
-//
-// 当 onCancel 被调用时，父组件应该把 cancelRequested 标记 true，循环里检查
-// 该标记并提前 return；面板只负责显示 + 触发回调。
+import { CheckCircle2, Loader2, X, XCircle } from "lucide-react";
 
 export type TaskProgress = {
   id: string;

@@ -1,19 +1,22 @@
-import type { IimlAnnotation, VocabularyTerm } from "../../api/client";
+/**
+ * 受控术语共现推荐
+ *
+ * 当用户在 `TermPicker` 编辑某条标注时，根据已有标注里的 `terms` 共现频次给
+ * 出"语义相邻"的候选术语，把传统的"先选词表、再人工筛选"提升为"输入即推荐"。
+ *
+ * 算法（最简单的"基于上下文的协同过滤推荐"）：
+ * 1. 扫所有 `annotation.semantics.terms[].id`：对每对 `(a, b)` 同时出现则
+ *    `counts[a][b] += 1`（对称）
+ * 2. 给定当前 annotation 已有 `termIds = T`：
+ *    `candidateScore[t] = sum_{a ∈ T} counts[a][t]   for t ∉ T`
+ * 3. 按 score 降序取 top N
+ *
+ * 数据稀疏时（含 terms 的标注数 < 5）返回空数组，避免噪声推荐。
+ *
+ * 性能：O(M × K²)，M = 标注数，K = 平均术语数。在 M < 200, K < 10 时几毫秒级。
+ */
 
-// D6 术语共现推荐：根据已有 annotation.semantics.terms 统计 term ↔ term
-// 共现频次，返回"与当前 annotation 已有 terms 共现频次最高、且未被采用"的
-// vocabulary terms。
-//
-// 算法（最简单的"基于上下文的过滤推荐"）：
-//   1. 扫所有 annotation.semantics.terms[].id：对每对 (a, b) 同时出现则
-//      counts[a][b] += 1（对称）
-//   2. 给定当前 annotation 已有 termIds = T：
-//        candidateScore[t] = sum_{a ∈ T} counts[a][t]   for t ∉ T
-//   3. 按 score 降序取 top N
-//
-// 数据稀疏时（< 5 个 annotation 含 terms）返回空数组，避免噪声推荐。
-//
-// 性能：O(M * K²)，M = 标注数，K = 平均术语数。M < 200, K < 10 几毫秒。
+import type { IimlAnnotation, VocabularyTerm } from "../../api/client";
 
 export type CooccurrenceOptions = {
   topN: number;

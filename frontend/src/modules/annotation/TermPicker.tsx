@@ -1,3 +1,24 @@
+/**
+ * 受控术语选择器 `TermPicker`
+ *
+ * 详情面板里的术语 chip 多选 + 自定义输入。从 `data/terms.json` 拉受控词表，
+ * 用户可以：
+ * - 输入关键字模糊搜索 → 下拉列出匹配项
+ * - 点击建议添加 chip
+ * - 删除 chip 移出 selection
+ * - 输入新术语 → "自定义"按钮加入（scheme = WSC3D，role = custom）
+ * - 接受 D6 共现推荐：根据全文档其他标注的术语共现频次，给出"建议"chip
+ *
+ * 数据流：
+ * - 输入：value（已选 IimlTermRef[]）+ categories / terms（来自 fetchTerms）
+ * - 输出：onChange(next IimlTermRef[]) 由父级写回 annotation.semantics.terms
+ *
+ * 设计要点：
+ * - M2 阶段术语 scheme 固定为 WSC3D 本地词表；ICONCLASS / AAT / Wikidata 字段
+ *   在类型上预留，UI 暂不暴露，留给 M3+ 接入
+ * - 下拉列表点击外部自动关闭；点击 chip 删除按钮不冒泡到容器
+ */
+
 import { Plus, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { IimlTermRef, VocabularyCategory, VocabularyTerm } from "../../api/client";

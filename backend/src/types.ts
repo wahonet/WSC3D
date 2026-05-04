@@ -1,3 +1,16 @@
+/**
+ * 后端共享类型定义
+ *
+ * 后端层（catalog / parser / server）共用的数据结构。前端有一份语义对应的
+ * 类型在 `frontend/src/api/client.ts`，两端字段保持手动同步。
+ *
+ * - `DimensionData` / `LayerData` / `PanelData` / `StoneMetadata`：来自
+ *   `画像石结构化分档/*.md` 的解析结果
+ * - `AssetFile`：文件系统中的资源文件（模型 / 缩略图 / 参考图）
+ * - `StoneRecord`：catalog 里的一条画像石记录，关联 metadata + 模型 + 缩略图
+ * - `ScanSummary` / `Catalog`：整份目录扫描快照
+ */
+
 export type DimensionData = {
   width?: number;
   height?: number;

@@ -1,3 +1,27 @@
+/**
+ * 浏览模块主视图 `StoneViewer`
+ *
+ * 单块画像石的 3D / 2D / 正射三态查看器，建立在 Three.js + OrbitControls 之上。
+ *
+ * 主要功能：
+ * - **3 种视图模式**：
+ *   - `3d`：透视相机 + OrbitControls 自由轨道
+ *   - `2d`：锁定为正面正交相机，按视角骰子切到 6 个面
+ *   - `ortho`：正射相机但允许自由旋转
+ * - **测量工具**：双击 / 单击两点输出真实距离（基于结构化档案中的尺寸自动
+ *   校准为 cm；若元数据缺失则回落到模型单位）
+ * - **背景与光照**：黑 / 灰 / 白三档背景；环境光 + 主光源参数可调
+ * - **屏幕投影回传**：把模型 4 角的 3D 顶点实时投影到屏幕坐标，供标注画布
+ *   叠加在画像石面上，做"贴合 3D 模型"的标注体验
+ *
+ * 设计要点：
+ * - 父级隐藏（`active = false`）时暂停 render loop 省 GPU；重新激活时立刻
+ *   resize + render
+ * - GLTFLoader 在组件 mount 时复用一次，模型切换时仅更换场景子对象
+ * - 视角骰子（`ViewCube`）状态由父级持有，本组件按 prop 切换相机
+ * - `fitToken` 递增时把相机 fit 回当前 cubeView（SAM 上下文恢复用）
+ */
+
 import { useCallback, useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";

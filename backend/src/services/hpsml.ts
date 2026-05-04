@@ -1,37 +1,49 @@
+/**
+ * .hpsml 研究包解包 / 导入服务（v0.8.0）
+ *
+ * 把前端 `exportToHpsml` 导出的研究包（IIML + 拼接方案 + 词表 + 关系网络
+ * 快照）解开后写回本机磁盘，让"两台机器之间复现一份完整研究状态"成为
+ * 一键操作。
+ *
+ * .hpsml 包格式（formatVersion `0.1.0`）：
+ * ```json
+ * {
+ *   "format": "hpsml",
+ *   "formatVersion": "0.1.0",
+ *   "package": { "exportedAt", "exporter", "notes", "generatorRunId" },
+ *   "iiml": { ...完整 IimlDocument },
+ *   "context": {
+ *     "stone": { "id", "displayName" },
+ *     "metadata": { ...结构化档案快照 },
+ *     "relatedAssemblyPlans": [ ...关联拼接方案 ],
+ *     "vocabulary": { ...受控词表快照 },
+ *     "networkStats": { ...关系网络度量 }
+ *   }
+ * }
+ * ```
+ *
+ * 导入流程（最小可用版）：
+ * 1. 校验 `format` + `formatVersion`（不同版本告警继续尝试，硬错误才拒绝）
+ * 2. 解 stoneId 优先级：`options.stoneId` > `context.stone.id` >
+ *    `iiml.documentId` 的前缀（`{stoneId}:iiml`）
+ * 3. 把 `iiml` 字段直接 `saveIimlDoc`（完整 ajv 校验后落盘
+ *    `data/iiml/{stoneId}.iiml.json`）
+ * 4. `relatedAssemblyPlans` 写进 `data/assembly-plans/`；id 冲突时生成新 id +
+ *    `importedFromHpsml: true` 标记
+ * 5. 返回 summary：导入 / 跳过 / 警告分项计数
+ *
+ * 冲突策略（`options.conflictStrategy`）：
+ * - `"overwrite"`（默认）：直接覆盖本机已有
+ * - `"skip"`：若本机已存在则跳过 IIML 部分
+ *
+ * **三方合并**（既不覆盖也不跳过，而是逐字段 diff 后让用户决定）当前未实装，
+ * 留给 v0.9.0 的 import/merge 流程。
+ */
+
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { CatalogConfig, getCatalog } from "./catalog.js";
 import { saveIimlDoc, type IimlDocument } from "./iiml.js";
-
-// I3 v0.8.0：.hpsml 研究包解包 / 导入服务。
-//
-// .hpsml 格式参考前端 frontend/src/modules/annotation/exporters.ts 里的
-// exportToHpsml；核心是：
-//   {
-//     format: "hpsml",
-//     formatVersion: "0.1.0",
-//     package: { exportedAt, exporter, notes, generatorRunId },
-//     iiml: IimlDocument,
-//     context: {
-//       stone, metadata, relatedAssemblyPlans, vocabulary, networkStats
-//     }
-//   }
-//
-// 导入策略（v0.8.0 最小可用版）：
-//   1. 校验 format + formatVersion
-//   2. 从 iiml.documentId 或 stone 字段里反解 stoneId（没有 stoneId 时默认
-//      用 options.stoneId，否则报 invalid_package）
-//   3. 把 iiml 字段直接写进 data/iiml/{stoneId}.iiml.json（走 saveIimlDoc，
-//      会跑完整 ajv 校验）
-//   4. relatedAssemblyPlans 写进 data/assembly-plans/（若 id 冲突走 append
-//      模式，给个新 id；v0.8.0 粗粒度，不做三方合并）
-//   5. 返回 summary: { stoneId, importedIiml, importedPlans, skippedPlans, warnings }
-//
-// 跨机器场景里常见冲突（本机已有该 stoneId 的 IIML）由 options.conflictStrategy
-// 控制：
-//   - "overwrite"（默认）直接覆盖
-//   - "skip" 若目标已存在则跳过 iiml 部分
-//   - "merge" 当前未实装；想要精细三方合并请等 v0.9.0 的 import/merge 流程
 
 export type HpsmlImportOptions = {
   // 显式指定 stoneId（覆盖包里隐含的 stoneId）；跨库导入时常用

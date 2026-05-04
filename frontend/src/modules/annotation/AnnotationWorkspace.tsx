@@ -1,3 +1,36 @@
+/**
+ * 标注工作区 `AnnotationWorkspace`
+ *
+ * 标注模式的容器组件，负责把"底图（3D 模型 / 高清图 / 多种用户资源）+
+ * 标注画布"组合成一个统一的工作区，并向下分发交互回调。
+ *
+ * 主要职责：
+ * - 维护当前底图来源（3D 模型 / 高清图）与高清图模式下的资源切换（pic 原图 /
+ *   生成的正射图 / 拓片 / 法线图等 8 类资源）
+ * - 提供 4 点对齐校准的状态机（idle / collect / review / done）
+ * - 接管 SAM / YOLO 的入口与 AI 线图叠加图层
+ * - 把当前底图资源回传父级（App 层据此决定 YOLO / SAM 应该跑哪个 imageUri）
+ *
+ * 视觉布局：
+ * ```
+ * .annotation-workspace
+ *   ├─ StoneViewer           （3D 模式时可见）
+ *   ├─ SourceImageView       （高清图模式时可见，带 pan / zoom）
+ *   ├─ AnnotationCanvas      （绝对定位铺满，pointer-events 受工具状态控制）
+ *   ├─ source-switch         （右上：3D / 高清）
+ *   ├─ resource-switch       （右上：底图资源切换）
+ *   ├─ layer-switch          （右上：原图 / +线图）
+ *   └─ calibration-hud / sam-prompt-hud / yolo-dialog（按需弹）
+ * ```
+ *
+ * 设计要点：
+ * - 父级把 `active` 设为 false 时只是 CSS 隐藏，组件仍然 mount，避免 Three.js
+ *   场景 / Konva 舞台被销毁重建造成 gizmo 丢状态
+ * - 资源切换不进 IIML 持久化，仅是临时视图状态，刷新会回到默认 pic/ 原图
+ * - 等价正射图（view=front + frustumScale=1.0）下画布按 model 坐标系处理，
+ *   与 3D 模型视图标注双向同步
+ */
+
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { StoneListItem } from "../../api/client";
 import { lineartMethodOptions, type LineartMethod } from "../../api/client";

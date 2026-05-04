@@ -1,3 +1,29 @@
+/**
+ * 画像石资源目录扫描与匹配
+ *
+ * 后端启动后第一次调用 `getCatalog` 时会扫描三个核心目录：
+ * - `temp/`（或 `WSC3D_MODEL_DIR`）：三维模型 `.gltf` / `.glb` 等 + 缩略图 PNG
+ * - `画像石结构化分档/`（或 `WSC3D_METADATA_DIR`）：每块石头一份 Markdown 档案
+ * - `参考图/`（或 `WSC3D_REFERENCE_DIR`）：UI 参考截图
+ *
+ * 输出：
+ * - `summary`：模型 / 缩略图 / 文档总数与未配对计数
+ * - `stones[]`：以 stoneId 为 key，关联一份 metadata + 一份模型 + 一张缩略图
+ * - `referenceImages`：参考图列表
+ *
+ * 匹配规则（按顺序尝试）：
+ * 1. **名称归一化**：去掉前缀数字 / 标点 / 空白后做 substring 双向匹配
+ * 2. **数字前缀**：把模型文件名的 `^\d+` 与 metadata 的 `stone_id` 对齐（多数
+ *    历史命名是 `29东汉武氏祠...` 这种带前缀）
+ *
+ * 设计要点：
+ * - 整份 catalog cache 在内存，仅 `force = true` 时（如 POST /api/scan/refresh）
+ *   重建；服务器进程重启自然清空
+ * - `parseMarkdownMetadata` 解析 Markdown，返回带 layers / panels 的结构化对象
+ * - 找不到模型 / 缩略图时仍然产出 stone 记录（`hasModel: false`），让前端可
+ *   提示用户哪些档案缺资源
+ */
+
 import { readdir, stat } from "node:fs/promises";
 import path from "node:path";
 import type { AssetFile, Catalog, StoneMetadata, StoneRecord } from "../types.js";

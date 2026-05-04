@@ -1,3 +1,29 @@
+"""
+线图（lineart）生成服务：5 种边缘检测算法的统一入口
+
+把高清原图通过经典 OpenCV 边缘检测变成"白线 + alpha 渐变"的 PNG，前端可半
+透明叠加在原图上辅助辨识浅浮雕轮廓 —— 在低对比度的汉画像石浮雕上尤其
+有效。
+
+5 种算法（``LineartMethod``）：
+
+- **canny**：经典双阈值边缘检测；最快，对清晰浮雕够用
+- **sobel**：Sobel 梯度幅值 → 阈值化；对灰度软边缘敏感（拓片）
+- **scharr**：Scharr 改进卷积核（比 Sobel 更精确小邻域）；细节多的浮雕更精细
+- **morph**：自适应阈值 + 形态学闭运算 → 骨架；强化连通性，断边变少；
+  ``low`` 当 ``blockSize`` 用（11~31 推荐，强制奇数）
+- **canny-plus**：Canny + 形态学闭运算填补断边；**汉画像石残损浮雕推荐**
+
+落盘缓存：
+- 缓存目录 ``ai-service/cache/lineart/``
+- 命名按 ``stoneId`` + method + 阈值组合，不同参数互不影响
+- 前端通过 ``/ai/lineart/{stone_id}?method=&low=&high=`` 拉 PNG 直接 ``<img>`` 加载
+
+输出格式：
+- RGBA：白线 (255, 255, 255) + alpha = 边缘强度
+- 直接 alpha 通道叠加在原图上即可，无需再做 chroma key
+"""
+
 from __future__ import annotations
 
 import re

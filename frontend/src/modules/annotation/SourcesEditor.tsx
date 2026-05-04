@@ -1,3 +1,22 @@
+/**
+ * 证据源编辑器 `SourcesEditor`
+ *
+ * 详情面板里的"证据源"子组件，让标注挂上学术证据，以便后续审阅 / 论文引用：
+ *
+ * 4 种 kind：
+ * - **metadata**（档案层 / 帧）：指向结构化档案的某层 / 某帧（layer + panel
+ *   下拉，自动从当前石头的 metadata 拉选项）
+ * - **reference**（文献引用）：title / uri / citation 文本字段
+ * - **resource**（关联资源）：指向当前 IIML 文档里 resources[] 的某条 id
+ * - **other**（其他）：纯文本兜底
+ *
+ * 设计要点：
+ * - 用 kind 判别四种联合类型，避免一个 SourcesEntry 类型塞所有可能字段
+ * - metadata 的 layer / panel 下拉直接从当前石头的 StoneMetadata 拉，避免
+ *   用户手填错误的 layerIndex
+ * - 删除是当条立即删，不带"撤销"；编辑历史由 reducer 的 undoStack 兜底
+ */
+
 import { Trash2 } from "lucide-react";
 import type { IimlSource, StoneMetadata } from "../../api/client";
 

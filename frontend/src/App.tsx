@@ -1,3 +1,25 @@
+/**
+ * 应用根组件 `App`
+ *
+ * 总装整套工作台的全局状态、路由与三大模式切换：
+ * - **viewer**（浏览）：单块画像石的 3D / 2D / 正射视图与测距
+ * - **assembly**（拼接）：多块模型加载到统一场景的拼接编排
+ * - **annotation**（标注）：基于 IIML 文档的图像志标注 + AI 候选闭环
+ *
+ * 主要职责：
+ * 1. 拉取目录数据、画像石元数据、术语库、拼接方案、AI 健康状态等远端资源
+ * 2. 维护各模式的本地状态（含 Reducer 管理的标注 store）
+ * 3. 处理标注 / 拼接的自动保存、批量任务的进度与取消
+ * 4. 派发键盘快捷键、模式切换时的视图重置等跨组件交互
+ *
+ * 设计要点：
+ * - 三大工作区组件全部走 `lazy()` 加载，按需切分主 chunk（D5 优化项）
+ * - 一旦进入过 assembly / annotation 就保持组件 mount，仅靠 CSS 控制可见性，
+ *   避免 Three.js / Konva 场景被 remount 重建导致 gizmo 与事件链路失效
+ * - SAM 健康状态走指数退避轮询 `/ai/health`（10s → 60s 上限）
+ * - 标注文档进入 `annotation` 模式后 900 ms 防抖 autosave
+ */
+
 import { Camera, MousePointer2, Ruler, RotateCcw, SquareDashedMousePointer, Trash2 } from "lucide-react";
 import { lazy, Suspense, useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import * as THREE from "three";

@@ -1,3 +1,23 @@
+/**
+ * 拼接模块右侧面板 `AssemblyPanel`
+ *
+ * 拼接模式的侧栏，展示当前拼接列表 + 方案管理。
+ *
+ * 主要功能：
+ * - **加块**：从全部画像石（含模型）下拉里选并加进当前拼接（最多 10 块）
+ * - **拼接列表卡片**：每条 `AssemblyItem` 显示缩略图 + 名称 + 锁定 / 删除
+ *   按钮；点击切换"当前选中"
+ * - **长边输入**：选中某块后输入"长边目标 cm"自动等比缩放；底部 readout
+ *   显示当前 transform
+ * - **方案管理**：保存 / 重命名 / 加载已存方案；保存后回填 currentPlanId
+ *   便于"覆盖保存"
+ *
+ * 设计要点：
+ * - 此组件纯展示与回调；所有状态由 `App.tsx` 持有，编辑动作通过 props 上抛
+ * - "加块"按钮下方提示已加载数量与上限；超过 10 时按钮禁用
+ * - 选中态优先看 `selectedItemId`；点击空白处由父级清空
+ */
+
 import { FolderOpen, Lock, Plus, Save, Trash2, Unlock } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import type { AssemblyPlanRecord, StoneListItem } from "../../api/client";

@@ -1,23 +1,29 @@
+/**
+ * 多解释并存视图 `AlternativeInterpretationsView`
+ *
+ * 详情面板里挂在 RelationsEditor 之上的特殊视图，专门解决"同一画面形象多个
+ * 学者各自释读"的常见研究情景 —— 如某只兽可能被 A 释读为"青龙"、B 为
+ * "独角兽"、C 为"应龙"。
+ *
+ * IIML schema 通过 `alternativeInterpretationOf` 关系类型支持这种多视角，
+ * 本视图把所有相关解释并排呈现：
+ *
+ * - 检测当前 annotation 是否有 `alternativeInterpretationOf` 关系（双向）
+ * - 把所有相关解释（包括当前标注本身）以横向卡片排列
+ * - 每张卡片显示：标签 / 三层语义 / 生成来源（人工 / SAM / YOLO）/ 置信度 /
+ *   简短证据源摘要
+ * - 用户一眼看清各解释之间的差异 + 各自的证据强度
+ *
+ * 视觉：默认折叠以避免占空间；展开后为横向滚动卡片，最多并排 3 张（超出滚动）。
+ *
+ * 设计参考：
+ * - 论文 35《IIML: An Iconography Markup Language for Sharing Knowledge of
+ *   Visual Cultural Heritage》强调"多解释并存"是数字研究档案的核心需求
+ */
+
 import { ChevronDown, ChevronRight, Sparkles } from "lucide-react";
 import { useMemo, useState } from "react";
 import type { IimlAnnotation, IimlRelation } from "./types";
-
-// F1：多解释并存 UI 专项
-//
-// 论文 35 ICON 框架强调"多解释并存"是数字研究档案的核心需求 —— 同一画面
-// 形象（比如某只兽）可能被 A 学者读作"青龙"、B 学者读作"独角兽"、C 学者
-// 读作"应龙"。IIML schema 通过 `alternativeInterpretationOf` 关系类型支持
-// 这种多视角，但 v0.6.0 只能在关系列表里看到 "alt" 标签，没有专门的"多视角
-// 对比"展示。
-//
-// 这个组件挂在 EditTab 里 RelationsEditor 之上：
-// - 检测当前 annotation 是否有 `alternativeInterpretationOf` 关系（双向）
-// - 把所有相关解释（包括当前标注）并排列出
-// - 每个解释显示：标签 / 三层语义 / generation 来源（人工/SAM/YOLO）/ 置信度
-//   / 简短证据源摘要
-// - 用户可以一眼看清各解释之间的差异 + 各自的证据强度
-//
-// 视觉：默认折叠以避免占空间；展开后为横向滚动卡片，最多并排 3 张（超出滚动）
 
 export type AlternativeInterpretationsViewProps = {
   annotation: IimlAnnotation;

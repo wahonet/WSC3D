@@ -1,3 +1,19 @@
+/**
+ * 标注模块本地类型定义
+ *
+ * 把 `frontend/src/api/client.ts` 里的 IIML 相关类型 re-export，再追加标注模块
+ * 自有的视图态类型（工具、投影上下文、reducer action 等）。这样标注模块内部
+ * 文件只需要 import "./types"，无需关心字段是 IIML 协议字段还是 UI 派生字段。
+ *
+ * 主要内容：
+ * - `AnnotationTool`：当前激活的工具（select / rect / ellipse / point / pen /
+ *   sam / calibrate）
+ * - `ProjectionContext`：屏幕坐标 ↔ UV 投影上下文（4 角顶点 + 画布尺寸）
+ * - `AnnotationState` / `AnnotationAction`：reducer 的状态机契约
+ * - `IimlResourceTransform` / `IimlResourceEntry`：资源元信息扩展（与 IIML
+ *   schema 对齐，由本模块持有定义）
+ */
+
 import type {
   IimlAlignment,
   IimlAlignmentControlPoint,

@@ -1,17 +1,26 @@
-import type {
-  IimlAnnotation,
-  IimlDocument,
-  IimlGeometry,
-  IimlRelation,
-  IimlStructuralLevel
-} from "./types";
-import type {
-  AssemblyPlanRecord,
-  StoneListItem,
-  StoneMetadata,
-  VocabularyCategory,
-  VocabularyTerm
-} from "../../api/client";
+/**
+ * 学术导出器：COCO / IIIF / .hpsml / CSV / IIML 五种格式
+ *
+ * 标注模块的"学术互操作层"。同一份 IIML 文档根据下游用户的需要导出成不同
+ * 格式，覆盖 AI 训练、数字人文研究、跨机器协作等场景：
+ *
+ * - **IIML**（原生）：完整保真，研究内部循环
+ * - **CSV**：表格化标注，方便 Excel / pandas 二次分析
+ * - **COCO**（D7）：喂 YOLOv8 / Detectron2 等开源检测分割训练
+ * - **IIIF Web Annotation**（D8）：International Image Interoperability Framework
+ *   规范，与 Mirador / Annona 等阅读器互通
+ * - **.hpsml**（G2）：项目自定义"研究包"，IIML + 拼接方案 + 词表 + 关系
+ *   网络快照打包，跨机器迁移 / 论文附件用
+ *
+ * 通用工具：
+ * - `downloadJson` / `downloadText`：浏览器侧下载触发器，自动按时间戳命名
+ *
+ * 设计要点：
+ * - 所有导出器都是纯函数：给定 IIML doc + context，返回字符串（或 JSON 对象）
+ *   → 业务层决定下载或预览
+ * - 跨 frame 处理：默认导出当前 frame；options.frame 强制覆盖
+ * - 不破坏 IIML 数据：导出过程都是只读，不写回 doc
+ */
 
 // =============================================================================
 // D7 COCO JSON 导出
@@ -32,6 +41,21 @@ import type {
 //
 // 当前简化点：只支持单图（一个 stoneId），不做多图 batch；坐标系按
 // imageSize 把 UV 换算成像素。
+
+import type {
+  IimlAnnotation,
+  IimlDocument,
+  IimlGeometry,
+  IimlRelation,
+  IimlStructuralLevel
+} from "./types";
+import type {
+  AssemblyPlanRecord,
+  StoneListItem,
+  StoneMetadata,
+  VocabularyCategory,
+  VocabularyTerm
+} from "../../api/client";
 
 export type CocoExportOptions = {
   // 当前画像石的图像尺寸；缺省时按 1000x1000 单位（前端 UI 提示一下）

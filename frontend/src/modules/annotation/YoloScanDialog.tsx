@@ -1,3 +1,22 @@
+/**
+ * YOLO 批量扫描参数 dialog `YoloScanDialog`
+ *
+ * 标注模块工具栏 `Radar` 按钮触发的模态浮层，让用户在跑批量 YOLO 检测前调整：
+ * - **类别过滤**：默认 **不过滤**（看 YOLO 真实输出再决定），可手动勾选 30
+ *   种 COCO 子集（``yoloCocoUsefulClasses``）
+ * - **置信度阈值**：0.02 ~ 0.95，默认 **0.10**（汉画像石浮雕灰度图响应低）
+ * - **最大检测数**：默认 80，上限 200
+ *
+ * 设计要点：
+ * - 默认不过滤 + 低阈值是有意为之 ——
+ *   汉画像石灰度浮雕在 COCO 通用模型上置信度普遍偏低，0.25 + 30 类白名单实测
+ *   会导致几乎所有检测都被丢掉，给用户"什么都没检测到"的错觉；先看真实输出，
+ *   再用 chip / 阈值收紧
+ * - dialog 顶部明确告诉用户"通用模型识别有限，作 SAM 二次精修的起点"，避免
+ *   对识别质量抱过高预期
+ * - scanning=true 时按钮置灰防双击
+ */
+
 import { useEffect, useState } from "react";
 import { yoloCocoUsefulClasses } from "../../api/client";
 

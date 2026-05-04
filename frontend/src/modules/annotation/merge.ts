@@ -1,3 +1,32 @@
+/**
+ * 多边形候选合并：基于 polygon-clipping 的几何并集（union）
+ *
+ * 候选审核 / 列表 tab 的"合并选中"入口，把多个标注的几何外环并起来生成一个
+ * 新的合并候选，让用户在重叠 SAM / YOLO 候选上一键收敛。
+ *
+ * 业务约束：
+ * - 至少 2 个候选（避免误操作）
+ * - 必须同 frame（model / image）；跨坐标系合并没有意义
+ * - 候选必须含 Polygon / MultiPolygon / BBox 之一；Point/LineString 没有"内部
+ *   区域"，跳过
+ *
+ * 算法：
+ * 1. 把每个 annotation 的外环（outer ring）拆出来转成 polygon-clipping 输入
+ * 2. `polygonClipping.union(...)` 得到 MultiPolygon（可能包含多块不连通区域）
+ * 3. 只保留每块的 outer ring，丢掉 holes —— 满足"只保留最外面的边缘"的需求
+ * 4. 单块 → Polygon；多块 → MultiPolygon
+ *
+ * 失败语义（返回 `{ ok: false, reason }`）：
+ * - `not-enough-targets`：候选少于 2
+ * - `frame-mismatch`：候选不在同一坐标系
+ * - `no-polygon`：所选项目都没有可并的多边形外环
+ * - `union-empty`：geometry library 返回空集（极端退化）
+ *
+ * 设计要点：
+ * - 合并候选保留候选状态（reviewStatus = "candidate"），让用户审核后再 approve
+ * - 颜色 / frame / resourceId 取第一个候选；标签默认拼成"merge-N"
+ */
+
 import polygonClipping, { type Polygon, type Ring } from "polygon-clipping";
 import { createAnnotationFromGeometry } from "./geometry";
 import type { IimlAnnotation, IimlGeometry, IimlPoint } from "./types";

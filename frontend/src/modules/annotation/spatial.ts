@@ -1,3 +1,27 @@
+/**
+ * 空间关系自动推导
+ *
+ * 基于已有标注几何派生候选关系，让用户在 RelationsEditor 里"采纳"才升级为正式
+ * 关系（写入 IIML）。
+ *
+ * 算法：
+ * 1. 把每个 annotation 算出"外接矩形" `(uMin, uMax, vMin, vMax)` 与中心
+ *    `(uC, vC)`
+ * 2. 对每对 `(i, j)` 按以下优先级判定，每对最多产出一条候选：
+ *    a. 矩形相交且面积重叠率 > 0.15 → `overlaps`
+ *    b. 矩形不相交但中心距 < 平均尺寸 × 0.5 → `nextTo`
+ *    c. 否则取主导方向：
+ *       - `|dy| > |dx|` 且 `|dy| > 平均高 × 0.6` → `above` / `below`
+ *       - 否则 → `leftOf` / `rightOf`
+ * 3. 仅同 frame 的标注互相比对（model 与 image 的 UV 不可直接比）
+ *
+ * 设计要点：
+ * - 不写入 IIML：只在前端运行时推导，避免与人工关系冲突
+ * - 每对至多一条最显著的空间关系，避免淹没 RelationsEditor 的候选区
+ * - 性能：O(N²/2)；候选数 < 50 时几毫秒级，超过 200 时建议加 frame 分桶 +
+ *   空间索引
+ */
+
 import { ellipseBoundsToUV, flattenUVs } from "./geometry";
 import type { SpatialRelationCandidate } from "./RelationsEditor";
 import type { IimlAnnotation, IimlGeometry, IimlRelationKind } from "./types";

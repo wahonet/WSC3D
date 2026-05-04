@@ -1,3 +1,17 @@
+/**
+ * 颜色选择 popover `ColorPopover`
+ *
+ * 标注列表与详情面板里的颜色按钮：点击展开 10 色调色板（与
+ * `annotationPalette` 一致）+ HTML5 ``<input type="color">`` 自定义色。
+ *
+ * 设计要点：
+ * - 点击外部 / Escape 自动关闭
+ * - 自定义颜色实时生效，但不关闭 popover，便于对比微调
+ * - 支持左对齐 / 右对齐（避免靠近视口右边界时被裁掉）
+ *
+ * 使用时请保证父级容器有足够空间显示（会绝对定位在按钮正下方）。
+ */
+
 import { useEffect, useRef, useState } from "react";
 import { annotationPalette } from "./store";
 
@@ -8,9 +22,6 @@ type ColorPopoverProps = {
   size?: number;
   align?: "left" | "right";
 };
-
-// 色板 popover：预设色 + HTML5 color input 自定义颜色。
-// 使用时请保证父级容器有足够空间显示（会绝对定位在按钮正下方）。
 export function ColorPopover({ color, onChange, title = "更改颜色", size = 16, align = "left" }: ColorPopoverProps) {
   const [open, setOpen] = useState(false);
   const popRef = useRef<HTMLDivElement | null>(null);

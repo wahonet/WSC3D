@@ -1,3 +1,29 @@
+/**
+ * 知识图谱视图 `KnowledgeGraphView`
+ *
+ * 标注 panel 里的"图谱"tab，把 IIML 的 annotations + relations 渲染成一张
+ * cytoscape 图，帮研究者从"叙事拓扑"视角观察画像石画面：哪些对象互相联结、
+ * 谁是构图重心、是否有清晰的叙事簇。
+ *
+ * 主要功能：
+ * - **节点与边**：每条 annotation 是节点（颜色 / 形状按 structuralLevel），
+ *   每条 relation 是边（颜色 / 线型按 kind 分组）
+ * - **布局**：5 种内置（concentric / cose / breadthfirst / circle / grid），
+ *   切换无重置缩放
+ * - **着色**：5 种着色方案（结构层级 / 中心性 / 群组 / 关系来源 / 关系类别）
+ * - **中心性**：4 种中心性算法（PageRank / Degree / Betweenness / Closeness），
+ *   计算 top-N 后给金色光环 + 排行榜横向滚动
+ * - **群组检测**：MCL（Markov Clustering）算法，把强连通子图自动着色分组
+ * - **筛选**：关系类别 chip + 关系来源 chip 多选，过滤画布与排行榜
+ *
+ * 设计要点：
+ * - cytoscape 实例懒创建一次，元素增量更新（add / remove / update）
+ * - 中心性 / 群组结果缓存到 Map，doc / relations 不变时跳过重算
+ * - 排行榜放 canvas 下方横向滚动（v0.8.0 H1 修缮），不再挤压 canvas 宽度
+ *
+ * 参考：见 `graphMetrics.ts` 顶部的 Freeman / Brin & Page / Newman 文献清单
+ */
+
 import cytoscape from "cytoscape";
 import type { Core, EdgeDefinition, ElementDefinition, NodeDefinition } from "cytoscape";
 import { Crown, Sparkles } from "lucide-react";

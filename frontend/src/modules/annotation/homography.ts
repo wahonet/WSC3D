@@ -1,3 +1,25 @@
+/**
+ * 4 点单应性矩阵求解 + 应用工具
+ *
+ * 标注模块的 3D 模型 ↔ 高清图坐标系互投影核心。当 IIML 文档持有
+ * `culturalObject.alignment.controlPoints`（4 对 modelUv ↔ imageUv）时：
+ *
+ * 1. `solveHomography` 用 DLT + 高斯消元解出 3×3 矩阵 H，使
+ *    `dst ≈ H · src`（齐次坐标，dst.w 归一化到 1）
+ * 2. `buildAlignmentMatrices` 同时求 model→image 与 image→model 两个方向
+ * 3. `applyHomography` / `transformUv` 把任意 UV 点应用到目标坐标系
+ *
+ * 数学要点：
+ * - 4 对点构造 8 × 8 线性方程组（消掉 dst.w 的 8 个未知元）+ 固定 h[8] = 1
+ * - 用部分主元（partial pivoting）的高斯消元保证数值稳定，比 SVD 更轻量；
+ *   退化（共线 / 重合点）返回 undefined，调用方应回退到恒等映射
+ * - 误差几乎完全来自用户标点的精度（多 1 px），矩阵本身求解误差 < 1e-12
+ *
+ * 设计要点：
+ * - 同时缓存正反两个矩阵，避免每帧都做矩阵求逆
+ * - 仅依赖 4 对点；不依赖图像分辨率与方位，跨长边重采样的图像也能直接使用
+ */
+
 import type { IimlAlignment } from "./types";
 import type { UV } from "./geometry";
 

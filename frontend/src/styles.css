@@ -1434,7 +1434,7 @@ button {
 .resources-tab {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
   padding-bottom: 24px;
 }
 
@@ -1465,18 +1465,11 @@ button {
   font-weight: 600;
 }
 
-.resources-tab-hint {
-  margin: 0;
-  font-size: 11.5px;
-  line-height: 1.55;
-  color: #8f857a;
-}
-
 .resources-tab-section {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 10px 11px;
+  gap: 8px;
+  padding: 9px 10px;
   background: #1c1916;
   border: 1px solid #2c2824;
   border-radius: 6px;
@@ -1497,13 +1490,6 @@ button {
 
 .resources-tab-section-head svg {
   color: #f3a712;
-}
-
-.resources-tab-section-hint {
-  margin: 0;
-  font-size: 11px;
-  line-height: 1.5;
-  color: #8f857a;
 }
 
 .resources-ortho-row {
@@ -1578,6 +1564,18 @@ button {
   flex-wrap: wrap;
 }
 
+.resources-item-head .mini-icon {
+  min-height: 22px;
+  height: 22px;
+  width: 22px;
+  border-radius: 4px;
+}
+
+.resources-item-head .ghost-link {
+  font-size: 11px;
+  padding: 0 3px;
+}
+
 .resources-item-type {
   padding: 1px 6px;
   font-size: 10px;
@@ -1588,6 +1586,7 @@ button {
 
 .resources-item-id {
   flex: 1 1 auto;
+  min-width: 0;
   font-family: var(--mono-font, ui-monospace, "SFMono-Regular", Menlo, monospace);
   font-size: 10.5px;
   color: #8f857a;
@@ -1608,7 +1607,7 @@ button {
 .resources-item-thumb {
   display: block;
   width: 100%;
-  max-height: 160px;
+  max-height: 140px;
   object-fit: contain;
   background: #0b0a09;
   border-radius: 3px;
@@ -1618,27 +1617,19 @@ button {
   font-family: var(--mono-font, ui-monospace, "SFMono-Regular", Menlo, monospace);
   font-size: 10.5px;
   color: #cfc7bd;
-  word-break: break-all;
-}
-
-.resources-item-desc {
-  font-size: 10.5px;
-  color: #8f857a;
-  line-height: 1.45;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .resources-item-transform {
   font-size: 10.5px;
   color: #2ec4b6;
-  line-height: 1.45;
-  padding: 3px 5px;
+  line-height: 1.4;
+  padding: 2px 5px;
   background: rgba(46, 196, 182, 0.08);
   border-radius: 3px;
   border-left: 2px solid #2ec4b6;
-}
-
-.resources-item-transform strong {
-  color: #f4ece0;
 }
 
 .resources-form {

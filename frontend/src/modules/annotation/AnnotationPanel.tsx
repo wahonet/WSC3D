@@ -1,3 +1,24 @@
+/**
+ * 标注侧栏面板 `AnnotationPanel`
+ *
+ * 标注模式右侧的多 tab 信息面板：
+ * - **编辑**：当前选中标注的详情编辑（结构层级、ICON 三层、受控术语、证据源、
+ *   备注、关系编辑器、AI 处理记录、多解释对比、删除按钮）
+ * - **候选**：SAM / YOLO 产生的待审标注集中区，按类别 chip 过滤、批量
+ *   接受 / 拒绝、几何并集合并
+ * - **列表**：所有已确认的标注列表，带颜色 / 名称 / 可见性 / 锁定 / 删除等操作
+ *   面板底部还有 IIML / CSV / COCO / IIIF / .hpsml 五种格式的导出按钮
+ * - **图谱**：cytoscape 知识图谱（4 种中心性 + MCL 群组检测 + top-N 排行榜）
+ * - **资源**：IIML resources[] + 后端落盘资源 + 一键生成正射图（v0.8.0 新增）
+ *
+ * 设计要点：
+ * - 各 tab 共享同一份 IIML doc，但独占滚动条，避免长列表互相干扰
+ * - 编辑 tab 的"确定 / 取消"仅对草稿生效；非草稿改动靠 reducer 的 autosave 写盘
+ * - 候选 tab 的合并按钮调 `merge.ts:mergePolygonAnnotations`，做 polygon-clipping
+ *   union 后只保留外环
+ * - 关系编辑器（B1）+ 空间关系自动推导（B2）只在编辑 tab 当前选中标注时显示
+ */
+
 import { Check, Download, Eye, EyeOff, Group, Layers, Lock, Network, RotateCcw, Trash2, Unlock, Wand2, X } from "lucide-react";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import type {

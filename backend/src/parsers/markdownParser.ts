@@ -1,3 +1,39 @@
+/**
+ * 画像石结构化档案 Markdown 解析器
+ *
+ * 把仓库 `画像石结构化分档/` 下的每份 `.md` 档案解析成机器可读的
+ * `StoneMetadata` 对象，让标注 / 浏览模块能从档案里读图层标题、尺寸、对应
+ * 来源等信息。
+ *
+ * 约定的 Markdown 结构示例：
+ * ```markdown
+ * # 29东汉武氏祠左石室后壁小龛西侧画像石
+ *
+ * **尺寸（厘米）**：高 110、宽 84、厚 16
+ * **尺寸说明**：高边稍残
+ *
+ * ### 第一层：青龙
+ * **对应来源**：图录第 X 页
+ *
+ * 描绘…
+ *
+ * ### 第二层：白虎
+ * **对应来源**：图录第 Y 页
+ * ...
+ * ```
+ *
+ * 解析要点：
+ * - 文件名前缀数字（如 `29`）→ `stone_id`（补 0 至 2 位，如 `29` → `29`）
+ * - `# Title` 一级标题 → `name`，去掉前缀数字 / 空白
+ * - **尺寸** 行匹配高 / 宽 / 厚（厘米）
+ * - `### Heading` 三级标题 → 一个 `LayerData`，正文段落作为 panel content
+ *
+ * 设计要点：
+ * - 仅从档案里抽出"机器可读"的字段，原始 Markdown 内容也保留
+ *   （`layers[].content`），避免遗漏
+ * - 当尺寸 / 层级缺失时返回空数组而非抛错，让目录扫描容错
+ */
+
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import type { DimensionData, LayerData, StoneMetadata } from "../types.js";

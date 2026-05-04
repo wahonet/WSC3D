@@ -1,3 +1,13 @@
+/**
+ * 拼接模块本地类型定义
+ *
+ * 拼接模块内部多个组件（Workspace / Panel / AdjustControls）共享的领域类型：
+ * - `AssemblyTransform`：position + quaternion + scale 的 transform 三元组
+ * - `AssemblyItem`：拼接列表中一项，关联 stone + 当前 transform + 锁定标记
+ * - `AssemblyDimensions`：模型 / 元数据来源的"长边等比"尺寸
+ * - `FaceName` / `FaceSelection` / `SnapRequest`：面对面贴合相关
+ */
+
 import type { StoneListItem } from "../../api/client";
 
 export type FaceName = "left" | "right" | "top" | "bottom" | "front" | "back";

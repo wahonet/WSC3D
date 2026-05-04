@@ -1,3 +1,20 @@
+/**
+ * 拼接微调悬浮面板 `AssemblyAdjustControls`
+ *
+ * 拼接模式的底部居中浮窗，让用户在选中某块画像石后做精细的轴向位移与
+ * 旋转：
+ *
+ * - **translate / rotate 模式切换**：与 TransformControls 联动
+ * - **离散步长**：translate 1 / 5 / 10 cm；rotate 5° / 自定义角度
+ * - **轴向 nudge**：按 X / Y / Z 各自 ± 方向
+ * - **复位 / 落地**：恢复初始 transform 或贴到地面
+ *
+ * 设计要点：
+ * - 此组件纯展示与回调；选中态由父级（`AssemblyWorkspace`）持有
+ * - 锁定的 item 不显示按钮（disabled）
+ * - 自定义角度输入框接受 0.1° 级数字，便于精细对齐
+ */
+
 import { ArrowDownToLine, Minus, Move3D, Plus, RotateCw, Undo2 } from "lucide-react";
 import type { ReactNode } from "react";
 import type { AssemblyItem } from "./types";

@@ -1,3 +1,28 @@
+/**
+ * SAM 客户端封装 + prompt 协议
+ *
+ * 标注模块对接 ai-service `/ai/sam` 端点的双路径客户端：
+ * - **截图路径**：把 StoneViewer 当前视角截 base64 → SAM 在小图上做分割
+ * - **高清图路径**：直接告诉 ai-service stoneId 或 imageUri，让它用磁盘上的高清
+ *   原图 / 正射图 / 拓片做分割（正确率高，坐标天然对齐）
+ *
+ * 主要函数：
+ * - `requestSamCandidate` / `requestSamCandidateWithSource`：交互式 prompt
+ *   提交（点 / box），返回候选 polygon
+ * - `refineBBoxWithSam`：把已有 BBox 标注（如 YOLO 候选）作为 box prompt 喂给
+ *   SAM，把粗 bbox 升级成精确 polygon，是 YOLO + SAM 串联的关键链路
+ *
+ * SAM prompt 协议：
+ * - 正点 `label=1`：要这里
+ * - 负点 `label=0`：不要这里
+ * - box：两个对角点（顺序无关），归一化为 `[minU, minV, maxU, maxV]`
+ *
+ * 设计要点：
+ * - UV 的 v 向下，与图像 / 屏幕坐标一致；SAM 接受的也是 v 向下，避免坐标翻转
+ * - bbox 太小（< 千分之 5 图像宽 / 高）时直接放弃 → SAM 几乎一定输出整张图
+ * - imageUri 传了就走任意资源；否则按 stoneId 走 pic/ 原图
+ */
+
 import { runSamSegmentation, runSamSegmentationBySource } from "../../api/client";
 import { createAnnotationFromGeometry, polygonFromUVs, screenToUV, type UV } from "./geometry";
 import type { IimlAnnotation, IimlAnnotationFrame, ProjectionContext } from "./types";

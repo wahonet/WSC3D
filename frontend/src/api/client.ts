@@ -1,3 +1,25 @@
+/**
+ * 前端共用 API 客户端 + 数据模型类型定义
+ *
+ * 一份文件同时承担两件事：
+ * 1. **类型契约**：定义 IIML 文档结构、AI 服务响应、拼接方案等跨模块共享的
+ *    TypeScript 类型，前后端字段保持同名（必要时与 `backend/src/services/iiml.ts`
+ *    手动对齐）
+ * 2. **HTTP 封装**：统一拼接 `/api/*`（Express，:3100）和 `/ai/*`（FastAPI，:8000）
+ *    端点，处理 JSON 序列化、URL 编码、错误转译等公共逻辑
+ *
+ * 命名约定：
+ * - `Iiml*` 前缀的类型与 IIML 标注文档强相关
+ * - `Ai*` / `Sam*` / `Yolo*` 前缀对应 AI 服务的请求 / 响应
+ * - `AssemblyPlan*` 前缀对应拼接模块的持久化结构
+ *
+ * 设计要点：
+ * - 所有请求都 `fetch()` 直发，不引入 axios / SWR；走 Vite 的 `server.proxy`
+ *   让 dev 与生产环境同享相对路径
+ * - 响应 4xx / 5xx 时统一抛 `Error("xxx 失败：状态码")`，调用方用 try/catch 处理
+ * - 请求体里的字段名遵循 camelCase，落盘 IIML 同样 camelCase（与论文 / IIML schema 对齐）
+ */
+
 export type DimensionData = {
   width?: number;
   height?: number;
@@ -532,6 +554,17 @@ export async function importHpsmlPackage(
     throw new Error(`hpsml_import_failed: ${response.status} ${message}`);
   }
   return (await response.json()) as HpsmlImportSummary;
+}
+
+// 删除一份已落盘的画像石资源（仅支持正射图，后端会拒绝其它类型）。
+// 通过 fileName（不是 URI）定位文件，与列表接口返回的 fileName 一致。
+export async function deleteStoneResource(stoneId: string, fileName: string): Promise<void> {
+  const url = `/api/stones/${encodeURIComponent(stoneId)}/resources/${encodeURIComponent(fileName)}`;
+  const response = await fetch(url, { method: "DELETE" });
+  if (!response.ok) {
+    const message = await response.text().catch(() => "unknown");
+    throw new Error(`delete_failed: ${response.status} ${message}`);
+  }
 }
 
 export async function uploadStoneResource(

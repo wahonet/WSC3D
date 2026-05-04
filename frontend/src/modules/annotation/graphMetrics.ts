@@ -1,21 +1,29 @@
-// 知识图谱度量与"叙事中心"识别
-//
-// 参考：
-// - Freeman 1979《Centrality in Social Networks》—— degree / betweenness / closeness
-//   三种经典中心性
-// - Brin & Page 1998《The Anatomy of a Large-Scale Hypertextual Web Search Engine》
-//   —— PageRank
-// - Bonacich 1972《Factoring and weighting approaches to status scores》
-//   —— Eigenvector centrality
-// - Newman 2010《Networks: An Introduction》—— 综合定义
-//
-// 应用场景：汉画像石标注网络中，找出"叙事中心" / "构图中心" / "枢纽节点"。
-// 不同中心性回答不同问题：
-//   - **Degree**：直接邻居最多 = 出现频次最高（如"主神"被多个角色围绕）
-//   - **Betweenness**：处于最多最短路径上 = 桥梁节点（连接两个语义簇的关键人物）
-//   - **Closeness**：与其他所有节点平均距离最近 = "群核"
-//   - **PageRank**：被高权重节点指向的节点也高权重 = 综合权威度
-//   - **Eigenvector**：与高分节点相连的节点也高分（PageRank 是其变体）
+/**
+ * 知识图谱度量与"叙事中心"识别
+ *
+ * 提供 4 种经典中心性度量 + MCL 群组检测，配合 `KnowledgeGraphView` 让研究者
+ * 在 cytoscape 图上一眼定位"叙事重心 / 桥梁节点 / 主神"。
+ *
+ * 不同中心性回答不同问题：
+ * - **Degree**（邻居数）：直接邻居最多 = 出现频次最高（如"主神"被多个角色围绕）
+ * - **Betweenness**（桥梁度）：处于最多最短路径上 = 桥梁节点（连接两个语义簇
+ *   的关键形象）
+ * - **Closeness**（接近度）：与其他所有节点平均距离最近 = "群核"（构图重心）
+ * - **PageRank**（权威度）：被高权重节点指向的节点也高权重 = 综合权威度
+ *
+ * 参考：
+ * - Freeman 1979《Centrality in Social Networks》—— degree / betweenness / closeness
+ * - Brin & Page 1998《The Anatomy of a Large-Scale Hypertextual Web Search Engine》
+ *   —— PageRank
+ * - Newman 2010《Networks: An Introduction》—— 综合定义
+ *
+ * 实现要点：
+ * - 内部直接用 cytoscape 提供的 `degreeCentrality` / `closenessCentrality` /
+ *   `betweennessCentrality` / `pageRank` 算法，避免重写
+ * - 外层封装统一返回 `{ id, label, score }[]` 便于 UI 排行榜直接渲染
+ * - MCL 群组检测见 `detectClusters`，按强连通分量着色
+ */
+
 
 import type { Core, NodeSingular } from "cytoscape";
 

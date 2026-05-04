@@ -1,3 +1,24 @@
+/**
+ * 标注模块状态机 `annotationReducer` + 辅助选择器
+ *
+ * 标注模块的全部领域状态都被抽象成 `AnnotationState`，由 `useReducer` 在
+ * `App.tsx` 中托管。该 reducer 负责：
+ * - IIML 文档的 set / patch / 删除 / 撤销 / 重做（最近 40 步）
+ * - 当前选中标注、草稿标注、活动工具、状态消息等 UI 派生态
+ * - 标注间关系（relations）、AI 处理记录（processingRuns）、4 点对齐
+ *   （alignment）等子集合的读写
+ *
+ * 设计要点：
+ * - **不可变更新**：所有 `updateDoc` 路径都返回新对象，便于 React 浅比较
+ * - **历史栈**：`undoStack` / `redoStack` 仅快照 `doc`；状态消息、活动工具等
+ *   UI 派生态不进栈，避免误触发回放
+ * - **默认值兜底**：`set-doc` 时通过 `ensureAnnotationDefaults` 给历史 IIML 补
+ *   `frame: "model"`、配色、可见性等字段，与
+ *   `backend/src/scripts/migrate-iiml-frame.ts` 形成 runtime + 一次性脚本的双保险
+ *
+ * 调色板：`annotationPalette` 是 10 色 token，按标注创建顺序循环分配。
+ */
+
 import type { AnnotationAction, AnnotationState, IimlAlignment, IimlAnnotation, IimlDocument, IimlProcessingRun, IimlRelation } from "./types";
 
 const maxHistory = 40;

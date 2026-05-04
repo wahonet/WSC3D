@@ -1,3 +1,24 @@
+/**
+ * 标注间关系编辑器 `RelationsEditor`
+ *
+ * 详情面板里的关系子组件，让用户在两个标注之间建立语义关系：
+ * - **叙事关系**（橙色）：holds / rides / attacks / faces
+ * - **层级关系**（青色）：partOf / contains
+ * - **空间关系**（灰色，自动推导）：nextTo / above / below / leftOf /
+ *   rightOf / overlaps —— 由 `spatial.ts` 几何推导，UI 上点"采纳"才入库
+ * - **解释并存**（紫色）：alternativeInterpretationOf / manual
+ *
+ * 主要功能：
+ * - 列出当前选中标注的"出向 / 入向"关系；按 origin 区分人工 / 自动 / AI 推荐
+ * - 自动空间关系候选默认折叠在底部 candidates 区，逐条采纳为正式关系
+ * - 创建关系：选目标标注 + 选 kind + 可选 note 后保存
+ *
+ * 设计要点：
+ * - kind 词表是受控的，与 `KnowledgeGraphView` 着色保持一致
+ * - `origin` 字段决定来源：manual / spatial-auto / ai-suggest，便于学术溯源
+ * - 自动关系不写入 IIML，避免与人工关系冲突；只在前端运行时推导
+ */
+
 import { Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import type {

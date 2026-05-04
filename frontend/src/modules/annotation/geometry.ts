@@ -1,3 +1,26 @@
+/**
+ * 标注几何工厂 + 屏幕 ↔ UV 坐标转换工具
+ *
+ * 集中处理标注模块涉及的几何 / 坐标变换运算：
+ * - 由 `geometry`（IIML 几何）+ 元信息构造 `IimlAnnotation`
+ * - BBox / Polygon / Ellipse 的构造与 UV 坐标 → 屏幕坐标投影
+ * - 标注几何在屏幕上的中心、顶点、外接矩形
+ * - 屏幕坐标 ↔ UV 的双向转换（结合 `ProjectionContext`）
+ * - BBox / Ellipse 顶点对角拖动调整尺寸
+ *
+ * UV 坐标系约定：
+ * - `u, v ∈ [0, 1]`，`v` 向下与屏幕坐标一致
+ * - 3D 模型模式：UV 对应 modelBox（包围盒）的归一化坐标
+ * - 高清图 / 正射图模式：UV 对应该图自身的归一化坐标
+ *
+ * 设计要点：
+ * - 所有几何一律以 `IimlGeometry`（联合类型）保存到 IIML，渲染时按 type 分发
+ * - Ellipse 在 IIML 里以 Polygon 落盘（28 边折线近似），但带 attributes
+ *   `geometryKind: "ellipse"` + `bbox` 标记，渲染时还原成椭圆，避免 IIML
+ *   schema 引入额外 `Ellipse` type
+ * - 历史标注 frame 缺省视作 "model"，与 reducer 的 ensureAnnotationDefaults 一致
+ */
+
 import type {
   IimlAnnotation,
   IimlAnnotationFrame,

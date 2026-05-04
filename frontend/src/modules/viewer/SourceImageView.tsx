@@ -1,3 +1,26 @@
+/**
+ * 高清图视图 `SourceImageView`
+ *
+ * 标注模块"高清图"模式下的底图组件，渲染来自 ai-service 的高清原图（pic/ 目录）
+ * 或任意被覆写的资源 URI（正射 / 拓片 / 法线图等）。
+ *
+ * 主要功能：
+ * - 自带 pan / zoom：滚轮缩放围绕光标，中键 / 右键拖动平移；touch-action: none
+ *   接管浏览器原生触控，避免手势冲突
+ * - **图层叠加**：原图基础上可半透明叠加 AI 线图（白线 + alpha 渐变），共用同
+ *   一个 transform 保证像素对齐
+ * - **屏幕投影回传**：把图像 4 角的屏幕坐标算出来，供 `AnnotationCanvas` 把
+ *   UV 标注精准投影到屏幕
+ * - **fitToken**：父级递增时自动 fit 到容器（用于"重置视角"）
+ *
+ * 设计要点：
+ * - 不引入额外的画布库；直接用 `<img>` + CSS transform 完成 pan/zoom，依赖浏览器
+ *   原生 GPU 合成，渲染最快
+ * - `imageUrl` 覆写时仅替换底图，不影响坐标系（图像 UV 仍是图自身归一化）；
+ *   Canny 线图基于 pic/ 原图生成，资源覆写时父级会强制关闭 +线图 防止错位
+ * - 视图状态（offsetX / offsetY / scale）由本组件内部维护，父级仅触发 fit
+ */
+
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getLineartUrl, getSourceImageUrl, type LineartMethod } from "../../api/client";
 import type { ScreenProjection } from "./StoneViewer";

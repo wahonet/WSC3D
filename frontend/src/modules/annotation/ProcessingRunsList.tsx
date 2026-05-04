@@ -1,3 +1,22 @@
+/**
+ * AI 处理记录视图 `ProcessingRunsList`
+ *
+ * 详情面板里的"AI 处理记录"折叠 section，把每次 SAM / YOLO / Canny 调用
+ * 留下的 `processingRun` 记录展示出来，让候选标注的来源可追溯。
+ *
+ * 这是学术溯源的关键 ——
+ * 论文 24 / 25 / 26 / 34 都强调"AI 候选必须可追溯到具体模型 + 参数 + 时间"。
+ *
+ * 显示规则：
+ * - **annotation 传入时**：只显示产生过该标注的 run（按 endedAt 降序）
+ * - **无 annotation**：显示全部 run（List tab 总览，预留扩展）
+ * - 失败 / 无产出的 run 用浅红条；成功 run 显示模型 + 时间 + 产出数
+ * - 点击产出 annotation id 跳转到对应标注（`onSelectAnnotation` 提供时）
+ *
+ * 视觉：与 RelationsEditor 同视觉容器（深色卡片 + head + 列表），保持详情面板
+ * 末尾的视觉一致。
+ */
+
 import { ChevronDown, ChevronRight, Wand2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import type { IimlAnnotation, IimlProcessingRun } from "./types";
@@ -17,18 +36,6 @@ const methodLabels: Record<string, string> = {
   canny: "Canny"
 };
 
-/**
- * AI 处理记录 section（D4）：可折叠展示 processingRuns。
- *
- * 行为：
- *   - annotation 传入时：只显示产生过该标注的 run（按 endedAt 降序）
- *   - 无 annotation：显示全部 run（用于 List tab 总览，本版尚未挂载）
- *   - 失败 / 无产出的 run 用浅红条；成功 run 显示模型 + 时间 + 产出数
- *   - 点击产出 annotation id 跳转到对应标注（onSelectAnnotation 提供时）
- *
- * 视觉：与 RelationsEditor 同视觉容器（深色卡片 + head + 列表），保持详情面板
- * 末尾的视觉一致。
- */
 export function ProcessingRunsList({
   annotation,
   runs,

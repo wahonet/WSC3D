@@ -1,3 +1,39 @@
+"""
+SAM（Segment Anything Model）推理服务
+
+基于 MobileSAM ViT-T 的轻量分割模型，提供三条互补的输入路径：
+
+1. **base64 截图**（``sam_segment``）—— 旧路径；前端把当前视角截图发过来，
+   SAM 在小图上做分割。坐标系是图像归一化（v 向下）。
+2. **stoneId 高清图**（``sam_segment_by_stone``）—— 主路径；按 stoneId 去
+   ``pic/`` 找高清原图，原始分辨率上做分割。坐标系是 modelBox-uv（v 向下）。
+3. **任意资源 URI**（``sam_segment_by_uri``）—— v0.8.0 J 起；URI 形如
+   ``/assets/stone-resources/{stoneId}/{file}.png``，反解到本地路径后做分割。
+   不依赖 backend 在线，让 SAM 直接跑在正射图 / 拓片 / 法线图等任意底图上。
+
+模型加载：
+- 启动时调用 ``kickoff_load`` 在后台线程下载权重 + 加载模型，FastAPI 启动
+  不阻塞；前端通过 ``/ai/health`` 轮询 ``status`` 字段（pending /
+  downloading / loading / ready / error）
+- 权重文件按需下载到 ``ai-service/weights/mobile_sam.pt``（约 39 MB）；
+  已存在就直接复用
+- 加载失败时记录详细 detail，前端 UI 据此提示用户
+
+高清图缓存：
+- 一份内存图缓存（``_source_cache``，最近一次访问的 stoneId / image）
+  减少 tif 重复解码
+- 浏览器可读 PNG 落盘缓存到 ``ai-service/cache/source/``，前端通过
+  ``/ai/source-image/{stoneId}`` 直接 ``<img src=...>`` 渲染
+
+线程安全：
+- predict 时 ``_predictor_lock`` 串行化 ``set_image``，避免并发请求互相覆盖
+
+prompt 协议：
+- ``point`` / ``box``：图像像素坐标（旧 base64 路径）
+- ``point_uv`` / ``box_uv``：归一化 UV 坐标（高清图 / URI 路径）
+- ``label = 1`` 正点（要这里）；``label = 0`` 负点（不要这里）
+"""
+
 from __future__ import annotations
 
 import os

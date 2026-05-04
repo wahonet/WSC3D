@@ -1,3 +1,32 @@
+"""
+WSC3D AI 服务入口（FastAPI，:8000）
+
+为前端提供 SAM 语义分割、YOLO 目标检测、Canny 线图与高清原图转码 4 个核心
+端点，所有重模型在后台线程懒加载，FastAPI 启动不阻塞。
+
+主要端点：
+- ``GET  /ai/health``                 健康检查 + SAM 加载状态（含进度）
+- ``POST /ai/sam``                    SAM 多 prompt 智能分割（imageUri / stoneId / base64 三路径）
+- ``POST /ai/yolo``                   YOLOv8n 目标检测（同样三路径）
+- ``POST /ai/canny``                  OpenCV Canny 线图（旧 base64 路径）
+- ``GET  /ai/source-image/{stoneId}`` 高清原图 tif → PNG 转码并落盘缓存
+- ``GET  /ai/lineart/{stoneId}``      线图 PNG（5 种算法 / 阈值组合各自缓存）
+- ``GET  /ai/lineart/methods``        前端 UI 拉取支持的线图方法列表
+
+输入路径优先级（SAM / YOLO 同型）：
+``imageUri > stoneId > imageBase64``。前端在不同场景按需选择：
+- imageUri：v0.8.0 J 起，用于在正射图 / 拓片等任意资源上跑分割检测
+- stoneId：默认，按数字前缀去 pic/ 下匹配高清原图
+- imageBase64：fallback，把当前画布截图传过来（精度低，仅在前两路径都不
+  可用时使用）
+
+启动机制：
+- ``on_startup`` 钩子触发 ``sam_kickoff_load``，在后台线程下载权重并加载
+  MobileSAM；前端通过 ``/ai/health`` 轮询 sam.status 决定 SAM 按钮可用性
+- 若 ``ai-service/weights/`` 已有 ``mobile_sam.pt`` 就跳过下载
+- 仅监听 127.0.0.1，前端走 Vite proxy 同源访问
+"""
+
 from __future__ import annotations
 
 from fastapi import FastAPI

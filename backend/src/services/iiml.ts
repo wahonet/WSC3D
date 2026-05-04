@@ -1,3 +1,26 @@
+/**
+ * IIML 文档持久化与受控词表服务
+ *
+ * 后端层 IIML 文档的"门面"，统一处理：
+ * - **schema 校验**：用 ajv 2020-12 + JSON-Schema-Draft 加载内嵌 IIML 模式，
+ *   保存前一次性把整份 doc 校验，错误带字段路径直接抛 422
+ * - **持久化**：读 / 写 `data/iiml/{stoneId}.iiml.json`；JSON 缩进 2 空格 + 末尾
+ *   换行，保持 git diff 友好
+ * - **从结构化档案 import**：`importMarkdownIntoIiml` 把
+ *   `画像石结构化分档/{name}.md` 里的层级 / 面板段落转成层次化 IIML annotations
+ *   （结构层级 = `scene` / `figure` / `component`），方便用户在标注模块基础上
+ *   编辑而非从零开始
+ * - **alignment 状态汇总**：`listAlignments` 一次性回报所有画像石的 4 点对齐
+ *   状态（`{ stoneId: hasAlignment }`），供前端下拉显示 ✓ 标记
+ *
+ * 设计要点：
+ * - schema 校验走 ajv 默认严格模式，但允许 additionalProperties（IIML 鼓励
+ *   研究者自由扩展）
+ * - 保存时自动补 `provenance.{savedAt, savedBy}`，便于审计
+ * - 类型定义与 `frontend/src/api/client.ts` 手动同步；任一端字段调整都需要
+ *   两端同时修改
+ */
+
 import * as Ajv2020Module from "ajv/dist/2020.js";
 import type { AnySchema } from "ajv";
 import { mkdir, readFile, writeFile } from "node:fs/promises";

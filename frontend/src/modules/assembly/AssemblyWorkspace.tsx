@@ -1,3 +1,26 @@
+/**
+ * 拼接模块工作区 `AssemblyWorkspace`
+ *
+ * 把多块画像石（最多 10 块）加载到统一 Three.js 场景里做空间编排，让研究者
+ * 可视化复原"原本应该相邻"的画像石组合（如墓葬同一墙面）。
+ *
+ * 主要功能：
+ * - **多模型加载**：每条 `AssemblyItem` 异步 GLTFLoader，内部维护
+ *   `LoadedAssemblyObject` 列表
+ * - **TransformControls**：选中一块后挂上 gizmo，translate / rotate 双模式
+ * - **离散步长调整**：父级提供按钮触发 1 / 5 / 10 cm 平移、5° / 任意角度旋转
+ * - **长边等比缩放**：按结构化档案的"高/宽/厚"自动校准模型，所有块同一比例尺
+ * - **面对面贴合**：选 A / B 各一面，自动算 quaternion + 平移让两面贴合
+ * - **方案保存 / 加载**：JSON 形式持久化到 `data/assembly-plans/`
+ *
+ * 设计要点：
+ * - 父级隐藏（`active = false`）时暂停 render loop 省 GPU；后台不空转
+ * - 每块模型用一个 `THREE.Group` 包一层，便于整组应用 transform；加载后再
+ *   计算 baseSize 回传父级供尺寸推断
+ * - 选中切换时 `BoxHelper` + `TransformControls` 都重新挂在新块上
+ * - OrbitControls 与 TransformControls 协同：拖 gizmo 时 OrbitControls 暂停
+ */
+
 import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";

@@ -1,6 +1,30 @@
+/**
+ * 资源 tab 主面板 `ResourcesEditor`
+ *
+ * 标注 panel 的"资源"tab（v0.8.0 H2 从 ListTab 拆分独立），整合了一块画像石
+ * 的全部图像类资源管理：
+ *
+ * 三个 section：
+ * 1. **从三维模型生成正射图**：4 个方向（正 / 背 / 顶 / 底）+ 一键生成 PNG，
+ *    自动落盘到 `data/stone-resources/{stoneId}/` 并加进 IIML resources[]
+ * 2. **IIML 资源条目**：列出 `doc.resources[]`，每条支持预览图像、删除、新
+ *    标签页打开；"添加"按钮手工注册外链资源（如 IIIF URI）
+ * 3. **后端已落盘**：列出 `data/stone-resources/{stoneId}/` 下实际存在的文件；
+ *    未关联到 IIML 的可一键关联，正射图可单独删除（其它类型只允许从 IIML 移除
+ *    条目，不删后端文件，避免误删原始素材）
+ *
+ * 设计要点：
+ * - 删除一份后端正射图时同步清理 IIML 里指向同一 URI 的条目，避免悬空链接
+ * - 资源 type 与 IIML schema 的 resource type 严格对齐（Mesh3D / OriginalImage /
+ *   Orthophoto / Rubbing / NormalMap / LineDrawing / RTI / PointCloud / Other）
+ * - 文件名约定：`{type}-{ISO timestamp}.png`，前端按前缀短标签化展示
+ *   （如 `orthofront-2024…` → "正射·正"）
+ */
+
 import { Download, FileImage, Layers, Plus, RefreshCcw, Sparkles, Trash2, Upload } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  deleteStoneResource,
   listStoneResources,
   uploadStoneResource,
   type StoneListItem,
@@ -9,32 +33,18 @@ import {
 import { generateOrthoImage } from "./orthophoto";
 import type { IimlDocument, IimlResourceEntry, IimlResourceTransform } from "./types";
 
-// 资源标签页主面板。做了 4 件事：
-//
-// 1. 列出 doc.resources（IIML 里挂的逻辑资源条目）
-// 2. 列出后端 data/stone-resources/{stoneId}/ 里实际落盘的图像（用户 / 上次
-//    正射生成），哪怕还没绑进 IIML 也能看到
-// 3. 提供 "从三维模型生成正射图" 按钮：用 Three.js offscreen 渲染器把模型
-//    正面拍一张 PNG，POST 到后端落盘，然后自动加到 doc.resources
-// 4. 手工添加 IIML resource 条目（补 URI、类型等元数据；用于外链 IIIF / 本地
-//    拓片等场景）
-//
-// 和 v0.7.0 的差别：这里从 "轻量列表" 升级为"真能生成 / 上传 / 消费资源"的
-// 工作台，是 M4 多资源版本管理的核心入口。
-
 const resourceTypes = [
-  { id: "Mesh3D", label: "3D 模型", description: "OBJ / GLB / GLTF 等三维网格" },
-  { id: "OriginalImage", label: "原图", description: "高清照片 / 拓片照片 tif" },
-  { id: "Orthophoto", label: "正射图", description: "由三维模型生成的正射投影 PNG（本模块可一键生成）" },
-  { id: "Rubbing", label: "拓片", description: "纸质拓片扫描" },
-  { id: "NormalMap", label: "法线图", description: "RTI 派生 / 摄影测量出的法线图" },
-  { id: "LineDrawing", label: "线图", description: "考古学者绘制 / Canny 派生" },
-  { id: "RTI", label: "RTI", description: "Reflectance Transformation Imaging 多光源资源" },
-  { id: "PointCloud", label: "点云", description: "PLY / E57 / LAS 三维扫描点云" },
-  { id: "Other", label: "其他", description: "自定义资源" }
+  { id: "Mesh3D", label: "3D 模型" },
+  { id: "OriginalImage", label: "原图" },
+  { id: "Orthophoto", label: "正射图" },
+  { id: "Rubbing", label: "拓片" },
+  { id: "NormalMap", label: "法线图" },
+  { id: "LineDrawing", label: "线图" },
+  { id: "RTI", label: "RTI" },
+  { id: "PointCloud", label: "点云" },
+  { id: "Other", label: "其他" }
 ];
 
-// 正射视图选项（对应 orthophoto.ts 里的 view 字段）
 const orthoViewOptions: Array<{ id: "front" | "back" | "top" | "bottom"; label: string }> = [
   { id: "front", label: "正面" },
   { id: "back", label: "背面" },
@@ -42,13 +52,35 @@ const orthoViewOptions: Array<{ id: "front" | "back" | "top" | "bottom"; label: 
   { id: "bottom", label: "底面" }
 ];
 
+// 把后端落盘文件名里的 type 前缀（orthofront / orthoback…）映射成短标签
+function shortTypeLabel(type: string): string {
+  const lower = type.toLowerCase();
+  if (lower === "orthofront") return "正射·正";
+  if (lower === "orthoback") return "正射·背";
+  if (lower === "orthotop") return "正射·顶";
+  if (lower === "orthobottom") return "正射·底";
+  if (lower.startsWith("ortho")) return "正射";
+  return type;
+}
+
+// IIML 里 transform 字段渲染成短标签：避免每条目下挂一长串技术参数
+function describeTransformShort(transform: IimlResourceTransform): string {
+  if (transform.kind === "orthographic-from-model") {
+    const viewLabel = orthoViewOptions.find((o) => o.id === transform.view)?.label ?? transform.view;
+    return `正射 · ${viewLabel} · ${transform.pixelSize.width}×${transform.pixelSize.height}`;
+  }
+  if (transform.kind === "homography-4pt") {
+    return `单应性 · ${transform.controlPoints.length} 点`;
+  }
+  return "仿射矩阵";
+}
+
 export type ResourcesEditorProps = {
   doc?: IimlDocument;
   stone?: StoneListItem;
   onAddResource: (resource: IimlResourceEntry) => void;
   onUpdateResource: (id: string, patch: Partial<IimlResourceEntry>) => void;
   onDeleteResource: (id: string) => void;
-  // 用于向工作区全局状态报消息（走 dispatchAnnotation set-status）
   onStatusMessage?: (status: string) => void;
 };
 
@@ -72,13 +104,19 @@ export function ResourcesEditor({
   const [generating, setGenerating] = useState(false);
   const [serverResources, setServerResources] = useState<StoneResourceEntry[]>([]);
   const [refreshing, setRefreshing] = useState(false);
+  const [deletingFileName, setDeletingFileName] = useState<string | null>(null);
 
-  const boundUris = useMemo(() => {
-    const set = new Set<string>();
+  // uri → IIML resource.id 列表（删后端文件时同步清理所有指向它的 IIML 条目，
+  // 避免悬空链接；理论上一份文件只会被关联一次，但保留多对一兜底）
+  const iimlResourceIdsByUri = useMemo(() => {
+    const map = new Map<string, string[]>();
     for (const resource of resources) {
-      if (typeof resource.uri === "string") set.add(resource.uri);
+      if (typeof resource.uri !== "string") continue;
+      const ids = map.get(resource.uri);
+      if (ids) ids.push(resource.id);
+      else map.set(resource.uri, [resource.id]);
     }
-    return set;
+    return map;
   }, [resources]);
 
   const refreshServerResources = useCallback(async () => {
@@ -112,14 +150,12 @@ export function ResourcesEditor({
       const uploaded = await uploadStoneResource(stoneId, result.blob, {
         type: `ortho-${orthoView}`
       });
-      // 把新资源条目加进 IIML doc.resources，带完整的跨资源坐标变换元数据
-      // （I2 v0.8.0：modelBox UV ↔ 正射图 UV 的线性仿射变换信息）
       const resourceId = `resource-ortho-${orthoView}-${Date.now().toString(36)}`;
       onAddResource({
         id: resourceId,
         type: "Orthophoto",
         uri: uploaded.uri,
-        description: `从 3D 模型生成的正射图（${orthoViewOptions.find((o) => o.id === orthoView)?.label ?? orthoView}）；像素尺寸 ${result.width}×${result.height}；模型 AABB ${result.modelSize.width.toFixed(2)}×${result.modelSize.height.toFixed(2)}×${result.modelSize.depth.toFixed(2)}`,
+        description: `正射图（${orthoViewOptions.find((o) => o.id === orthoView)?.label ?? orthoView}） ${result.width}×${result.height}`,
         acquisition: "offscreen-three-ortho",
         acquiredAt: new Date().toISOString(),
         transform: {
@@ -133,7 +169,7 @@ export function ResourcesEditor({
         }
       });
       await refreshServerResources();
-      onStatusMessage?.(`已生成正射图：${result.width}×${result.height}px，已关联到 IIML resources`);
+      onStatusMessage?.(`已生成正射图：${result.width}×${result.height}px`);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       onStatusMessage?.(`生成正射图失败：${message}`);
@@ -150,12 +186,36 @@ export function ResourcesEditor({
         id: resourceId,
         type: typeLabel,
         uri: entry.uri,
-        description: `已存在的落盘资源（${entry.fileName}）`,
+        description: entry.fileName,
         acquiredAt: entry.createdAt ?? new Date().toISOString()
       });
-      onStatusMessage?.(`已把 ${entry.fileName} 关联到 IIML resources`);
+      onStatusMessage?.(`已关联 ${entry.fileName} 到 IIML`);
     },
     [onAddResource, onStatusMessage]
+  );
+
+  const handleDeleteServerResource = useCallback(
+    async (entry: StoneResourceEntry) => {
+      if (!stoneId) return;
+      if (!entry.type.toLowerCase().startsWith("ortho")) return;
+      const confirmed = window.confirm(`确定删除该正射图吗？\n${entry.fileName}\n（不可撤销）`);
+      if (!confirmed) return;
+      setDeletingFileName(entry.fileName);
+      try {
+        // 同步清理 IIML 里指向同一 URI 的条目，避免悬空链接
+        const boundIds = iimlResourceIdsByUri.get(entry.uri) ?? [];
+        for (const id of boundIds) onDeleteResource(id);
+        await deleteStoneResource(stoneId, entry.fileName);
+        await refreshServerResources();
+        onStatusMessage?.(`已删除正射图 ${entry.fileName}`);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        onStatusMessage?.(`删除失败：${message}`);
+      } finally {
+        setDeletingFileName(null);
+      }
+    },
+    [stoneId, iimlResourceIdsByUri, onDeleteResource, onStatusMessage, refreshServerResources]
   );
 
   const handleSubmitAdd = () => {
@@ -172,36 +232,22 @@ export function ResourcesEditor({
     setDraftType("OriginalImage");
     setDraftUri("");
     setDraftDescription("");
-    onStatusMessage?.(`已添加资源条目 ${id}`);
+    onStatusMessage?.(`已添加资源 ${id}`);
   };
-
-  function describeTransform(transform: IimlResourceTransform): string {
-    if (transform.kind === "orthographic-from-model") {
-      const viewLabel = orthoViewOptions.find((o) => o.id === transform.view)?.label ?? transform.view;
-      const equiv = transform.equivalentToModel
-        ? "（与 3D 模型 UV 等价，标注自动双向共享）"
-        : "";
-      return `正射投影 · ${viewLabel} · AABB ${transform.modelAABB.width.toFixed(1)}×${transform.modelAABB.height.toFixed(1)} · frustum ${transform.frustumScale.toFixed(2)}× · 像素 ${transform.pixelSize.width}×${transform.pixelSize.height} ${equiv}`;
-    }
-    if (transform.kind === "homography-4pt") {
-      return `4 点单应性 · ${transform.controlPoints.length} 对对应点`;
-    }
-    return "3×3 仿射矩阵";
-  }
 
   return (
     <section className="resources-tab">
       <header className="resources-tab-head">
         <div className="resources-tab-title-row">
           <Layers size={16} />
-          <h3>资源版本</h3>
-          <span className="resources-tab-count">{resources.length} / {serverResources.length}</span>
+          <h3>资源</h3>
+          <span
+            className="resources-tab-count"
+            title="左：IIML 条目数 / 右：后端落盘数"
+          >
+            {resources.length} / {serverResources.length}
+          </span>
         </div>
-        <p className="resources-tab-hint">
-          同一画像石可挂多份资源（原图 / 拓片 / 法线图 / RTI / 点云 / 从模型生成的正射图）。
-          <strong>上方列表来自 IIML 文档</strong>（会随 IIML 一起导出）；
-          <strong>下方列表是后端 `data/stone-resources/` 实际落盘的文件</strong>（可一键关联到 IIML）。
-        </p>
       </header>
 
       {/* === 正射图生成 === */}
@@ -210,11 +256,6 @@ export function ResourcesEditor({
           <Sparkles size={14} />
           <span>从三维模型生成正射图</span>
         </header>
-        <p className="resources-tab-section-hint">
-          没有原图 / 拓片时，可以用三维模型渲染一张正射 PNG 作为标注底图替代。
-          生成后自动落盘到后端 + 关联到 IIML resources，可直接用作 SAM / YOLO /
-          标注画布的底图素材。
-        </p>
         <div className="resources-ortho-row">
           <div className="resources-ortho-views">
             {orthoViewOptions.map((option) => (
@@ -224,7 +265,6 @@ export function ResourcesEditor({
                 className={orthoView === option.id ? "resources-ortho-view is-on" : "resources-ortho-view"}
                 onClick={() => setOrthoView(option.id)}
                 disabled={generating}
-                title={`按"${option.label}"方向做正射投影`}
               >
                 {option.label}
               </button>
@@ -235,13 +275,7 @@ export function ResourcesEditor({
             className="primary-action"
             onClick={handleGenerateOrtho}
             disabled={generating || !stone?.modelUrl}
-            title={
-              !stone?.modelUrl
-                ? "该画像石没有三维模型"
-                : generating
-                ? "正在生成中…"
-                : "offscreen Three.js 渲染 3072px 长边 PNG，自动存后端 + 关联到 IIML"
-            }
+            title={!stone?.modelUrl ? "该画像石没有三维模型" : "渲染并落盘正射 PNG"}
           >
             <Sparkles size={13} />
             {generating ? "生成中…" : "生成正射图"}
@@ -259,7 +293,7 @@ export function ResourcesEditor({
               type="button"
               className="ghost-link"
               onClick={() => setAdding(true)}
-              title="手工添加资源条目（如外链 IIIF Canvas）"
+              title="手工添加资源条目（如外链 IIIF）"
             >
               <Plus size={12} /> 添加
             </button>
@@ -267,7 +301,7 @@ export function ResourcesEditor({
         </header>
 
         {resources.length === 0 ? (
-          <p className="muted-text">暂无资源条目。点上方"生成正射图"或"添加"。</p>
+          <p className="muted-text">暂无</p>
         ) : (
           <ul className="resources-list">
             {resources.map((resource) => {
@@ -276,17 +310,15 @@ export function ResourcesEditor({
               return (
                 <li key={resource.id} className="resources-item">
                   <div className="resources-item-head">
-                    <span className="resources-item-type">
-                      {typeMeta?.label ?? resource.type}
-                    </span>
-                    <span className="resources-item-id">{resource.id}</span>
+                    <span className="resources-item-type">{typeMeta?.label ?? resource.type}</span>
+                    <span className="resources-item-id" title={resource.id}>{resource.id}</span>
                     {previewable ? (
                       <a
                         href={resource.uri}
                         target="_blank"
                         rel="noreferrer"
                         className="mini-icon"
-                        title="在新标签页预览图像"
+                        title="新标签页预览"
                       >
                         <Download size={13} />
                       </a>
@@ -295,7 +327,7 @@ export function ResourcesEditor({
                       type="button"
                       className="mini-icon danger"
                       onClick={() => onDeleteResource(resource.id)}
-                      title="仅从 IIML 条目里删除，不会删后端文件"
+                      title="从 IIML 移除该条目（不删后端文件）"
                     >
                       <Trash2 size={13} />
                     </button>
@@ -311,12 +343,9 @@ export function ResourcesEditor({
                   <div className="resources-item-uri" title={resource.uri}>
                     {resource.uri}
                   </div>
-                  {resource.description ? (
-                    <div className="resources-item-desc">{resource.description}</div>
-                  ) : null}
                   {resource.transform ? (
-                    <div className="resources-item-transform" title="跨资源坐标变换元数据">
-                      <strong>坐标变换</strong> · {describeTransform(resource.transform)}
+                    <div className="resources-item-transform">
+                      {describeTransformShort(resource.transform)}
                     </div>
                   ) : null}
                 </li>
@@ -331,7 +360,7 @@ export function ResourcesEditor({
               <span>类型</span>
               <select value={draftType} onChange={(event) => setDraftType(event.target.value)}>
                 {resourceTypes.map((t) => (
-                  <option key={t.id} value={t.id} title={t.description}>
+                  <option key={t.id} value={t.id}>
                     {t.label}
                   </option>
                 ))}
@@ -342,7 +371,7 @@ export function ResourcesEditor({
               <input
                 type="text"
                 value={draftUri}
-                placeholder="如 /api/stones/29/rubbing 或 https://museum.org/iiif/29/canvas"
+                placeholder="如 /api/stones/29/rubbing"
                 onChange={(event) => setDraftUri(event.target.value)}
               />
             </label>
@@ -351,7 +380,7 @@ export function ResourcesEditor({
               <input
                 type="text"
                 value={draftDescription}
-                placeholder="可选：拍摄方式 / 设备 / 采集者"
+                placeholder="可选"
                 onChange={(event) => setDraftDescription(event.target.value)}
               />
             </label>
@@ -385,46 +414,57 @@ export function ResourcesEditor({
         <header className="resources-tab-section-head">
           <Upload size={14} />
           <span>后端已落盘</span>
-          <span className="muted-text">data/stone-resources/{stoneId}/</span>
           <button
             type="button"
             className="ghost-link"
             onClick={refreshServerResources}
             disabled={refreshing}
-            title="重新扫描后端该 stoneId 目录"
+            title="重新扫描后端目录"
           >
             <RefreshCcw size={12} /> 刷新
           </button>
         </header>
         {serverResources.length === 0 ? (
-          <p className="muted-text">该画像石后端尚无落盘资源。点"生成正射图"会自动落盘。</p>
+          <p className="muted-text">暂无</p>
         ) : (
           <ul className="resources-list resources-list--server">
             {serverResources.map((entry) => {
-              const bound = boundUris.has(entry.uri);
+              const bound = iimlResourceIdsByUri.has(entry.uri);
+              const isOrtho = entry.type.toLowerCase().startsWith("ortho");
+              const isDeleting = deletingFileName === entry.fileName;
               return (
                 <li key={entry.fileName} className="resources-item resources-item--server">
                   <div className="resources-item-head">
-                    <span className="resources-item-type">{entry.type}</span>
-                    <span className="resources-item-id">{entry.fileName}</span>
+                    <span className="resources-item-type">{shortTypeLabel(entry.type)}</span>
                     {bound ? <span className="resources-item-badge">已关联</span> : null}
                     <a
                       href={entry.uri}
                       target="_blank"
                       rel="noreferrer"
                       className="mini-icon"
-                      title="在新标签页预览"
+                      title="新标签页预览"
                     >
                       <Download size={13} />
                     </a>
                     {!bound ? (
                       <button
                         type="button"
-                        className="ghost-link"
+                        className="ghost-link small"
                         onClick={() => handleBindServerResource(entry)}
-                        title="把该落盘文件关联到 IIML resources[]"
+                        title="关联到 IIML"
                       >
                         <Plus size={12} /> 关联
+                      </button>
+                    ) : null}
+                    {isOrtho ? (
+                      <button
+                        type="button"
+                        className="mini-icon danger"
+                        onClick={() => handleDeleteServerResource(entry)}
+                        disabled={isDeleting}
+                        title="删除该正射图（不可撤销）"
+                      >
+                        <Trash2 size={13} />
                       </button>
                     ) : null}
                   </div>
@@ -442,6 +482,7 @@ export function ResourcesEditor({
       </section>
     </section>
   );
-  // onUpdateResource 当前在 UI 上不暴露 inline 编辑，保留接口供未来扩展
+  // 当前面板未使用 onUpdateResource（资源条目的字段编辑暂没有专用 UI），
+  // 通过 void 标记接口仍然保留，留待未来扩展（如改 description / type）。
   void onUpdateResource;
 }

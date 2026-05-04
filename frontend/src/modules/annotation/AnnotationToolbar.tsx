@@ -1,3 +1,27 @@
+/**
+ * 标注模块左侧工具栏 `AnnotationToolbar`
+ *
+ * 标注模式 52 px 宽的左侧导轨，按以下顺序排列：
+ * 1. 选择 / 移动（V）
+ * 2. 矩形（R）
+ * 3. 椭圆（E）
+ * 4. 钢笔多边形（P）
+ * 5. 点（N）
+ * 6. SAM 智能分割（S，sam.ready 时可用）
+ * 7. YOLO 批量扫描（弹 dialog）
+ * 8. 4 点对齐校准（已校准时按钮右下角青色圆点）
+ * --- 分隔 ---
+ * 9. 撤销 / 重做（Ctrl+Z / Ctrl+Y）
+ * 10. 删除当前选中
+ * 11. 重置视角（F）
+ *
+ * 设计要点：
+ * - 全部按钮纯回调；状态由父级（App）持有
+ * - SAM 按钮在 `samStatus` 未就绪时置灰，tooltip 反馈"加载中" / "失败"
+ * - 标定按钮在 `calibrating` 时高亮 + 改 tooltip "取消校准"
+ * - YOLO 扫描中显示 spinner，避免重复触发
+ */
+
 import {
   Circle,
   Crosshair,

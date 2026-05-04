@@ -1,7 +1,34 @@
+/**
+ * WSC3D 后端入口（Express，:3100）
+ *
+ * 本机 API 网关，负责把仓库中的画像石资源（三维模型、结构化档案、参考图、
+ * 高清原图、IIML 标注、拼接方案）以静态文件 + JSON API 形式同时暴露给前端。
+ *
+ * 主要职责：
+ * 1. **目录扫描与缓存**：`getCatalog` 把 `temp/` 三维模型 + `画像石结构化分档/`
+ *    Markdown + `参考图/` 缩略图按 stoneId 关联起来，cache 在内存中
+ * 2. **静态托管**：
+ *    - `/assets/models`：GLTF / PNG（来自 `temp/`，1h 浏览器缓存）
+ *    - `/assets/reference`：参考图
+ *    - `/assets/stone-resources`：用户生成 / 上传的画像石资源（正射图 / 拓片
+ *      / 法线图等）
+ * 3. **IIML 文档读写**：`loadIimlDoc` / `saveIimlDoc` 走完整 ajv schema 校验，
+ *    落盘 `data/iiml/{stoneId}.iiml.json`
+ * 4. **AI 导入 / 派生**：Markdown 段落 → IIML 标注（`importMarkdownIntoIiml`）；
+ *    .hpsml 研究包解包导入（`importHpsmlPackage`）
+ * 5. **拼接方案 CRUD**：JSON 文件持久化到 `data/assembly-plans/`
+ *
+ * 设计要点：
+ * - 项目根目录通过 `WSC3D_ROOT` 环境变量自定义，默认按相对路径推断
+ * - body 上限 25 MB（正射图 PNG 一般 5-10 MB，留余量）
+ * - 错误统一走 `next(error)`，最末端中间件返回 500 + JSON
+ * - 仅监听 127.0.0.1，避免局域网误访问；前端走 Vite proxy 同源访问
+ */
+
 import cors from "cors";
 import express from "express";
 import morgan from "morgan";
-import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { getCatalog, type CatalogConfig } from "./services/catalog.js";
@@ -263,6 +290,42 @@ app.post("/api/stones/:id/resources", async (req, res, next) => {
       uri: `/assets/stone-resources/${encodeURIComponent(safeStoneId)}/${encodeURIComponent(fileName)}`,
       createdAt: new Date().toISOString()
     });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// 删除一份已落盘的画像石资源文件。
+// 出于安全 / 可逆性考虑，只允许删除"正射图"（fileName 以 ortho 开头），
+// 防止用户误删上传的原图 / 拓片 / 法线图等不可重新生成的素材。
+app.delete("/api/stones/:id/resources/:fileName", async (req, res, next) => {
+  try {
+    const safeStoneId = req.params.id.replace(/[^a-zA-Z0-9_.-]/gu, "_");
+    const safeFileName = req.params.fileName.replace(/[^a-zA-Z0-9_.-]/gu, "_");
+    if (!safeStoneId || !safeFileName || safeFileName === "." || safeFileName === "..") {
+      res.status(400).json({ error: "invalid_params" });
+      return;
+    }
+    if (!/^ortho/iu.test(safeFileName)) {
+      res.status(403).json({ error: "only_ortho_can_be_deleted" });
+      return;
+    }
+    const baseDir = path.join(stoneResourceDir, safeStoneId);
+    const filePath = path.join(baseDir, safeFileName);
+    if (!filePath.startsWith(baseDir + path.sep)) {
+      res.status(400).json({ error: "invalid_filename" });
+      return;
+    }
+    try {
+      await unlink(filePath);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+        res.status(404).json({ error: "file_not_found" });
+        return;
+      }
+      throw error;
+    }
+    res.json({ ok: true, stoneId: safeStoneId, fileName: safeFileName });
   } catch (error) {
     next(error);
   }
