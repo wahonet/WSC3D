@@ -181,3 +181,44 @@
 - 把 StoneViewer / OrbitControls / GLTFLoader 用 React.lazy() 包裹
 - 接受首次 viewer mode 的 1-2s loading 闪烁
 - 主 chunk 目标降到 < 600 KB（v0.4.0 release notes 的已知限制）
+
+---
+
+### 2026-05-04 13:15 · D5 完成 — 主 chunk < 600 KB ✓
+
+**commit**: `585d46a` (perf(app): D5 StoneViewer 改 lazy 加载，主 chunk 从 882 KB 降到 477 KB)
+
+**做了什么**
+
+- App.tsx 把 StoneViewer 改 `import type` + `lazy(() => ...)`
+- viewer 模式下 `<StoneViewer>` 包 Suspense fallback "正在加载浏览模块..."
+- AnnotationWorkspace / AssemblyWorkspace 内部仍同步 import StoneViewer，
+  rollup 自动把共享 Three.js 切到 ViewCube chunk
+
+**实测构建产物（gzip）**
+
+| chunk | 之前 | 现在 |
+|---|---|---|
+| index.js | 882 KB (234 gzip) | **477 KB (144 gzip)** ← 主 chunk |
+| StoneViewer | - | 10 KB (4 gzip)（薄壳） |
+| ViewCube | - | 404 KB (103 gzip)（含 Three / Orbit / GLTF） |
+| AnnotationPanel | 23 KB | 485 KB (155 gzip)（含 cytoscape） |
+| AnnotationWorkspace | 336 KB | 346 KB |
+
+主 chunk 减小 46%。AnnotationPanel 涨是 D2 cytoscape ~150 KB 的代价，但
+它本身仍 lazy 不影响首屏。**达成 v0.4.0 release notes 已知限制 #5。**
+
+**怎么实现的**
+
+- `import type` 让 TS 类型保留但运行时不导入实体
+- viewer 模式包 Suspense；annotation / assembly 模式已经在自己的 Suspense
+  下，StoneViewer chunk 与 ViewCube chunk 共享，不会重复下载
+
+**下一步**
+
+进入 **D6 — 共现术语推荐**：
+- 基于 doc 中所有 annotation.semantics.terms 统计共现矩阵
+- TermPicker 在搜索框旁加"建议"chip 行：列出与"当前标注已有 terms"
+  共现频次最高的 5 个术语
+- 点 chip 直接加进当前 annotation.terms
+- 数据少时（< 5 个标注）静默不显示
