@@ -2,6 +2,64 @@ import { runSamSegmentation, runSamSegmentationBySource } from "../../api/client
 import { createAnnotationFromGeometry, polygonFromUVs, screenToUV, type UV } from "./geometry";
 import type { IimlAnnotation, IimlAnnotationFrame, ProjectionContext } from "./types";
 
+// F3：基于已有 BBox 标注（如 YOLO 候选）自动跑 SAM 精修，把粗 bbox 升级成
+// 精确 polygon。返回值是新 polygon UV 数组与 SAM 模型 / 置信度信息；调用方
+// 决定是替换原 annotation 还是建一条新的。
+export type SamRefineResult = {
+  polygon: UV[];
+  model: string;
+  confidence: number;
+  sourceImage?: string | null;
+};
+
+/**
+ * 把已有 annotation（要求 BBox 几何 + image frame）作为 box prompt 喂给 SAM，
+ * 让它在 bbox 范围内输出精确 polygon。这是"YOLO 粗 bbox → SAM 精 polygon"的
+ * 关键链路：YOLO 找候选位置（recall 高），SAM 给精确轮廓（precision 高）。
+ *
+ * 失败返回 undefined（前端 status 提示，原 annotation 保持不变）。
+ */
+export async function refineBBoxWithSam(
+  annotation: IimlAnnotation,
+  stoneId: string
+): Promise<SamRefineResult | undefined> {
+  if (annotation.target.type !== "BBox") {
+    return undefined;
+  }
+  const [u1, v1, u2, v2] = annotation.target.coordinates;
+  const minU = Math.min(u1, u2);
+  const maxU = Math.max(u1, u2);
+  const minV = Math.min(v1, v2);
+  const maxV = Math.max(v1, v2);
+  if (maxU - minU < 0.005 || maxV - minV < 0.005) {
+    // bbox 太小（< 千分之 5 的图像宽 / 高），SAM 在这种小区域上几乎一定输出整张图，
+    // 直接放弃避免污染候选。
+    return undefined;
+  }
+  const response = await runSamSegmentationBySource({
+    stoneId,
+    prompts: [{ type: "box_uv", bbox_uv: [minU, minV, maxU, maxV] }]
+  });
+  if (response.error || !response.polygons?.length) {
+    return undefined;
+  }
+  const polygon: UV[] = response.polygons[0]
+    .map((point) => ({
+      u: Number(point[0] ?? 0),
+      v: Number(point[1] ?? 0)
+    }))
+    .filter((uv) => Number.isFinite(uv.u) && Number.isFinite(uv.v));
+  if (polygon.length < 3) {
+    return undefined;
+  }
+  return {
+    polygon,
+    model: response.model,
+    confidence: response.confidence,
+    sourceImage: response.sourceImage ?? null
+  };
+}
+
 // 单条 SAM prompt：UV 是当前画布坐标系（model 模式 = modelBox UV，image 模式 = 高清图归一化）。
 // label=1 正点（要这里）；label=0 负点（不要这里）。
 export type SamPromptPoint = {

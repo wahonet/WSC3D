@@ -1,5 +1,5 @@
 import { Camera, MousePointer2, Ruler, RotateCcw, SquareDashedMousePointer, Trash2 } from "lucide-react";
-import { lazy, Suspense, useCallback, useEffect, useMemo, useReducer, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import * as THREE from "three";
 import {
   fetchAiHealth,
@@ -24,8 +24,10 @@ import {
   type VocabularyTerm
 } from "./api/client";
 import { exportToCoco, exportToIiifAnnotationPage, downloadJson } from "./modules/annotation/exporters";
-import { createAnnotationFromGeometry } from "./modules/annotation/geometry";
+import { createAnnotationFromGeometry, polygonFromUVs } from "./modules/annotation/geometry";
 import { describeMergeFailure, mergePolygonAnnotations } from "./modules/annotation/merge";
+import { refineBBoxWithSam } from "./modules/annotation/sam";
+import { TaskProgressPanel, type TaskProgress } from "./modules/annotation/TaskProgressPanel";
 import { annotationPalette, annotationReducer, getProcessingRuns, getRelations, initialAnnotationState } from "./modules/annotation/store";
 import { deriveSpatialRelations } from "./modules/annotation/spatial";
 import type { AnnotationSourceMode } from "./modules/annotation/AnnotationWorkspace";
@@ -115,6 +117,28 @@ export function App() {
   const [yoloScanning, setYoloScanning] = useState(false);
   // C5' 头部画像石下拉：每块石头是否已做 4 点对齐校准
   const [alignmentStatuses, setAlignmentStatuses] = useState<Record<string, boolean>>({});
+  // G3 任务进度面板：长任务（SAM 批量精修 / 多石头 YOLO）的进度 + 取消
+  const [tasks, setTasks] = useState<TaskProgress[]>([]);
+  // 取消请求集合：循环里检查 cancelRequestedRef.current.has(taskId) 提前 return
+  const cancelRequestedRef = useRef<Set<string>>(new Set());
+
+  const upsertTask = useCallback((task: TaskProgress) => {
+    setTasks((prev) => {
+      const next = prev.filter((t) => t.id !== task.id);
+      next.push(task);
+      // 仅保留最新 6 条，避免面板无限增长
+      return next.slice(-6);
+    });
+  }, []);
+
+  const requestCancelTask = useCallback((id: string) => {
+    cancelRequestedRef.current.add(id);
+  }, []);
+
+  const dismissTask = useCallback((id: string) => {
+    setTasks((prev) => prev.filter((t) => t.id !== id));
+    cancelRequestedRef.current.delete(id);
+  }, []);
   const [vocabularyCategories, setVocabularyCategories] = useState<VocabularyCategory[]>([]);
   const [vocabularyTerms, setVocabularyTerms] = useState<VocabularyTerm[]>([]);
   // AI 服务健康状态；/ai/health 轮询到 sam.ready 就停止，断连则持续重试。
@@ -678,6 +702,171 @@ export function App() {
     dispatchAnnotation({ type: "set-tool", tool: "sam" });
   }, []);
 
+  // F3：SAM 自动 prompt — 把 YOLO bbox 候选喂给 SAM 跑精修，输出 polygon 替换原 bbox。
+  // 失败时保持原 bbox 不动，status 给提示。也写一条 SAM run 进 processingRuns。
+  const handleRefineWithSam = useCallback(
+    async (id: string) => {
+      const doc = annotationState.doc;
+      const stoneId = selectedStone?.id;
+      if (!doc || !stoneId) return;
+      const annotation = doc.annotations.find((a) => a.id === id);
+      if (!annotation) return;
+      if (annotation.target.type !== "BBox") {
+        dispatchAnnotation({
+          type: "set-status",
+          status: "SAM 精修需要 BBox 几何（YOLO 候选 / 矩形标注）"
+        });
+        return;
+      }
+      const startedAt = new Date().toISOString();
+      dispatchAnnotation({ type: "set-status", status: "SAM 精修中…" });
+      let runError: string | undefined;
+      let runWarning: string | undefined;
+      let runModel = "mobile-sam-vit-t";
+      let resultId: string | undefined;
+      try {
+        const result = await refineBBoxWithSam(annotation, stoneId);
+        if (!result) {
+          runWarning = "no-polygon";
+          dispatchAnnotation({
+            type: "set-status",
+            status: "SAM 精修失败：未输出 polygon。bbox 太小或权重未就绪？"
+          });
+          return;
+        }
+        runModel = result.model;
+        const target = polygonFromUVs(result.polygon);
+        // 直接 patch 原 annotation：保留 label / structuralLevel / 颜色等用户已设字段，
+        // 仅替换几何 + 来源元数据（method 改为 sam，但保留 yolo 相关 prompt 信息作为
+        // upstream 链路）
+        const originalBox = annotation.target.type === "BBox"
+          ? [...annotation.target.coordinates]
+          : [];
+        dispatchAnnotation({
+          type: "update-annotation",
+          id,
+          patch: {
+            target,
+            generation: {
+              ...annotation.generation,
+              method: "sam",
+              model: result.model,
+              confidence: result.confidence,
+              prompt: {
+                ...annotation.generation?.prompt,
+                refinedFrom: "yolo-bbox",
+                originalMethod: annotation.generation?.method ?? null,
+                box: originalBox,
+                source: result.sourceImage ?? null
+              }
+            }
+          }
+        });
+        resultId = id;
+        dispatchAnnotation({
+          type: "set-status",
+          status: `SAM 精修完成：bbox → polygon（confidence=${result.confidence.toFixed(2)}, model=${result.model}）`
+        });
+      } catch (error) {
+        runError = error instanceof Error ? error.message : String(error);
+        dispatchAnnotation({ type: "set-status", status: `SAM 精修出错：${runError}` });
+      } finally {
+        dispatchAnnotation({
+          type: "add-processing-run",
+          run: {
+            id: `run-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+            method: "sam-refine",
+            model: runModel,
+            input: {
+              upstreamAnnotationId: id,
+              upstreamMethod: annotation.generation?.method ?? null,
+              upstreamLabel: annotation.label ?? null,
+              stoneId
+            },
+            output: { ok: !!resultId },
+            resultAnnotationIds: resultId ? [resultId] : [],
+            resourceId: annotation.resourceId,
+            frame: annotation.frame ?? "image",
+            startedAt,
+            endedAt: new Date().toISOString(),
+            warning: runWarning,
+            error: runError
+          }
+        });
+      }
+    },
+    [annotationState.doc, selectedStone]
+  );
+
+  // 批量 SAM 精修：所有 YOLO 候选（reviewStatus=candidate + generation.method=yolo）一键升级
+  // 使用 G3 任务进度面板 + cancelRequested 标记支持中途取消
+  const handleBulkRefineYoloWithSam = useCallback(async () => {
+    const doc = annotationState.doc;
+    if (!doc || !selectedStone) return;
+    const targets = doc.annotations.filter(
+      (a) =>
+        a.reviewStatus === "candidate" &&
+        a.generation?.method === "yolo" &&
+        a.target.type === "BBox"
+    );
+    if (targets.length === 0) {
+      dispatchAnnotation({
+        type: "set-status",
+        status: "没有可精修的 YOLO 候选（需 reviewStatus=candidate + method=yolo + BBox）"
+      });
+      return;
+    }
+    const taskId = `task-${Date.now()}-sam-bulk-${Math.random().toString(36).slice(2, 6)}`;
+    cancelRequestedRef.current.delete(taskId);
+    upsertTask({
+      id: taskId,
+      title: `SAM 批量精修 ${targets.length} 个 YOLO 候选`,
+      status: "running",
+      progress: 0,
+      message: "准备中…",
+      cancellable: true
+    });
+    let ok = 0;
+    let failed = 0;
+    let cancelled = false;
+    for (let i = 0; i < targets.length; i++) {
+      if (cancelRequestedRef.current.has(taskId)) {
+        cancelled = true;
+        break;
+      }
+      const t = targets[i];
+      upsertTask({
+        id: taskId,
+        title: `SAM 批量精修 ${targets.length} 个 YOLO 候选`,
+        status: "running",
+        progress: i / targets.length,
+        message: `[${i + 1}/${targets.length}] ${t.label ?? "未命名"}`,
+        cancellable: true
+      });
+      try {
+        await handleRefineWithSam(t.id);
+        ok++;
+      } catch {
+        failed++;
+      }
+    }
+    upsertTask({
+      id: taskId,
+      title: `SAM 批量精修 ${targets.length} 个 YOLO 候选`,
+      status: cancelled ? "cancelled" : failed > 0 ? "failed" : "done",
+      progress: 1,
+      message: cancelled
+        ? `已取消：成功 ${ok} / 失败 ${failed} / 跳过 ${targets.length - ok - failed}`
+        : `成功 ${ok} / 失败 ${failed} / 共 ${targets.length}`
+    });
+    dispatchAnnotation({
+      type: "set-status",
+      status: cancelled
+        ? `SAM 批量精修已取消（已处理 ${ok + failed}/${targets.length}）`
+        : `SAM 批量精修完成：成功 ${ok} / 失败 ${failed} / 共 ${targets.length}`
+    });
+  }, [annotationState.doc, selectedStone, handleRefineWithSam, upsertTask]);
+
   const handleBulkAcceptCandidates = useCallback(() => {
     const candidates = annotationState.doc?.annotations.filter((a) => a.reviewStatus === "candidate") ?? [];
     candidates.forEach((annotation) => {
@@ -1035,6 +1224,8 @@ export function App() {
                 onMergeCandidates={handleMergeCandidates}
                 onRejectCandidate={handleRejectCandidate}
                 onRetryCandidate={handleRetryCandidate}
+                onRefineWithSam={handleRefineWithSam}
+                onBulkRefineYoloWithSam={handleBulkRefineYoloWithSam}
                 onSelectAnnotation={(id) => dispatchAnnotation({ type: "select", id })}
                 onUpdateAnnotation={(id, patch) => dispatchAnnotation({ type: "update-annotation", id, patch })}
                 processingRuns={annotationProcessingRuns}
@@ -1126,6 +1317,11 @@ export function App() {
           )}
         </aside>
       </div>
+      <TaskProgressPanel
+        tasks={tasks}
+        onCancel={requestCancelTask}
+        onDismiss={dismissTask}
+      />
     </div>
   );
 }

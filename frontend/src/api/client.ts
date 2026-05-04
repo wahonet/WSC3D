@@ -473,12 +473,29 @@ export async function probeSourceImage(stoneId: string): Promise<boolean> {
   }
 }
 
-// AI 线图 PNG 端点：基于 source-image 的转码缓存，做 OpenCV Canny 后落盘。
+// AI 线图 PNG 端点：基于 source-image 的转码缓存，做边缘检测后落盘。
 // 输出是 RGBA（白线 + alpha 软渐变），可直接半透明叠加在高清图上。
-// 不同阈值组合各自缓存，浏览器并发请求互不影响。
+// 不同 method / 阈值组合各自缓存，浏览器并发请求互不影响。
+//
+// method 支持：
+//   - canny：经典双阈值；最快
+//   - sobel：Sobel 梯度阈值化；对软边缘敏感
+//   - scharr：Scharr 改进核；细节多的浮雕更精细
+//   - morph：自适应阈值 + 形态学；残损 / 风化更稳（low 当 blockSize 用）
+//   - canny-plus：Canny + 形态学闭运算填补断边；**汉画像石推荐**
+export type LineartMethod = "canny" | "sobel" | "scharr" | "morph" | "canny-plus";
+
+export const lineartMethodOptions: Array<{ id: LineartMethod; label: string; hint: string }> = [
+  { id: "canny", label: "Canny", hint: "经典双阈值边缘检测，最快" },
+  { id: "canny-plus", label: "Canny+", hint: "Canny + 形态学闭运算填补断边，汉画像石残损浮雕推荐" },
+  { id: "sobel", label: "Sobel", hint: "Sobel 梯度幅值阈值化，对灰度软边缘敏感" },
+  { id: "scharr", label: "Scharr", hint: "Scharr 改进核，细节多的浮雕更精细" },
+  { id: "morph", label: "形态学", hint: "自适应阈值 + 形态学，残损 / 风化表面更稳；low 当 blockSize 用（11~31 推荐）" }
+];
+
 export function getLineartUrl(
   stoneId: string,
-  options: { method?: "canny"; low?: number; high?: number; maxEdge?: number } = {}
+  options: { method?: LineartMethod; low?: number; high?: number; maxEdge?: number } = {}
 ): string {
   const method = options.method ?? "canny";
   const low = options.low ?? 60;

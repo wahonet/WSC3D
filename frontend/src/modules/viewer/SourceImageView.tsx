@@ -1,20 +1,25 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { getLineartUrl, getSourceImageUrl } from "../../api/client";
+import { getLineartUrl, getSourceImageUrl, type LineartMethod } from "../../api/client";
 import type { ScreenProjection } from "./StoneViewer";
 
 // 高清图模式可叠加的图像层。"source" 仅显示原图；"canny" 在原图之上叠半透明
-// Canny 线图（共用 transform，避免对齐问题），便于辨识浅浮雕轮廓。
+// 线图（共用 transform，避免对齐问题），便于辨识浅浮雕轮廓。
+// 历史命名"canny"保留，是为了与原 segmented 切换 UI 兼容；但 method 已经
+// 扩展到 5 种（canny / canny-plus / sobel / scharr / morph）。
 export type SourceImageLayer = "source" | "canny";
 
 export type CannyOptions = {
   // 双阈值 0-255。低阈值越大边越少；高阈值越大主干线越突出。
+  // morph 方法时 low 当 blockSize 用（11~31 推荐，强制奇数）。
   low: number;
   high: number;
   // 线图叠加在原图之上的不透明度 0..1。
   opacity: number;
+  // F2 阶段：线图算法选择。默认 canny-plus（汉画像石残损浮雕推荐）。
+  method?: LineartMethod;
 };
 
-const defaultCanny: CannyOptions = { low: 60, high: 140, opacity: 0.85 };
+const defaultCanny: CannyOptions = { low: 60, high: 140, opacity: 0.85, method: "canny-plus" };
 
 type SourceImageViewProps = {
   // 父级以 CSS 隐藏时传 false；图片自身没有 render loop，关掉只是省一点 ResizeObserver 工作。
@@ -323,10 +328,14 @@ export function SourceImageView({
       }
     : { opacity: 0 };
 
-  // Canny 线图叠加：与原图共享同一 transform，alpha 由 cannyOptions.opacity 控制。
-  // layer === "canny" 时才请求线图 PNG，避免无谓加载。
+  // 线图叠加：与原图共享同一 transform，alpha 由 cannyOptions.opacity 控制。
+  // layer === "canny" 时才请求线图 PNG，避免无谓加载。method 由 cannyOptions.method 决定。
   const cannyUrl = layer === "canny"
-    ? getLineartUrl(stoneId, { method: "canny", low: canny.low, high: canny.high })
+    ? getLineartUrl(stoneId, {
+        method: canny.method ?? "canny-plus",
+        low: canny.low,
+        high: canny.high
+      })
     : undefined;
   const cannyStyle = viewState
     ? {

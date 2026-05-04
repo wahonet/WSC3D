@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, Field
 
-from .canny import canny_line, get_lineart_png
+from .canny import LINEART_METHODS, canny_line, get_lineart_png
 from .sam import get_source_image_png
 from .sam import get_status as get_sam_status
 from .sam import kickoff_load as sam_kickoff_load
@@ -137,6 +137,12 @@ def source_image(stone_id: str, max_edge: int = 4096):
     )
 
 
+@app.get("/ai/lineart/methods")
+def lineart_methods():
+    """前端 UI 拉支持的线图方法列表，避免硬编码。"""
+    return ok_response({"methods": LINEART_METHODS})
+
+
 @app.get("/ai/lineart/{stone_id}")
 def lineart(
     stone_id: str,
@@ -149,16 +155,27 @@ def lineart(
     返回该画像石的线图 PNG（白色描边 + alpha 渐变），可直接半透明叠加在
     高清原图上辅助辨识浅浮雕轮廓。
 
-    method: 当前仅支持 canny；预留 sobel / hed / relic2contour 等 M3 后续阶段。
-    low / high: Canny 双阈值，前端 UI 会带滑杆，调阈值 = 拉不同 cache 文件，
-                所以阈值变化 = 立即出新结果 + 不同阈值各自缓存独立。
+    method 支持：
+      - canny：经典双阈值；最快
+      - sobel：Sobel 梯度幅值阈值化；对灰度软边缘敏感
+      - scharr：Scharr 改进核；细节多的浮雕更精细
+      - morph：自适应阈值 + 形态学；残损 / 风化表面更稳
+      - canny-plus：Canny + 形态学闭运算填补断边；汉画像石残损浮雕推荐
+    low / high: 阈值；morph 方法把 low 当 blockSize 用（强制奇数）。
+                调阈值 / 切方法 = 拉不同 cache 文件，互不影响。
     """
-    if method != "canny":
+    if method not in LINEART_METHODS:
         return JSONResponse(
             status_code=400,
-            content={"error": "unsupported-method", "method": method},
+            content={
+                "error": "unsupported-method",
+                "method": method,
+                "supported": LINEART_METHODS,
+            },
         )
-    cache_path = get_lineart_png(stone_id, low=low, high=high, max_edge=max_edge)
+    cache_path = get_lineart_png(
+        stone_id, low=low, high=high, max_edge=max_edge, method=method
+    )
     if cache_path is None:
         return JSONResponse(
             status_code=404,

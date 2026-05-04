@@ -174,3 +174,71 @@
 **下一步**
 
 整理一次 commit，push 后开始 **F1 — 多解释并存 UI 专项**。
+
+---
+
+### 2026-05-04 15:30 · F1 + F2 + F3 + G3 完成 — 多解释 UI / 线图扩展 / SAM 自动 prompt / 任务进度面板
+
+**做了什么**
+
+#### F2 AI 线图扩展（5 种算法）
+
+- `ai-service/app/canny.py` 重写为可扩展的 `_METHOD_DETECTORS` 注册表：
+  - **canny**：经典双阈值，最快
+  - **canny-plus**：Canny + 形态学闭运算填补断边（汉画像石残损浮雕推荐）
+  - **sobel**：Sobel 梯度幅值阈值化（对软边缘敏感）
+  - **scharr**：Scharr 改进核（细节多的浮雕更精细）
+  - **morph**：自适应阈值 + 形态学（low 当 blockSize 用，残损 / 风化更稳）
+- `get_lineart_png` 加 `method` 参数；缓存路径加 method 前缀，不同算法各自缓存
+- `main.py` 加 `/ai/lineart/methods` 列出所有支持的算法
+- 前端 `client.ts` 新增 `LineartMethod` 类型 + `lineartMethodOptions`（含 hint）
+- `AnnotationWorkspace` 新增"线图参数面板"（仅 layer === "canny" 时显示）：
+  算法 chip 切换 + low/high 滑杆 + 透明度滑杆；morph 算法时 low 改 blockSize 范围（5~51 step 2）
+- 默认算法改 `canny-plus`，对汉画像石残损浮雕更友好
+
+#### F3 SAM 自动 prompt（YOLO bbox → SAM polygon）
+
+- `sam.ts` 新增 `refineBBoxWithSam(annotation, stoneId)`：用 annotation.target
+  的 bbox 作为 box prompt 调 `runSamSegmentationBySource`，输出 polygon
+- `App.handleRefineWithSam(id)`：单条精修。读 BBox annotation → 调 refineBBoxWithSam →
+  patch annotation.target 为 polygon；保留 label / structuralLevel / 颜色等用户字段；
+  generation.method 改 sam，prompt 加 refinedFrom: "yolo-bbox" + 原 box / 原 method 链路
+- `App.handleBulkRefineYoloWithSam()`：批量精修所有 reviewStatus=candidate +
+  method=yolo + BBox 的候选；串行（CPU SAM 1-2s 一条）
+- 单条精修 + 批量精修都写一条 method=sam-refine 的 processingRun，含 upstream 信息
+- AnnotationPanel `ReviewTab` 在 banner 加"SAM 精修全部 YOLO"按钮；
+  `CandidateCard` 在 YOLO bbox 候选卡片加"SAM 精修"按钮（按 onRefine 是否传入决定）
+
+#### F1 多解释并存 UI 专项
+
+- 新建 `AlternativeInterpretationsView` 组件：检测当前标注是否有 `alternativeInterpretationOf`
+  关系（双向），展示横向对比卡片
+- 每张卡片：标签 + 当前标识 + method 来源 chip + 置信度 chip + 证据数 chip +
+  三层语义 / 题刻 / 备注
+- 点击卡片头跳转到对应 annotation
+- 默认折叠（避免占空间），展开后可水平滚动；当前 annotation 自己也作为"view 0"
+  并入对比，方便横向看差异
+- 挂在 EditTab 里 RelationsEditor 之上
+
+#### G3 批量任务进度面板
+
+- 新建 `TaskProgressPanel` 组件 + `TaskProgress` 类型（status: running/done/failed/cancelled）
+- 右下角浮窗，最多保留最新 6 条任务；spinner / 进度条 / 取消 / 移除按钮
+- App 持有 `tasks` state + `cancelRequestedRef`（Set）；`upsertTask` 把任务写入面板，
+  `requestCancelTask(id)` 标记取消请求，循环里检查 `cancelRequestedRef.current.has(taskId)`
+  提前 break
+- SAM 批量精修走该队列：每条候选更新 progress = i / N + message = "[3/12] 青龙…"
+- 完成后 status = done / cancelled / failed（按结果判定）+ message 总结成功 / 失败 / 跳过数
+
+**怎么实现的**
+
+- 线图算法 `_METHOD_DETECTORS` 注册表模式：注册函数 `(gray, low, high) -> edges_uint8`，
+  扩展只加一个 detector + 一行注册即可
+- SAM 精修 patch 注意 IimlAnnotation 的几何字段叫 `target`（不是 `geometry`）；
+  这个跟 IIML schema 一致（W3C Web Annotation 用 target/body 区分目标和正文）
+- TaskProgressPanel 故意做成"状态下沉到 props"的纯组件，避免引入新的 store 复杂度；
+  `cancelRequestedRef` 用 ref 而非 state，因为循环里读最新值不需要触发重渲染
+
+**下一步**
+
+整理一次 commit，push 后开始 **G1 多资源版本切换** 和 **G2 .hpsml 研究包导出**。

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { StoneListItem } from "../../api/client";
-import { SourceImageView, type SourceImageLayer } from "../viewer/SourceImageView";
+import { lineartMethodOptions, type LineartMethod } from "../../api/client";
+import { SourceImageView, type CannyOptions, type SourceImageLayer } from "../viewer/SourceImageView";
 import { StoneViewer, type ScreenProjection } from "../viewer/StoneViewer";
 import { AnnotationCanvas, type CalibrationDraftView } from "./AnnotationCanvas";
 import type { UV } from "./geometry";
@@ -85,6 +86,15 @@ export function AnnotationWorkspace({
   // 高清图模式下的图层切换：原图 / 原图 + 半透明 Canny 线图。
   // 不影响标注坐标系（线图与原图同尺寸），仅是视觉辅助。
   const [imageLayer, setImageLayer] = useState<SourceImageLayer>("source");
+  // F2 阶段：线图算法可切换 + 阈值调节。method 默认 canny-plus（汉画像石残损浮雕推荐）
+  const [lineartMethod, setLineartMethod] = useState<LineartMethod>("canny-plus");
+  const [lineartLow, setLineartLow] = useState<number>(60);
+  const [lineartHigh, setLineartHigh] = useState<number>(140);
+  const [lineartOpacity, setLineartOpacity] = useState<number>(0.85);
+  const cannyOptions = useMemo<CannyOptions>(
+    () => ({ method: lineartMethod, low: lineartLow, high: lineartHigh, opacity: lineartOpacity }),
+    [lineartMethod, lineartLow, lineartHigh, lineartOpacity]
+  );
   const resourceId = doc?.resources[0]?.id ?? `${stone.id}:model`;
   const alignment = getAlignment(doc);
   // B3 关系连线需要的 relations 列表（与 RelationsEditor 用同一份 store 读出）
@@ -257,6 +267,7 @@ export function AnnotationWorkspace({
         <SourceImageView
           active={active}
           background={background}
+          cannyOptions={cannyOptions}
           fitToken={fitToken}
           layer={imageLayer}
           stoneId={stone.id}
@@ -303,24 +314,90 @@ export function AnnotationWorkspace({
         </button>
       </div>
       {sourceMode === "image" ? (
-        <div className="annotation-layer-switch" role="group" aria-label="图层">
-          <button
-            type="button"
-            className={imageLayer === "source" ? "active" : ""}
-            onClick={() => setImageLayer("source")}
-            title="只显示原图"
-          >
-            原图
-          </button>
-          <button
-            type="button"
-            className={imageLayer === "canny" ? "active" : ""}
-            onClick={() => setImageLayer("canny")}
-            title="原图 + 半透明 Canny 线图（辅助辨识浅浮雕轮廓）"
-          >
-            +线图
-          </button>
-        </div>
+        <>
+          <div className="annotation-layer-switch" role="group" aria-label="图层">
+            <button
+              type="button"
+              className={imageLayer === "source" ? "active" : ""}
+              onClick={() => setImageLayer("source")}
+              title="只显示原图"
+            >
+              原图
+            </button>
+            <button
+              type="button"
+              className={imageLayer === "canny" ? "active" : ""}
+              onClick={() => setImageLayer("canny")}
+              title="原图 + 半透明线图叠加，辅助辨识浅浮雕轮廓"
+            >
+              +线图
+            </button>
+          </div>
+          {imageLayer === "canny" ? (
+            <div className="annotation-lineart-panel" role="group" aria-label="线图参数">
+              <div className="annotation-lineart-row">
+                <span className="annotation-lineart-label">算法</span>
+                <div className="annotation-lineart-chips">
+                  {lineartMethodOptions.map((option) => (
+                    <button
+                      key={option.id}
+                      type="button"
+                      className={
+                        lineartMethod === option.id
+                          ? "annotation-lineart-chip is-on"
+                          : "annotation-lineart-chip"
+                      }
+                      onClick={() => setLineartMethod(option.id)}
+                      title={option.hint}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="annotation-lineart-row">
+                <span className="annotation-lineart-label">
+                  {lineartMethod === "morph" ? "blockSize" : "low"}
+                </span>
+                <input
+                  type="range"
+                  min={lineartMethod === "morph" ? 5 : 0}
+                  max={lineartMethod === "morph" ? 51 : 254}
+                  step={lineartMethod === "morph" ? 2 : 5}
+                  value={lineartLow}
+                  onChange={(event) => setLineartLow(Number(event.target.value))}
+                />
+                <span className="annotation-lineart-value">{lineartLow}</span>
+              </div>
+              {lineartMethod === "canny" || lineartMethod === "canny-plus" ? (
+                <div className="annotation-lineart-row">
+                  <span className="annotation-lineart-label">high</span>
+                  <input
+                    type="range"
+                    min={lineartLow + 5}
+                    max={255}
+                    step={5}
+                    value={lineartHigh}
+                    onChange={(event) => setLineartHigh(Number(event.target.value))}
+                  />
+                  <span className="annotation-lineart-value">{lineartHigh}</span>
+                </div>
+              ) : null}
+              <div className="annotation-lineart-row">
+                <span className="annotation-lineart-label">透明度</span>
+                <input
+                  type="range"
+                  min={0.1}
+                  max={1}
+                  step={0.05}
+                  value={lineartOpacity}
+                  onChange={(event) => setLineartOpacity(Number(event.target.value))}
+                />
+                <span className="annotation-lineart-value">{Math.round(lineartOpacity * 100)}%</span>
+              </div>
+            </div>
+          ) : null}
+        </>
       ) : null}
       {calibration ? (
         <CalibrationHud

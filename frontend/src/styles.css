@@ -1282,6 +1282,401 @@ button {
   background: #2ec4b6;
 }
 
+/* F2 阶段：线图算法 + 阈值调节面板，仅 layer === "canny" 时显示，位置在 layer-switch 下方 */
+.annotation-lineart-panel {
+  position: absolute;
+  top: 92px;
+  right: 14px;
+  z-index: 25;
+  width: 230px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(29, 26, 24, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+  font-size: 11.5px;
+  color: #cfc7bd;
+}
+
+.annotation-lineart-row {
+  display: grid;
+  grid-template-columns: 56px 1fr 38px;
+  align-items: center;
+  gap: 6px;
+}
+
+.annotation-lineart-label {
+  color: #8f857a;
+  font-size: 11px;
+}
+
+.annotation-lineart-value {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  font-size: 11px;
+}
+
+.annotation-lineart-chips {
+  grid-column: 2 / span 2;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+}
+
+.annotation-lineart-chip {
+  padding: 2px 7px;
+  font-size: 10.5px;
+  background: #2a2622;
+  border: 1px solid #3d3731;
+  color: #cfc7bd;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+
+.annotation-lineart-chip:hover {
+  border-color: #6f6a62;
+  color: #f4ece0;
+}
+
+.annotation-lineart-chip.is-on {
+  background: #2ec4b6;
+  border-color: #2ec4b6;
+  color: #11100f;
+}
+
+.annotation-lineart-row input[type="range"] {
+  width: 100%;
+  accent-color: #2ec4b6;
+}
+
+/* G3 任务进度面板（右下角浮窗） */
+.task-progress-panel {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 50;
+  width: 320px;
+  max-height: 50vh;
+  display: flex;
+  flex-direction: column;
+  background: rgba(20, 18, 16, 0.96);
+  border: 1px solid #2c2824;
+  border-radius: 8px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+  overflow: hidden;
+  font-size: 12px;
+}
+
+.task-progress-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: #1c1916;
+  border-bottom: 1px solid #2c2824;
+}
+
+.task-progress-head-title {
+  flex: 1 1 auto;
+  font-weight: 600;
+  color: #f4ece0;
+}
+
+.task-progress-head-count {
+  padding: 1px 7px;
+  font-size: 10.5px;
+  background: #2ec4b6;
+  color: #11100f;
+  border-radius: 999px;
+  font-weight: 600;
+}
+
+.task-progress-list {
+  list-style: none;
+  margin: 0;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  overflow-y: auto;
+}
+
+.task-progress-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 8px;
+  background: #15130f;
+  border: 1px solid #2c2824;
+  border-radius: 4px;
+}
+
+.task-progress-item.is-done {
+  border-color: #2ec4b6;
+  background: rgba(46, 196, 182, 0.06);
+}
+
+.task-progress-item.is-failed {
+  border-color: #ff5f57;
+  background: rgba(255, 95, 87, 0.08);
+}
+
+.task-progress-item.is-cancelled {
+  border-color: #6f6a62;
+  opacity: 0.78;
+}
+
+.task-progress-item-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.task-progress-item-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  color: #cfc7bd;
+}
+
+.task-progress-item.is-done .task-progress-item-icon {
+  color: #2ec4b6;
+}
+
+.task-progress-item.is-failed .task-progress-item-icon,
+.task-progress-item.is-cancelled .task-progress-item-icon {
+  color: #ff5f57;
+}
+
+.task-progress-spinner {
+  animation: task-progress-spin 0.9s linear infinite;
+}
+
+@keyframes task-progress-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.task-progress-item-title {
+  flex: 1 1 auto;
+  color: #f4ece0;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.task-progress-item-status {
+  font-size: 10.5px;
+  color: #8f857a;
+}
+
+.task-progress-item-action {
+  background: transparent;
+  border: 1px solid #3d3731;
+  color: #cfc7bd;
+  border-radius: 999px;
+  padding: 1px 8px;
+  font-size: 10.5px;
+  cursor: pointer;
+}
+
+.task-progress-item-action:hover {
+  border-color: #6f6a62;
+  color: #f4ece0;
+  background: #221f1c;
+}
+
+.task-progress-item-message {
+  font-size: 11px;
+  color: #cfc7bd;
+  word-break: break-word;
+}
+
+.task-progress-item-bar {
+  position: relative;
+  height: 4px;
+  background: #2a2622;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.task-progress-item-bar-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: linear-gradient(90deg, #2ec4b6, #f3a712);
+  border-radius: 999px;
+  transition: width 0.18s ease;
+}
+
+/* F1 多视角解释对比 section */
+.alt-interpretations {
+  border: 1px solid #2c2824;
+  border-radius: 6px;
+  background: #1c1916;
+  overflow: hidden;
+}
+
+.alt-interpretations-head {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  background: transparent;
+  border: none;
+  color: #cfc7bd;
+  cursor: pointer;
+  font-size: 12px;
+  text-align: left;
+}
+
+.alt-interpretations-head:hover {
+  background: #221f1c;
+}
+
+.alt-interpretations-title {
+  flex: 1 1 auto;
+  font-weight: 600;
+  color: #f4ece0;
+}
+
+.alt-interpretations-count {
+  padding: 1px 7px;
+  font-size: 10.5px;
+  background: #c084fc;
+  color: #1d1a18;
+  border-radius: 999px;
+  font-weight: 600;
+}
+
+.alt-interpretations-body {
+  padding: 8px 10px 10px;
+  border-top: 1px solid #2c2824;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.alt-interpretations-hint {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.5;
+  color: #8f857a;
+}
+
+.alt-interpretations-grid {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 6px;
+}
+
+.alt-interpretations-card {
+  flex: 0 0 220px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  background: #15130f;
+  border: 1px solid #2c2824;
+  border-radius: 5px;
+}
+
+.alt-interpretations-card.is-current {
+  border-color: #f3a712;
+  background: rgba(243, 167, 18, 0.08);
+}
+
+.alt-interpretations-card-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.alt-interpretations-card-title {
+  flex: 1 1 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: transparent;
+  border: none;
+  color: #f4ece0;
+  font-size: 12.5px;
+  font-weight: 600;
+  text-align: left;
+  padding: 0;
+  cursor: pointer;
+}
+
+.alt-interpretations-card-title:hover {
+  text-decoration: underline;
+}
+
+.alt-interpretations-current-badge {
+  padding: 1px 5px;
+  font-size: 10px;
+  font-weight: 600;
+  background: #f3a712;
+  color: #1d1a18;
+  border-radius: 3px;
+}
+
+.alt-interpretations-card-color {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  border: 1px solid #1d1a18;
+}
+
+.alt-interpretations-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.alt-interpretations-meta-chip {
+  padding: 1px 6px;
+  font-size: 10px;
+  background: #2a2622;
+  border: 1px solid #3d3731;
+  color: #cfc7bd;
+  border-radius: 999px;
+}
+
+.alt-interpretations-semantics {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.alt-interpretations-semantics-row {
+  display: grid;
+  grid-template-columns: 56px 1fr;
+  gap: 6px;
+}
+
+.alt-interpretations-semantics-row dt {
+  margin: 0;
+  font-size: 10.5px;
+  color: #8f857a;
+}
+
+.alt-interpretations-semantics-row dd {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.45;
+  color: #cfc7bd;
+  word-break: break-word;
+}
+
 /* 跨 frame 提示：alignment 未配置时，把"另一坐标系里的标注被隐藏"温和告知 */
 .annotation-cross-frame-hint {
   position: absolute;

@@ -10,6 +10,7 @@ import type {
   VocabularyCategory,
   VocabularyTerm
 } from "../../api/client";
+import { AlternativeInterpretationsView } from "./AlternativeInterpretationsView";
 import { ColorPopover } from "./ColorPopover";
 import { KnowledgeGraphView } from "./KnowledgeGraphView";
 import { ProcessingRunsList } from "./ProcessingRunsList";
@@ -38,6 +39,9 @@ type AnnotationPanelProps = {
   onRetryCandidate: (id: string) => void;
   onBulkAcceptCandidates: () => void;
   onBulkRejectCandidates: () => void;
+  // F3：YOLO 候选 → SAM 精修。单条用 onRefineWithSam(id)；批量用 onBulkRefineYoloWithSam()
+  onRefineWithSam?: (id: string) => void;
+  onBulkRefineYoloWithSam?: () => void;
   // D7 / D8 学术导出
   onExportCoco?: () => void;
   onExportIiif?: () => void;
@@ -502,6 +506,13 @@ function EditTab({
         />
       </Field>
 
+      <AlternativeInterpretationsView
+        annotation={annotation}
+        annotations={doc?.annotations ?? []}
+        relations={relations}
+        onSelectAnnotation={onSelectAnnotation}
+      />
+
       <RelationsEditor
         annotation={annotation}
         annotations={doc?.annotations ?? []}
@@ -809,7 +820,9 @@ function ReviewTab({
   onRetryCandidate,
   onBulkAcceptCandidates,
   onBulkRejectCandidates,
-  onMergeCandidates
+  onMergeCandidates,
+  onRefineWithSam,
+  onBulkRefineYoloWithSam
 }: ReviewTabProps) {
   const candidates = useMemo(
     () => (doc?.annotations ?? []).filter((annotation) => annotation.reviewStatus === "candidate"),
@@ -925,6 +938,16 @@ function ReviewTab({
           <strong>{candidates.length}</strong> 条 AI 候选待审
         </span>
         <div className="review-banner-actions">
+          {onBulkRefineYoloWithSam ? (
+            <button
+              type="button"
+              className="secondary-action small"
+              onClick={onBulkRefineYoloWithSam}
+              title="把所有 YOLO bbox 候选喂给 SAM 跑精修，bbox 升级为 polygon（串行，每条 1-2s）"
+            >
+              <Wand2 size={13} /> SAM 精修全部 YOLO
+            </button>
+          ) : null}
           <button type="button" className="secondary-action small" onClick={onBulkRejectCandidates} title="拒绝全部候选">
             全部拒绝
           </button>
@@ -1001,6 +1024,13 @@ function ReviewTab({
             onAccept={() => onAcceptCandidate(annotation.id)}
             onReject={() => onRejectCandidate(annotation.id)}
             onRetry={() => onRetryCandidate(annotation.id)}
+            onRefine={
+              onRefineWithSam &&
+              annotation.target.type === "BBox" &&
+              annotation.generation?.method === "yolo"
+                ? () => onRefineWithSam(annotation.id)
+                : undefined
+            }
           />
         ))}
       </ul>
@@ -1016,7 +1046,8 @@ function CandidateCard({
   onPick,
   onAccept,
   onReject,
-  onRetry
+  onRetry,
+  onRefine
 }: {
   annotation: IimlAnnotation;
   index: number;
@@ -1026,6 +1057,8 @@ function CandidateCard({
   onAccept: () => void;
   onReject: () => void;
   onRetry: () => void;
+  // F3：仅 YOLO bbox 候选才有 SAM 精修按钮，由父组件按 method/geometry 判定后传入或省略
+  onRefine?: () => void;
 }) {
   const color = annotation.color ?? annotationPalette[index % annotationPalette.length];
   const label = annotation.label ?? "SAM 候选";
@@ -1054,6 +1087,16 @@ function CandidateCard({
         ) : null}
       </div>
       <div className="review-card-actions">
+        {onRefine ? (
+          <button
+            type="button"
+            className="secondary-action small"
+            onClick={onRefine}
+            title="把此 YOLO bbox 喂给 SAM 跑精修，bbox 升级为精确 polygon"
+          >
+            <Wand2 size={13} /> SAM 精修
+          </button>
+        ) : null}
         <button type="button" className="secondary-action small" onClick={onRetry} title="重试：删除此候选并重新使用 SAM 工具">
           <RotateCcw size={13} /> 重试
         </button>
