@@ -3172,6 +3172,40 @@ button {
   gap: 2px;
 }
 
+/* D6 共现推荐 chip 行：在 search input 下方、dropdown 之上 */
+.term-picker-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.term-picker-suggestions-label {
+  font-size: 11px;
+  color: #8f857a;
+  margin-right: 2px;
+}
+
+.term-suggestion-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  font-size: 11.5px;
+  color: #eee8df;
+  background: rgba(46, 196, 182, 0.12);
+  border: 1px solid rgba(46, 196, 182, 0.4);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+}
+
+.term-suggestion-chip:hover {
+  color: #11100f;
+  background: #2ec4b6;
+  border-color: #2ec4b6;
+}
+
 .term-suggestion {
   width: 100%;
   display: flex;

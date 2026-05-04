@@ -17,6 +17,7 @@ import { RelationsEditor } from "./RelationsEditor";
 import { SourcesEditor } from "./SourcesEditor";
 import { TermPicker } from "./TermPicker";
 import { annotationPalette } from "./store";
+import { recommendCooccurringTerms } from "./cooccurrence";
 
 type AnnotationPanelProps = {
   doc?: IimlDocument;
@@ -199,6 +200,17 @@ function EditTab({
   // 即时写入 store 的字段（层级 / 颜色 / 透明度 / 术语 / 证据源）也要能点亮
   // 保存按钮；用 immediateDirty 作为"有过未确认的即时改动"的标记。
   const [immediateDirty, setImmediateDirty] = useState(false);
+
+  // D6 共现术语推荐：基于全文档统计 + 当前 annotation 已有 terms
+  const suggestedTerms = useMemo(() => {
+    if (!annotation || vocabularyTerms.length === 0) return [];
+    const currentTermIds = annotation.semantics?.terms?.map((term) => term.id) ?? [];
+    return recommendCooccurringTerms(
+      doc?.annotations ?? [],
+      currentTermIds,
+      vocabularyTerms
+    );
+  }, [annotation, doc?.annotations, vocabularyTerms]);
 
   useEffect(() => {
     setLabelDraft(annotation?.label ?? "");
@@ -410,6 +422,7 @@ function EditTab({
           value={annotation.semantics?.terms}
           categories={vocabularyCategories}
           terms={vocabularyTerms}
+          suggestedTerms={suggestedTerms}
           onChange={handleTermsChange}
         />
       </Field>

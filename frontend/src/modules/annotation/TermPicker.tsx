@@ -6,6 +6,9 @@ type TermPickerProps = {
   value?: IimlTermRef[];
   categories: VocabularyCategory[];
   terms: VocabularyTerm[];
+  // D6 共现推荐：基于全文档 annotation.terms 共现频次算出的"建议"术语；
+  // 在搜索框下方显示一行 chip，点击直接加入。空数组 = 不显示推荐区
+  suggestedTerms?: VocabularyTerm[];
   onChange: (next: IimlTermRef[]) => void;
 };
 
@@ -13,7 +16,7 @@ type TermPickerProps = {
 // ICONCLASS / AAT / Wikidata 字段在类型上预留，UI 暂不暴露。
 const WSC3D_SCHEME = "WSC3D";
 
-export function TermPicker({ value, categories, terms, onChange }: TermPickerProps) {
+export function TermPicker({ value, categories, terms, suggestedTerms = [], onChange }: TermPickerProps) {
   const selected = value ?? [];
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
@@ -132,6 +135,27 @@ export function TermPicker({ value, categories, terms, onChange }: TermPickerPro
           <Plus size={14} />
         </button>
       </div>
+
+      {/* D6 共现推荐 chip 行：query 为空时显示；点击 chip 直接 pick */}
+      {!query && suggestedTerms.length > 0 ? (
+        <div className="term-picker-suggestions" role="group" aria-label="共现推荐">
+          <span className="term-picker-suggestions-label">建议</span>
+          {suggestedTerms.map((term) => {
+            const groupName = categoryNameById.get(term.broader[0] ?? "");
+            return (
+              <button
+                key={term.id}
+                type="button"
+                className="term-suggestion-chip"
+                onClick={() => pickExisting(term)}
+                title={groupName ? `${term.prefLabel} · ${groupName}（基于已有标注共现统计）` : `${term.prefLabel}（基于已有标注共现统计）`}
+              >
+                {term.prefLabel}
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
 
       {open && (suggestions.length > 0 || addingCustom) ? (
         <div className="term-picker-dropdown">
