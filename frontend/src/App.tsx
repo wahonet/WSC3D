@@ -32,10 +32,16 @@ import type { YoloScanOptions } from "./modules/annotation/YoloScanDialog";
 import type { AdjustmentAxis, AdjustmentMode } from "./modules/assembly/AssemblyAdjustControls";
 import type { AssemblyCameraState } from "./modules/assembly/AssemblyWorkspace";
 import type { AssemblyDimensions, AssemblyItem, AssemblyTransform } from "./modules/assembly/types";
-import { StoneViewer, type MeasurementResult, type ViewerMode } from "./modules/viewer/StoneViewer";
+import type { MeasurementResult, ViewerMode } from "./modules/viewer/StoneViewer";
 import type { ViewCubeView } from "./modules/shared/ViewCube";
 
-// 代码分割：按工作模式懒加载拼接/标注两大区的代码，保持 viewer 首屏同步加载。
+// D5 代码分割：StoneViewer 也走 lazy（首次进 viewer / annotation / assembly
+// 任一模式时才加载 Three.js / OrbitControls / GLTFLoader，主 chunk 显著瘦身）；
+// 用 Suspense 兜住首次加载的 1-2s loading 闪烁。
+const StoneViewer = lazy(() =>
+  import("./modules/viewer/StoneViewer").then((module) => ({ default: module.StoneViewer }))
+);
+// 按工作模式懒加载拼接/标注两大区的代码。
 const AssemblyWorkspace = lazy(() =>
   import("./modules/assembly/AssemblyWorkspace").then((module) => ({ default: module.AssemblyWorkspace }))
 );
@@ -869,17 +875,19 @@ export function App() {
         <main className="main-viewport">
           {error ? <div className="empty-state">{error}</div> : null}
           {workspaceMode === "viewer" && selectedStone ? (
-            <StoneViewer
-              key={`${selectedStone.id}-${resetToken}`}
-              stone={selectedStone}
-              viewMode={viewMode}
-              background={background}
-              measuring={measuring}
-              measureToken={measureClearToken}
-              cubeView={viewerCubeView}
-              onCubeViewChange={setViewerCubeView}
-              onMeasureChange={setMeasurement}
-            />
+            <Suspense fallback={<div className="empty-state">正在加载浏览模块...</div>}>
+              <StoneViewer
+                key={`${selectedStone.id}-${resetToken}`}
+                stone={selectedStone}
+                viewMode={viewMode}
+                background={background}
+                measuring={measuring}
+                measureToken={measureClearToken}
+                cubeView={viewerCubeView}
+                onCubeViewChange={setViewerCubeView}
+                onMeasureChange={setMeasurement}
+              />
+            </Suspense>
           ) : null}
           {hasEnteredAssembly ? (
             <Suspense fallback={<div className="empty-state">正在加载拼接模块...</div>}>
