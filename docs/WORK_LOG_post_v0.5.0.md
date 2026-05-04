@@ -116,3 +116,38 @@
   outputAnnotationId, confidence }
 - App.tsx handleSubmitYoloScan 同样写入
 - 详情面板下一节 D4 做"AI 处理记录" section 展示
+
+---
+
+### 2026-05-04 12:40 · D3 完成 — processingRuns 写入
+
+**commit**: `b2b2808` (feat(annotation): D3 SAM / YOLO processingRuns 写入 IIML（学术溯源）)
+
+**做了什么**
+
+- IimlProcessingRun 类型上线（id / method / model / input / output /
+  confidence / resultAnnotationIds / resourceId / frame / startedAt /
+  endedAt / warning? / error?）
+- IimlDocument.processingRuns 类型收紧
+- store reducer 加 add-processing-run，走 updateDoc 进 undo 栈
+- AnnotationCanvas submitSamPrompts 在 finally 报一条 SAM run（成功/失败都报）
+- App.tsx handleSubmitYoloScan finally 报一条 YOLO run，含全部
+  resultAnnotationIds
+- 新增 getProcessingRuns(doc) 防御读
+
+**怎么实现的**
+
+- onProcessingRun callback 模式：AnnotationCanvas → AnnotationWorkspace →
+  App.tsx dispatch；与 onCreate / onProcessingRun 同形态，最少改动
+- prompt 摘要不存全部坐标避免 doc 膨胀；坐标已在
+  annotation.generation.prompt 完整保留
+- error 字段统一 fallback：Error.message / String(unknown) / "no-candidate"
+- YOLO 区分 no-detection 写 warning，真异常写 error
+
+**下一步**
+
+进入 **D4 — AI 处理记录 section**：
+- AnnotationPanel EditTab 末尾加可折叠的"AI 处理记录"
+- 列出 processingRuns（按 endedAt 降序）：method · model · 时间 · 状态 ·
+  产出几个 annotation（点击跳转）
+- 失败 / 无产出的 run 用浅红显示
