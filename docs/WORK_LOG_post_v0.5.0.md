@@ -151,3 +151,33 @@
 - 列出 processingRuns（按 endedAt 降序）：method · model · 时间 · 状态 ·
   产出几个 annotation（点击跳转）
 - 失败 / 无产出的 run 用浅红显示
+
+---
+
+### 2026-05-04 13:00 · D4 完成 — AI 处理记录 section
+
+**commit**: `9c180aa` (feat(annotation): D4 AI 处理记录 section（详情面板可折叠展示）)
+
+**做了什么**
+
+- 新建 ProcessingRunsList 组件：默认折叠的"AI 处理记录"
+- 选中 annotation 时只列"产生过该标注的 run"（按 endedAt 降序）
+- 每条 run：method 徽章 + model 等宽字体 + 相对时间 + 置信度 + 输入摘要
+  + 产出 chip（点击跳转）+ warning / error
+- 失败 / 无产出 run 浅红条
+- 输入摘要格式化：SAM `+N -M 框 高清图 image` / YOLO `阈值 类别 image`
+
+**怎么实现的**
+
+- formatRelativeTime：< 1 分钟 = "刚刚"，< 1 小时 = "X 分钟前"，> 1 周
+  = 完整时间
+- formatInput 按字段类型读 input.positiveCount / classFilter 等，未知字段
+  跳过（防御历史 doc）
+- 复用 RelationsEditor 视觉容器风格
+
+**下一步**
+
+进入 **D5 — StoneViewer lazy 加载**：
+- 把 StoneViewer / OrbitControls / GLTFLoader 用 React.lazy() 包裹
+- 接受首次 viewer mode 的 1-2s loading 闪烁
+- 主 chunk 目标降到 < 600 KB（v0.4.0 release notes 的已知限制）
