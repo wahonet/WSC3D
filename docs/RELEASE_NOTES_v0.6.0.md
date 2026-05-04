@@ -4,7 +4,7 @@
 > 对应计划：M3 收尾 + M4 起步（COCO / IIIF 导出）+ 工程闭环
 > 上一发布：[`v0.5.0`](RELEASE_NOTES_v0.5.0.md) — 关系网络 · 知识图谱 · 工程闭环
 
-本次发布由 AI agent 在用户睡觉期间连续推进完成。三条线收齐：
+v0.5.0 验收完，紧接着把 ROADMAP 里挂的几条线连续做完。三条线收齐：
 
 1. **关系网络收尾**：知识图谱关系筛选 + Cytoscape layout 切换 + 节点 size 按度数
 2. **AI 学术溯源**：SAM / YOLO 调用历史写入 IIML processingRuns；详情面板可折叠
@@ -239,8 +239,7 @@ c35c5c1 feat(annotation): D1 知识图谱关系筛选 / 高亮（kind + origin c
 
 ## 9. 已知限制
 
-- 本次发布全部由 AI agent 自行推进，所有功能已经过 typecheck，但 **未做
-  浏览器端到端测试**
+- 本次发布所有功能已经过 typecheck，但 **未做浏览器端到端测试**
 - 共现推荐当前只看 term ↔ term，不看"距离 / 关系" 增强；下个版本可考虑
   纳入 spatial relations 加权
 - COCO 导出 imageSize 用 `stone.metadata.dimensions`（cm 单位）当像素，
@@ -265,4 +264,4 @@ c35c5c1 feat(annotation): D1 知识图谱关系筛选 / 高亮（kind + origin c
   AI 线图扩展 Sobel / HED / Relic2Contour
 - **工程**：Playwright 端到端覆盖（需要稳定 dev 环境）
 
-本次 **未自动打 git tag**，等待用户验收后决定是否打 `v0.6.0` tag。
+本次 **未打 git tag**，等浏览器端验收完再决定是否打 `v0.6.0` tag。

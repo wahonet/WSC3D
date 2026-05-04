@@ -761,7 +761,23 @@ export function App() {
         const detections = response.detections ?? [];
         if (detections.length === 0) {
           runWarning = "no-detection";
-          dispatchAnnotation({ type: "set-status", status: "YOLO 没找到符合条件的候选，可降低阈值再试" });
+          // 用 debug 字段给出具体原因，让用户知道是"模型真没扫到"还是"扫到但被阈值/类别过滤"
+          const debug = response.debug;
+          let reason = "YOLO 没找到任何候选，可降低阈值或换张更清晰的高清原图再试";
+          if (debug) {
+            if (debug.rawDetections === 0) {
+              reason = `YOLO 扫描完毕，模型对该图无响应（rawDetections=0）。汉画像石灰度浮雕在 COCO 通用模型上识别困难，建议：① 用 SAM 框选 + 点选手动标注 ② 等汉画像石专用微调模型`;
+            } else if (debug.filteredByClass > 0 && debug.filteredByConf === 0) {
+              const top = Object.entries(debug.classDistribution)
+                .slice(0, 5)
+                .map(([k, v]) => `${k}×${v}`)
+                .join(" ");
+              reason = `YOLO 扫到 ${debug.rawDetections} 个对象但都不在你勾选的类别里。模型实际输出：${top}。打开 dialog 取消"类别过滤"试试`;
+            } else if (debug.filteredByConf > 0) {
+              reason = `YOLO 扫到 ${debug.rawDetections} 个但置信度全都低于阈值 ${debug.appliedConfThreshold.toFixed(2)}（被过滤 ${debug.filteredByConf} 个）。把阈值滑杆拉到 0.05 再试`;
+            }
+          }
+          dispatchAnnotation({ type: "set-status", status: reason });
           return;
         }
         // 把每个 bbox 转成 candidate annotation。frame 跟随当前 sourceMode；
@@ -798,9 +814,12 @@ export function App() {
           dispatchAnnotation({ type: "add-annotation", annotation });
           createdIds.push(annotation.id);
         });
+        const debugTail = response.debug
+          ? `（原始 ${response.debug.rawDetections}，按类过滤 ${response.debug.filteredByClass}，按阈值过滤 ${response.debug.filteredByConf}）`
+          : "";
         dispatchAnnotation({
           type: "set-status",
-          status: `YOLO 扫描完成，落入 ${createdIds.length} 个候选（model=${response.model}）`
+          status: `YOLO 扫描完成，落入 ${createdIds.length} 个候选（model=${response.model}）${debugTail}`
         });
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);

@@ -1,8 +1,18 @@
 import cytoscape from "cytoscape";
 import type { Core, EdgeDefinition, ElementDefinition, NodeDefinition } from "cytoscape";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Crown, Sparkles } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { IimlAnnotation, IimlDocument, IimlRelation, IimlRelationOrigin, IimlStructuralLevel } from "./types";
 import { relationKindOptions } from "./RelationsEditor";
+import {
+  centralityKindHints,
+  centralityKindLabels,
+  clusterColors,
+  computeCentrality,
+  detectClusters,
+  type CentralityKind,
+  type CentralityResult
+} from "./graphMetrics";
 
 // 按结构层级着色（与 EditTab 的 structuralLevel 选项呼应；颜色取自 styles 调色板）
 const structuralLevelColors: Record<IimlStructuralLevel, string> = {
@@ -51,17 +61,28 @@ const originLabels: Record<IimlRelationOrigin, string> = {
 };
 
 // D2 layout 选项；cose 力导向（精确但慢）/ concentric（按 degree 同心圆）
-// / breadthfirst（关系树）/ grid（栅格，最快，> 100 节点推荐）
-type LayoutName = "cose" | "concentric" | "breadthfirst" | "grid";
+// / breadthfirst（关系树）/ grid（栅格，最快，> 100 节点推荐）/ E 阶段加 cluster（按群组聚拢）
+type LayoutName = "cose" | "concentric" | "breadthfirst" | "grid" | "cluster";
 
 const layoutOptions: Array<{ id: LayoutName; label: string; hint: string }> = [
   { id: "cose", label: "力导向", hint: "精确但耗时；适合 < 100 节点" },
-  { id: "concentric", label: "同心圆", hint: "按关系数量分层；中心是关系最多的标注" },
+  { id: "concentric", label: "中心圆", hint: "按 PageRank / 度数把核心节点放最里圈，外圈是边缘节点" },
   { id: "breadthfirst", label: "层级树", hint: "按关系展开为层级树，适合层级关系多的图" },
+  { id: "cluster", label: "群组聚拢", hint: "按 MCL 群组分块布局，同簇节点抱团（论文式叙事簇可视化）" },
   { id: "grid", label: "栅格", hint: "最快；适合 > 100 节点" }
 ];
 
-function buildLayoutOptions(name: LayoutName): cytoscape.LayoutOptions {
+// 节点 / 边视觉模式
+type NodeColorMode = "level" | "cluster" | "centrality";
+const nodeColorModeOptions: Array<{ id: NodeColorMode; label: string; hint: string }> = [
+  { id: "level", label: "按层级", hint: "按结构层级着色（whole/scene/figure/...）" },
+  { id: "cluster", label: "按群组", hint: "按 MCL 群组聚类着色，最大簇是金色（叙事核心）" },
+  { id: "centrality", label: "按中心度", hint: "按当前选中的中心性算法着色（深色 = 高分）" }
+];
+
+const centralityKinds: CentralityKind[] = ["pageRank", "degree", "betweenness", "closeness"];
+
+function buildLayoutOptions(name: LayoutName, clusterOf?: Map<string, number>): cytoscape.LayoutOptions {
   const base = { fit: true, padding: 24, animate: false } as const;
   switch (name) {
     case "concentric":
@@ -69,7 +90,14 @@ function buildLayoutOptions(name: LayoutName): cytoscape.LayoutOptions {
         ...base,
         name: "concentric",
         // 度数越高（关系越多）越靠中心
-        concentric: (node: cytoscape.NodeSingular) => node.degree(false),
+        concentric: (node: cytoscape.NodeSingular) => {
+          const centrality = node.data("centrality") as number | undefined;
+          if (typeof centrality === "number") {
+            // centrality 是 [0, 1] 浮点；放大成"圈索引"避免 levelWidth 把所有节点挤一圈
+            return Math.round(centrality * 50);
+          }
+          return node.degree(false);
+        },
         levelWidth: () => 1,
         minNodeSpacing: 20
       } as cytoscape.LayoutOptions;
@@ -86,6 +114,31 @@ function buildLayoutOptions(name: LayoutName): cytoscape.LayoutOptions {
         name: "grid",
         avoidOverlap: true,
         condense: false
+      } as cytoscape.LayoutOptions;
+    case "cluster":
+      // 群组聚拢：用 cose 但通过 nodeRepulsion 函数让同簇内排斥小、跨簇排斥大
+      return {
+        ...base,
+        name: "cose",
+        idealEdgeLength: ((edge: cytoscape.EdgeSingular) => {
+          const a = clusterOf?.get(edge.source().id());
+          const b = clusterOf?.get(edge.target().id());
+          return a !== undefined && b !== undefined && a === b ? 50 : 220;
+        }) as unknown as number,
+        nodeRepulsion: ((node: cytoscape.NodeSingular) => {
+          const cluster = clusterOf?.get(node.id());
+          return cluster === 0 ? 600000 : 280000;
+        }) as unknown as number,
+        nodeOverlap: 16,
+        randomize: false,
+        componentSpacing: 120,
+        edgeElasticity: 60,
+        nestingFactor: 1.2,
+        gravity: 0.6,
+        numIter: 1200,
+        initialTemp: 220,
+        coolingFactor: 0.95,
+        minTemp: 1.0
       } as cytoscape.LayoutOptions;
     case "cose":
     default:
@@ -112,16 +165,19 @@ function buildLayoutOptions(name: LayoutName): cytoscape.LayoutOptions {
 /**
  * 知识图谱 tab：用 Cytoscape.js 渲染 annotations + relations 的节点-边图。
  *
+ * v0.7.0 增强（图谱完善）：
+ * - **中心性识别**：4 种算法（PageRank / Degree / Betweenness / Closeness），
+ *   实时计算并标识"叙事核心"节点（金色光环 + 王冠图标）
+ * - **群组检测**：MCL 算法自动找叙事簇，最大簇着金色 = "构图核心"
+ * - **节点着色 3 模式**：按层级 / 按群组 / 按中心度
+ * - **侧栏排行榜**：top-5 关键节点列表，点击跳转选中
+ * - **群组聚拢布局**：同簇节点抱团，跨簇节点拉远，论文式叙事簇可视化
+ *
  * 设计选择：
  * - 直接用 cytoscape 而不是 react-cytoscapejs：后者在 React 19 上有兼容
- *   报告，且我们对生命周期有完全的控制需求（doc 大改时清空重建）
- * - 只在 doc.annotations / relations 内容变化时重建图，selectedAnnotation
- *   变化只刷高亮、不重建（避免 layout 抖动）
- * - 默认 cose 力导向布局；提供"重新布局"按钮
- *
- * 双向联动：
- * - 外部 selectedAnnotationId 变化 → 给对应节点加 .is-selected class
- * - 用户在图上点节点 → onSelectAnnotation(id) 让画布同步选中
+ *   报告，且对生命周期需要完全控制
+ * - 中心性 / 群组在 doc 内容指纹变化时重算，不是每次 render 算
+ * - 着色 / 排行榜变化只刷 cy.style + 局部 React 重渲染，不重建图
  */
 export function KnowledgeGraphView({
   doc,
@@ -145,8 +201,21 @@ export function KnowledgeGraphView({
   const annotationCountForLayout = doc?.annotations.length ?? 0;
   const defaultLayout: LayoutName = annotationCountForLayout > 100 ? "grid" : "cose";
   const [layoutName, setLayoutName] = useState<LayoutName>(defaultLayout);
-  // doc 量级在 100 左右切换时需要把 layoutName 重置为推荐值，避免用户被卡在
-  // 不合适的 layout 上；用 useEffect 监听数量级跳变
+
+  // E1 / E2 视觉模式
+  const [colorMode, setColorMode] = useState<NodeColorMode>("level");
+  const [centralityKind, setCentralityKind] = useState<CentralityKind>("pageRank");
+  // 是否在画面上高亮"中心节点"（top-N 金色光环 + ★ 标识）
+  const [highlightCentral, setHighlightCentral] = useState(true);
+  // 侧栏排行榜是否展开（移动端 / 小屏可手动折叠）
+  const [rankingPanelOpen, setRankingPanelOpen] = useState(true);
+
+  // 中心性 / 群组结果（由 cy 重建后按需重算）
+  const [centrality, setCentrality] = useState<CentralityResult | null>(null);
+  const [clusterOf, setClusterOf] = useState<Map<string, number>>(new Map());
+  const [clusterSizes, setClusterSizes] = useState<number[]>([]);
+
+  // doc 量级在 100 左右切换时需要把 layoutName 重置为推荐值
   useEffect(() => {
     setLayoutName(annotationCountForLayout > 100 ? "grid" : "cose");
   }, [annotationCountForLayout]);
@@ -181,8 +250,7 @@ export function KnowledgeGraphView({
     return set;
   }, [relations]);
 
-  // 元素列表的稳定 key —— 用 annotation id + relation id 做内容指纹；
-  // 对内容相同的 doc / relations 不重建图，只刷高亮。
+  // 元素列表的稳定 key —— 用 annotation id + relation id 做内容指纹
   const annotationsKey = doc?.annotations
     .map((annotation) => `${annotation.id}:${annotation.label ?? ""}:${annotation.structuralLevel}`)
     .join("|");
@@ -190,13 +258,15 @@ export function KnowledgeGraphView({
     .map((relation) => `${relation.id}:${relation.kind}:${relation.source}->${relation.target}`)
     .join("|");
 
+  // ============================================================
+  //  cy 实例创建 / 销毁
+  // ============================================================
   useEffect(() => {
     const container = containerRef.current;
     if (!container) {
       return;
     }
     if (!doc) {
-      // 还没 load 文档：销毁可能存在的旧实例
       if (cyRef.current) {
         cyRef.current.destroy();
         cyRef.current = null;
@@ -227,14 +297,17 @@ export function KnowledgeGraphView({
           label: annotation.label || "未命名",
           level: annotation.structuralLevel,
           color: structuralLevelColors[annotation.structuralLevel] ?? "#6f6a62",
-          degree: degreeMap.get(annotation.id) ?? 0
+          degree: degreeMap.get(annotation.id) ?? 0,
+          // centrality / clusterColor 在 cy 创建后由 useEffect 写入；这里先占位
+          centrality: 0,
+          clusterColor: "#6f6a62",
+          centralityColor: "#6f6a62"
         }
       };
       elements.push(node);
     }
 
     for (const relation of relations) {
-      // 边两端必须都是已知 annotation；防御历史 doc 里悬空的 source/target
       if (!annotationIds.has(relation.source) || !annotationIds.has(relation.target)) {
         continue;
       }
@@ -248,7 +321,6 @@ export function KnowledgeGraphView({
           label: kindLabelOf(relation.kind),
           color: kindGroupColors[group],
           isAuto: relation.origin !== "manual",
-          // D1 过滤需要：把 kind 与 origin 写进 data，运行时按 chip 刷 .is-faded
           kind: relation.kind,
           origin: relation.origin
         }
@@ -256,7 +328,6 @@ export function KnowledgeGraphView({
       elements.push(edge);
     }
 
-    // 保留先前实例的 layout 状态：仅在内容差异时重建
     if (cyRef.current) {
       cyRef.current.destroy();
       cyRef.current = null;
@@ -269,7 +340,8 @@ export function KnowledgeGraphView({
         {
           selector: "node",
           style: {
-            "background-color": "data(color)",
+            // 着色模式由 colorMode 决定，统一从 data(currentColor) 读
+            "background-color": "data(currentColor)",
             label: "data(label)",
             color: "#f4ece0",
             "font-size": 11,
@@ -278,19 +350,33 @@ export function KnowledgeGraphView({
             "text-margin-y": 4,
             "text-outline-color": "#1d1a18",
             "text-outline-width": 2,
-            // D2 节点 size 按度数：关系越多、节点越大；放大基数 22，每多 1 度
-            // 加 4px，封顶 50。让"叙事中心"在视觉上一眼可见
-            width: ("mapData(degree, 0, 12, 22, 50)" as unknown) as number,
-            height: ("mapData(degree, 0, 12, 22, 50)" as unknown) as number,
+            // 节点 size 按 centrality（如果有）；fallback 用 degree
+            // mapData(centrality, 0, 1, 22, 56) — 高中心度节点显著放大
+            width: ("mapData(centrality, 0, 1, 22, 56)" as unknown) as number,
+            height: ("mapData(centrality, 0, 1, 22, 56)" as unknown) as number,
             "border-width": 1.5,
             "border-color": "#1d1a18"
           }
         },
         {
+          selector: "node.is-central",
+          // 中心节点：金色光环 + 加粗描边；shadow-* 在 Cytoscape 类型里不全，
+          // 用 as 断言绕过即可
+          style: ({
+            "border-color": "#f3a712",
+            "border-width": 4,
+            "shadow-blur": 18,
+            "shadow-color": "#f3a712",
+            "shadow-opacity": 0.85,
+            "shadow-offset-x": 0,
+            "shadow-offset-y": 0
+          } as unknown) as cytoscape.Css.Node
+        },
+        {
           selector: "node.is-selected",
           style: {
-            "border-color": "#f3a712",
-            "border-width": 3
+            "border-color": "#ff5f57",
+            "border-width": 4
           }
         },
         {
@@ -326,7 +412,6 @@ export function KnowledgeGraphView({
           }
         },
         {
-          // D1 过滤：被 chip 排除的边淡化（保持空间不变，便于回切对比）
           selector: "edge.is-faded",
           style: {
             opacity: 0.12,
@@ -334,7 +419,6 @@ export function KnowledgeGraphView({
           }
         }
       ],
-      // D2 layout 由当前 layoutName 决定；> 100 节点默认 grid 避免 cose 卡
       layout: buildLayoutOptions(layoutName),
       wheelSensitivity: 0.3,
       minZoom: 0.2,
@@ -346,7 +430,6 @@ export function KnowledgeGraphView({
       onSelectRef.current?.(id);
     });
     cy.on("tap", (event) => {
-      // 点空白 = 取消选中（与画布 deselect 一致）
       if (event.target === cy) {
         onSelectRef.current?.(undefined);
       }
@@ -359,13 +442,80 @@ export function KnowledgeGraphView({
         cyRef.current = null;
       }
     };
-    // layoutName 故意不进依赖：layout 切换走 handleLayoutChange 直接 cy.layout().run()，
-    // 不重建图。重建图只发生在内容变化时，初始化时拿当时的 layoutName 即可。
+    // layoutName / colorMode / centralityKind 等故意不进依赖：它们只刷视觉，不重建图
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [annotationsKey, relationsKey, doc]);
 
-  // 仅刷高亮，不重建图：避免每次外部 selectedAnnotationId 变化都导致 layout
-  // 抖动重排。
+  // ============================================================
+  //  中心性 / 群组重算（doc 变化时）
+  // ============================================================
+  useEffect(() => {
+    const cy = cyRef.current;
+    if (!cy || cy.nodes().length === 0) {
+      setCentrality(null);
+      setClusterOf(new Map());
+      setClusterSizes([]);
+      return;
+    }
+    const result = computeCentrality(cy, centralityKind, { topN: 5 });
+    setCentrality(result);
+    const clusters = detectClusters(cy);
+    setClusterOf(clusters.clusterOf);
+    setClusterSizes(clusters.clusterSizes);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [annotationsKey, relationsKey, centralityKind]);
+
+  // ============================================================
+  //  视觉模式（colorMode + centrality + cluster）写入 node data
+  // ============================================================
+  useEffect(() => {
+    const cy = cyRef.current;
+    if (!cy) return;
+    const scoreMap = new Map<string, number>();
+    if (centrality) {
+      centrality.scores.forEach((s) => scoreMap.set(s.id, s.normalized));
+    }
+    cy.batch(() => {
+      cy.nodes().forEach((node) => {
+        const id = node.id();
+        const norm = scoreMap.get(id) ?? 0;
+        const cluster = clusterOf.get(id);
+        const levelColor = node.data("color") as string;
+        const clusterColor =
+          cluster !== undefined ? clusterColors[cluster % clusterColors.length] : "#6f6a62";
+        // 中心度配色：金色到深褐色渐变
+        const centralityColor = centralityToColor(norm);
+        node.data("centrality", norm);
+        node.data("clusterColor", clusterColor);
+        node.data("centralityColor", centralityColor);
+        const currentColor =
+          colorMode === "level"
+            ? levelColor
+            : colorMode === "cluster"
+            ? clusterColor
+            : centralityColor;
+        node.data("currentColor", currentColor);
+      });
+    });
+  }, [colorMode, centrality, clusterOf]);
+
+  // ============================================================
+  //  中心节点 .is-central class（金色光环）
+  // ============================================================
+  useEffect(() => {
+    const cy = cyRef.current;
+    if (!cy) return;
+    cy.batch(() => {
+      cy.nodes().removeClass("is-central");
+      if (highlightCentral && centrality) {
+        centrality.topIds.forEach((id) => {
+          cy.getElementById(id).addClass("is-central");
+        });
+      }
+    });
+  }, [highlightCentral, centrality]);
+
+  // 选中态高亮
   useEffect(() => {
     const cy = cyRef.current;
     if (!cy) {
@@ -383,8 +533,7 @@ export function KnowledgeGraphView({
     });
   }, [selectedAnnotationId]);
 
-  // D1 关系过滤：根据 activeKindGroups / activeOrigins 给不匹配的边打
-  // .is-faded class 淡化（而不是隐藏，保持空间布局稳定，便于回切对比）
+  // D1 关系过滤
   useEffect(() => {
     const cy = cyRef.current;
     if (!cy) {
@@ -410,17 +559,17 @@ export function KnowledgeGraphView({
     });
   }, [activeKindGroups, activeOrigins, annotationsKey, relationsKey]);
 
-  const handleRelayout = () => {
+  const handleRelayout = useCallback(() => {
     const cy = cyRef.current;
     if (!cy) return;
-    cy.layout(buildLayoutOptions(layoutName)).run();
-  };
+    cy.layout(buildLayoutOptions(layoutName, clusterOf)).run();
+  }, [layoutName, clusterOf]);
 
   const handleLayoutChange = (next: LayoutName) => {
     setLayoutName(next);
     const cy = cyRef.current;
     if (!cy) return;
-    cy.layout(buildLayoutOptions(next)).run();
+    cy.layout(buildLayoutOptions(next, clusterOf)).run();
   };
 
   const handleFit = () => {
@@ -430,11 +579,18 @@ export function KnowledgeGraphView({
   const annotationCount = doc?.annotations.length ?? 0;
   const filterActive = activeKindGroups.size > 0 || activeOrigins.size > 0;
 
+  // 排行榜数据：top 8 让小图也能看清楚分布
+  const rankingScores = useMemo(() => {
+    if (!centrality) return [];
+    return centrality.scores.slice(0, 8).filter((s) => s.score > 0);
+  }, [centrality]);
+
   return (
     <div className="knowledge-graph-tab">
       <div className="knowledge-graph-toolbar">
         <span className="muted-text">
           节点 {annotationCount} · 边 {relations.length}
+          {clusterSizes.length > 0 ? <> · 群组 {clusterSizes.length}</> : null}
         </span>
         <button type="button" className="ghost-link" onClick={handleFit}>
           适应窗口
@@ -442,7 +598,16 @@ export function KnowledgeGraphView({
         <button type="button" className="ghost-link" onClick={handleRelayout}>
           重新布局
         </button>
+        <button
+          type="button"
+          className="ghost-link"
+          onClick={() => setRankingPanelOpen((v) => !v)}
+          title={rankingPanelOpen ? "隐藏排行榜面板" : "显示排行榜面板"}
+        >
+          {rankingPanelOpen ? "隐藏排行榜" : "显示排行榜"}
+        </button>
       </div>
+
       <div className="knowledge-graph-filters" role="group" aria-label="布局">
         <span className="knowledge-graph-filter-label">布局：</span>
         {layoutOptions.map((option) => (
@@ -450,9 +615,7 @@ export function KnowledgeGraphView({
             key={option.id}
             type="button"
             className={
-              layoutName === option.id
-                ? "knowledge-graph-chip is-on"
-                : "knowledge-graph-chip"
+              layoutName === option.id ? "knowledge-graph-chip is-on" : "knowledge-graph-chip"
             }
             onClick={() => handleLayoutChange(option.id)}
             title={option.hint}
@@ -461,6 +624,55 @@ export function KnowledgeGraphView({
           </button>
         ))}
       </div>
+
+      <div className="knowledge-graph-filters" role="group" aria-label="着色与中心节点">
+        <span className="knowledge-graph-filter-label">着色：</span>
+        {nodeColorModeOptions.map((option) => (
+          <button
+            key={option.id}
+            type="button"
+            className={
+              colorMode === option.id ? "knowledge-graph-chip is-on" : "knowledge-graph-chip"
+            }
+            onClick={() => setColorMode(option.id)}
+            title={option.hint}
+          >
+            {option.label}
+          </button>
+        ))}
+        <span className="knowledge-graph-filter-divider" aria-hidden />
+        <button
+          type="button"
+          className={
+            highlightCentral
+              ? "knowledge-graph-chip knowledge-graph-chip--accent is-on"
+              : "knowledge-graph-chip"
+          }
+          onClick={() => setHighlightCentral((v) => !v)}
+          title="给 top-5 中心节点加金色光环 + ★ 标识"
+        >
+          <Crown size={12} />
+          中心节点
+        </button>
+      </div>
+
+      <div className="knowledge-graph-filters" role="group" aria-label="中心性算法">
+        <span className="knowledge-graph-filter-label">中心性：</span>
+        {centralityKinds.map((kind) => (
+          <button
+            key={kind}
+            type="button"
+            className={
+              centralityKind === kind ? "knowledge-graph-chip is-on" : "knowledge-graph-chip"
+            }
+            onClick={() => setCentralityKind(kind)}
+            title={centralityKindHints[kind]}
+          >
+            {centralityKindLabels[kind]}
+          </button>
+        ))}
+      </div>
+
       {relations.length > 0 ? (
         <div className="knowledge-graph-filters" role="group" aria-label="关系筛选">
           <span className="knowledge-graph-filter-label">类别：</span>
@@ -506,10 +718,86 @@ export function KnowledgeGraphView({
           ) : null}
         </div>
       ) : null}
+
       {annotationCount === 0 ? (
         <p className="annotation-empty">暂无标注，无法渲染图谱。</p>
       ) : (
-        <div ref={containerRef} className="knowledge-graph-canvas" />
+        <div className="knowledge-graph-stage">
+          <div ref={containerRef} className="knowledge-graph-canvas" />
+          {rankingPanelOpen && rankingScores.length > 0 ? (
+            <aside className="knowledge-graph-ranking" aria-label={`${centralityKindLabels[centralityKind]} 排行榜`}>
+              <header className="knowledge-graph-ranking-head">
+                <Sparkles size={14} />
+                <span>{centralityKindLabels[centralityKind]} 排行榜</span>
+              </header>
+              <p className="knowledge-graph-ranking-hint">{centralityKindHints[centralityKind]}</p>
+              <ol className="knowledge-graph-ranking-list">
+                {rankingScores.map((score, index) => {
+                  const cluster = clusterOf.get(score.id);
+                  const isSelected = score.id === selectedAnnotationId;
+                  const isCentral = centrality?.topIds.has(score.id) ?? false;
+                  return (
+                    <li
+                      key={score.id}
+                      className={
+                        "knowledge-graph-ranking-item" +
+                        (isSelected ? " is-selected" : "") +
+                        (isCentral ? " is-central" : "")
+                      }
+                    >
+                      <button
+                        type="button"
+                        className="knowledge-graph-ranking-button"
+                        onClick={() => onSelectAnnotation(score.id)}
+                        title={`点击在画布上选中此标注（cluster=${cluster ?? "-"}, raw=${score.score.toFixed(4)}）`}
+                      >
+                        <span className="knowledge-graph-ranking-rank">{index + 1}</span>
+                        <span
+                          className="knowledge-graph-ranking-dot"
+                          style={{
+                            background:
+                              cluster !== undefined
+                                ? clusterColors[cluster % clusterColors.length]
+                                : "#6f6a62"
+                          }}
+                          aria-hidden
+                        />
+                        <span className="knowledge-graph-ranking-label">{score.label}</span>
+                        <span className="knowledge-graph-ranking-bar" aria-hidden>
+                          <span
+                            className="knowledge-graph-ranking-bar-fill"
+                            style={{ width: `${Math.max(4, score.normalized * 100).toFixed(0)}%` }}
+                          />
+                        </span>
+                        <span className="knowledge-graph-ranking-score">
+                          {score.normalized > 0 ? score.normalized.toFixed(2) : "-"}
+                        </span>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ol>
+              {clusterSizes.length > 1 ? (
+                <div className="knowledge-graph-ranking-clusters">
+                  <span className="knowledge-graph-ranking-clusters-label">群组规模：</span>
+                  {clusterSizes.slice(0, 8).map((size, idx) => (
+                    <span
+                      key={idx}
+                      className="knowledge-graph-ranking-cluster-chip"
+                      title={`群组 ${idx} 含 ${size} 个节点`}
+                      style={{
+                        background: clusterColors[idx % clusterColors.length],
+                        color: idx === 0 ? "#1d1a18" : "#f4ece0"
+                      }}
+                    >
+                      {size}
+                    </span>
+                  ))}
+                </div>
+              ) : null}
+            </aside>
+          ) : null}
+        </div>
       )}
     </div>
   );
@@ -517,4 +805,16 @@ export function KnowledgeGraphView({
 
 function kindLabelOf(kind: string): string {
   return relationKindOptions.find((option) => option.value === kind)?.label ?? kind;
+}
+
+// 中心度归一化分数 → 颜色：从冷色（低分）到暖色（高分），与王冠图标 / 排行榜呼应
+function centralityToColor(normalized: number): string {
+  // 起点：暗灰青 #44544d；终点：金色 #f3a712；中间过渡用线性插值（HSL 更平滑但不必要）
+  const start = { r: 0x44, g: 0x54, b: 0x4d };
+  const end = { r: 0xf3, g: 0xa7, b: 0x12 };
+  const t = Math.max(0, Math.min(1, normalized));
+  const r = Math.round(start.r + (end.r - start.r) * t);
+  const g = Math.round(start.g + (end.g - start.g) * t);
+  const b = Math.round(start.b + (end.b - start.b) * t);
+  return `rgb(${r}, ${g}, ${b})`;
 }

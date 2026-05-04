@@ -4,7 +4,7 @@
 > 对应计划：M3 第三波（关系网络）+ 工程稳定性
 > 上一发布：[`v0.4.0`](RELEASE_NOTES_v0.4.0.md) — AI 加深：SAM 多 prompt · AI 线图 · YOLO 批量候选
 
-本次发布是 v0.4.0 之后由 AI agent 在用户睡觉期间连续推进完成的。两条主线：
+v0.4.0 收尾后那两天事少，把先前讨论里挂着的两条线连续做掉：
 
 1. **关系网络（B）**：从"独立标注"升级为"叙事网络" —— 标注间关系基础 + 空间关系
    自动推导 + 画布关联连线 + Cytoscape 知识图谱
@@ -178,7 +178,7 @@ ReviewTab banner 下方加一组类别 chip：
 - `frontend/src/modules/annotation/RelationsEditor.tsx`
 - `frontend/src/modules/annotation/spatial.ts`
 - `frontend/src/modules/annotation/KnowledgeGraphView.tsx`
-- `docs/WORK_LOG_post_v0.4.0.md`（连续推进时间线，下一个 agent 接手时优先读）
+- `docs/WORK_LOG_post_v0.4.0.md`（连续推进时间线，下次回来续做时先读这个）
 
 修改：
 
@@ -250,9 +250,9 @@ b7cea87 docs(work-log): B1 完成 — 标注间关系基础
 
 ## 6. 已知限制
 
-- 本次发布全部由 AI agent 自行推进，所有功能已经过 typecheck，但 **未做
-  浏览器 / 端到端测试**；下一个 agent 或用户验收时如发现 UI 异常，参考
-  `docs/WORK_LOG_post_v0.4.0.md` 找改动位置
+- 本次发布所有功能已经过 typecheck，但 **未做浏览器 / 端到端测试**；
+  浏览器验收时如发现 UI 异常，参考 `docs/WORK_LOG_post_v0.4.0.md`
+  找改动位置
 - KnowledgeGraphView 在标注 / 关系数 > 200 时 cose 布局可能慢 1-2s；后续可加
   按数量切换布局（concentric / breadthfirst）
 - 类别 chip 过滤目前只对候选 tab 生效；列表 tab 的 alignment / structural 分组
@@ -275,4 +275,4 @@ b7cea87 docs(work-log): B1 完成 — 标注间关系基础
 - 工程：Playwright 端到端覆盖（SAM 多 prompt + YOLO + 合并 + 校准 + 关系
   + 图谱）；YOLO 微调汉画像石专用模型
 
-本次 **未自动打 git tag**，等待用户验收后决定是否打 `v0.5.0` tag。
+本次 **未打 git tag**，等浏览器端验收完再决定是否打 `v0.5.0` tag。

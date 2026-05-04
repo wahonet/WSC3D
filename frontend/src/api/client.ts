@@ -270,6 +270,19 @@ export type AiDetection = {
   label: string;
 };
 
+export type YoloDetectionDebug = {
+  // 模型实际输出的检测条数（按 conf >= 0.01 的 lower-bound 拉，未做 class 过滤前）
+  rawDetections: number;
+  // 模型识别出的 label → 数量；用来排查"为什么没检测到我想要的类"
+  classDistribution: Record<string, number>;
+  filteredByClass: number;
+  filteredByConf: number;
+  appliedConfThreshold: number;
+  appliedClassFilter: string[] | null;
+  // 1 = 只用原图扫；2 = 同时用原图 + CLAHE 增强图扫并合并去重（汉画像石走这一路）
+  enhancedPasses: number;
+};
+
 export type YoloDetectionResponse = {
   detections: AiDetection[];
   model: string;
@@ -278,6 +291,8 @@ export type YoloDetectionResponse = {
   sourceMode?: "screenshot" | "source";
   sourceImage?: string;
   error?: string;
+  // 后端诊断信息：用于前端 status / dialog 给用户更准确的提示
+  debug?: YoloDetectionDebug;
 };
 
 // COCO 类别中"通常对汉画像石可用"的子集，UI 默认勾选这一组以减少噪声候选。

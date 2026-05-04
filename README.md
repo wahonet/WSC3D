@@ -190,8 +190,8 @@ pic/               高清原图 tif/jpg/png（不入库，AI 服务读这里）
 | v0.2.1 | 拼接模块多石拖动修复 | [Release Notes](docs/RELEASE_NOTES_v0.2.1.md) |
 | v0.2.0 | 标注模块「一标注一图层」重构 | [Release Notes](docs/RELEASE_NOTES_v0.2.0.md) |
 
-> 工作日志：v0.4.0 → v0.5.0 → v0.6.0 由 AI agent 在用户睡觉期间连续推进，
-> 详见 [`WORK_LOG_post_v0.4.0.md`](docs/WORK_LOG_post_v0.4.0.md) +
+> 工作日志：v0.4.0 → v0.5.0 → v0.6.0 的连续推进时间线，详见
+> [`WORK_LOG_post_v0.4.0.md`](docs/WORK_LOG_post_v0.4.0.md) +
 > [`WORK_LOG_post_v0.5.0.md`](docs/WORK_LOG_post_v0.5.0.md)。
 
 ## 下一步计划

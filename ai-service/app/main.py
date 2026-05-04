@@ -49,10 +49,12 @@ class SamRequest(BaseModel):
 
 class YoloRequest(BaseModel):
     # 与 SamRequest 同型：stoneId 优先（走 pic 高清图），否则用 imageBase64 截图。
+    # 默认 conf 0.10：汉画像石灰度浮雕在 COCO 模型上置信度普遍偏低，0.25 实测会
+    # 过滤掉绝大多数检测。前端如果想严格筛选，UI 滑杆自己拉高。
     stoneId: str | None = None
     imageBase64: str | None = None
     classFilter: list[str] | None = None
-    confThreshold: float = 0.25
+    confThreshold: float = 0.10
     maxDetections: int = 80
 
 

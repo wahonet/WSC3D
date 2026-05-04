@@ -1,10 +1,10 @@
-# v0.5.0 之后连续推进工作日志（v0.6.0）
+# v0.5.0 之后的连续推进工作日志（v0.6.0）
 
-> 由 AI agent 在 2026-05-04 上午 11:49 起，**用户睡觉期间**连续推进。
-> 用户已验收 v0.5.0，授权 "继续做下一步，不要停"。
-> 每完成一个小节点追加一段，包含：做了什么 / 下一步打算 / 实现方式。
+> 在 2026-05-04 上午 11:49 开工。v0.5.0 验收没问题，趁着思路顺接着把
+> ROADMAP 里 M3 收尾 + M4 起步那批做掉。每完成一个小节点追加一段，
+> 包含：做了什么 / 下一步打算 / 实现方式。
 >
-> **下一个接手的 agent 优先读本文件 + WORK_LOG_post_v0.4.0.md**。
+> **下次回来续做时优先读本文件 + WORK_LOG_post_v0.4.0.md**。
 >
 > 主分支：`main` · 远程：`https://github.com/wahonet/WSC3D.git` · 代理：`http://127.0.0.1:18081`
 >
@@ -14,7 +14,7 @@
 
 ## 0. 整体计划与范围
 
-按 ROADMAP `M3 剩余` + `M4 起步` + `工程闭环`，agent 自行划定 v0.6.0 范围如下：
+按 ROADMAP `M3 剩余` + `M4 起步` + `工程闭环`，本次 v0.6.0 范围如下：
 
 ### 主线 D — M3 收尾 + 学术导出 + 工程小修
 
@@ -31,14 +31,14 @@
 
 ### 跳过项（理由）
 
-- **多解释并存 UI 专项**：UI 复杂度大，需要用户设计讨论；alternative
+- **多解释并存 UI 专项**：UI 复杂度大，需要先把交互细节想清楚；alternative
   Interpretation 关系字段已支持，留 v0.7.0 做专门 tab
 - **多资源版本切换 (M4-3.1)**：架构改动大（`coordinateSystem.transform`），
   需要先有 RTI / 拓片 / 法线图等真实资源；当前只有原图，做了空架子用处不大
-- **Playwright 端到端**：需要稳定 dev server + ai-service，agent 离线
-  无法验证；留给用户/下个 agent 在线时做
-- **YOLO 微调汉画像石专用模型**：需要 1000+ 标注训练集 + 算力，不在 agent
-  能做范围
+- **Playwright 端到端**：需要稳定 dev server + ai-service，离线不好验证；
+  留给在线时统一覆盖
+- **YOLO 微调汉画像石专用模型**：需要 1000+ 标注训练集 + 算力，本轮
+  做不动
 
 ### 操作纪律（与 v0.5.0 一致）
 
@@ -50,7 +50,7 @@
 5. 删 `.git/COMMIT_EDITMSG_DRAFT`
 
 整体收尾：写 `RELEASE_NOTES_v0.6.0.md`，更新 `README.md` + `ROADMAP.md`。
-**不打 git tag**，留给用户。
+**不打 git tag**，等版本审过再决定。
 
 ---
 
@@ -111,6 +111,7 @@
 **下一步**
 
 进入 **D3 — SAM / YOLO processingRuns 写入 IIML**：
+
 - IIML schema 已有 processingRuns: Array<Record<string, unknown>>
 - 每次 SAM 调用后追加一条 record：{ method, model, timestamp, prompt 摘要,
   outputAnnotationId, confidence }
@@ -147,6 +148,7 @@
 **下一步**
 
 进入 **D4 — AI 处理记录 section**：
+
 - AnnotationPanel EditTab 末尾加可折叠的"AI 处理记录"
 - 列出 processingRuns（按 endedAt 降序）：method · model · 时间 · 状态 ·
   产出几个 annotation（点击跳转）
@@ -178,6 +180,7 @@
 **下一步**
 
 进入 **D5 — StoneViewer lazy 加载**：
+
 - 把 StoneViewer / OrbitControls / GLTFLoader 用 React.lazy() 包裹
 - 接受首次 viewer mode 的 1-2s loading 闪烁
 - 主 chunk 目标降到 < 600 KB（v0.4.0 release notes 的已知限制）
@@ -217,6 +220,7 @@
 **下一步**
 
 进入 **D6 — 共现术语推荐**：
+
 - 基于 doc 中所有 annotation.semantics.terms 统计共现矩阵
 - TermPicker 在搜索框旁加"建议"chip 行：列出与"当前标注已有 terms"
   共现频次最高的 5 个术语
@@ -250,6 +254,7 @@
 **下一步**
 
 进入 **D7 — COCO JSON 导出**：
+
 - 按 COCO 格式（images / annotations / categories）导出当前 doc
 - bbox 直接用；polygon 转 segmentation
 - structuralLevel 作为 categories
@@ -277,12 +282,14 @@
 **怎么实现的**
 
 COCO:
+
 - BBox → bbox=[x, y, w, h] 像素 + area = w*h
 - Polygon → segmentation=[[x1,y1,x2,y2,...]] + 外接 bbox + shoelace 算 area
 - Point/LineString 跳过（COCO 不支持）
 - categories 用 8 档 structuralLevel + iiml_id / iiml_label 扩展字段保留 IIML 链路
 
 IIIF:
+
 - BBox → FragmentSelector#xywh=...
 - Polygon → SvgSelector + svg path（M/L 段）
 - Point → 8x8 FragmentSelector
@@ -293,6 +300,7 @@ IIIF:
 **下一步**
 
 D 全部完成。进入 **FINAL 收尾**：
+
 - 写 docs/RELEASE_NOTES_v0.6.0.md
 - 更新 README.md + ROADMAP.md
 - 一次最终 commit + push
@@ -310,6 +318,7 @@ D 全部完成。进入 **FINAL 收尾**：
 **整体收尾**
 
 本次连续推进 commit 清单（最新在上）：
+
 ```
 ?         docs(v0.6.0): release notes + README + ROADMAP（即将提交）
 5ce94c7 docs(work-log): D7+D8 完成 — COCO / IIIF 导出
@@ -328,19 +337,21 @@ fcc0f73 docs(work-log): D1 完成 — 知识图谱关系筛选
 c35c5c1 feat(annotation): D1 知识图谱关系筛选 / 高亮
 ```
 
-未打 git tag（按惯例留给用户决定）。
+未打 git tag（按惯例留给版本审完再决定）。
 
 **接力交接**
 
-下一个 agent / 用户醒来时优先读：
+下次回来续做时优先读：
+
 1. 本工作日志（`WORK_LOG_post_v0.5.0.md`）—— 完整时间线 + 每个子项实现细节
 2. `RELEASE_NOTES_v0.6.0.md` —— 整体功能 + 验收 + 已知限制
 3. `ROADMAP.md` 第 2.5–2.8 节 —— 剩余可做项
 
-**typecheck 全程绿**，但 **未做浏览器端到端测试**，验收时建议跑
+**typecheck 全程绿**，但 **未做浏览器端到端测试**，验收时跑
 `RELEASE_NOTES_v0.6.0.md` §8 的 8 条验收清单。
 
 下一波建议（按价值）：
+
 - **立即 / 1 周内**：v0.6.0 端到端验收 + 修浏览器侧 bug
 - **2-4 周**：M3-2.5 多解释并存 UI 专项 + M3-2.6 推荐加权
 - **长线 M4**：多资源版本切换（原图 / RTI / 拓片 / 线图）+ `.hpsml` 包

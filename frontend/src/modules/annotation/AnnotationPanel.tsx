@@ -200,8 +200,10 @@ function EditTab({
   const [transcriptionDraft, setTranscriptionDraft] = useState("");
   const [translationDraft, setTranslationDraft] = useState("");
   const [readingNoteDraft, setReadingNoteDraft] = useState("");
-  // 即时写入 store 的字段（层级 / 颜色 / 透明度 / 术语 / 证据源）也要能点亮
-  // 保存按钮；用 immediateDirty 作为"有过未确认的即时改动"的标记。
+  // immediateDirty 是 dirty 状态的唯一来源：用户在任何字段做过改动就置 true，
+  // 直到点保存或切换到别的标注才清掉。这样即使 textarea onBlur 已经把 draft
+  // commit 到 store（导致 draft == annotation），保存按钮也仍然亮，避免出现
+  // "在屏幕上方编辑文本，滚动下来想点保存却发现按钮是灰的" 这种迷惑情况。
   const [immediateDirty, setImmediateDirty] = useState(false);
 
   // D6 共现术语推荐：基于全文档统计 + 当前 annotation 已有 terms
@@ -371,7 +373,10 @@ function EditTab({
           type="text"
           value={labelDraft}
           placeholder="例如：青龙"
-          onChange={(event) => setLabelDraft(event.target.value)}
+          onChange={(event) => {
+            setLabelDraft(event.target.value);
+            markDirty();
+          }}
           onBlur={commitLabel}
         />
       </Field>
@@ -395,7 +400,10 @@ function EditTab({
           rows={2}
           value={preIconographicDraft}
           placeholder="看得见的对象，如：长身有角的四足生物…"
-          onChange={(event) => setPreIconographicDraft(event.target.value)}
+          onChange={(event) => {
+            setPreIconographicDraft(event.target.value);
+            markDirty();
+          }}
           onBlur={commitPreIconographic}
         />
       </Field>
@@ -405,7 +413,10 @@ function EditTab({
           rows={2}
           value={iconographicDraft}
           placeholder="主题识别，如：青龙，四象之一…"
-          onChange={(event) => setIconographicDraft(event.target.value)}
+          onChange={(event) => {
+            setIconographicDraft(event.target.value);
+            markDirty();
+          }}
           onBlur={commitIconographic}
         />
       </Field>
@@ -415,7 +426,10 @@ function EditTab({
           rows={2}
           value={iconologicalDraft}
           placeholder="文化解释，如：象征东方与春…"
-          onChange={(event) => setIconologicalDraft(event.target.value)}
+          onChange={(event) => {
+            setIconologicalDraft(event.target.value);
+            markDirty();
+          }}
           onBlur={commitIconological}
         />
       </Field>
@@ -441,7 +455,10 @@ function EditTab({
               rows={2}
               value={transcriptionDraft}
               placeholder="原文释读…"
-              onChange={(event) => setTranscriptionDraft(event.target.value)}
+              onChange={(event) => {
+                setTranscriptionDraft(event.target.value);
+                markDirty();
+              }}
               onBlur={commitTranscription}
             />
           </Field>
@@ -450,7 +467,10 @@ function EditTab({
               rows={2}
               value={translationDraft}
               placeholder="今译 / 外文翻译…"
-              onChange={(event) => setTranslationDraft(event.target.value)}
+              onChange={(event) => {
+                setTranslationDraft(event.target.value);
+                markDirty();
+              }}
               onBlur={commitTranslation}
             />
           </Field>
@@ -459,7 +479,10 @@ function EditTab({
               rows={2}
               value={readingNoteDraft}
               placeholder="释读难点、异体字、残损…"
-              onChange={(event) => setReadingNoteDraft(event.target.value)}
+              onChange={(event) => {
+                setReadingNoteDraft(event.target.value);
+                markDirty();
+              }}
               onBlur={commitReadingNote}
             />
           </Field>
@@ -471,7 +494,10 @@ function EditTab({
           rows={2}
           value={notesDraft}
           placeholder="研究思路、参考等…"
-          onChange={(event) => setNotesDraft(event.target.value)}
+          onChange={(event) => {
+            setNotesDraft(event.target.value);
+            markDirty();
+          }}
           onBlur={commitNotes}
         />
       </Field>

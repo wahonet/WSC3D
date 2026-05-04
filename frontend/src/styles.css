@@ -1974,6 +1974,209 @@ button {
   position: relative;
 }
 
+/* E 阶段：图谱 stage 是 canvas + 排行榜侧栏的并列容器 */
+.knowledge-graph-stage {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 360px;
+  gap: 8px;
+}
+
+.knowledge-graph-stage > .knowledge-graph-canvas {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.knowledge-graph-ranking {
+  flex: 0 0 230px;
+  max-width: 260px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 11px;
+  background: #1c1916;
+  border: 1px solid #2c2824;
+  border-radius: 6px;
+  overflow-y: auto;
+}
+
+.knowledge-graph-ranking-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #f4ece0;
+}
+
+.knowledge-graph-ranking-head svg {
+  color: #f3a712;
+}
+
+.knowledge-graph-ranking-hint {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.45;
+  color: #8f857a;
+}
+
+.knowledge-graph-ranking-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.knowledge-graph-ranking-item {
+  margin: 0;
+}
+
+.knowledge-graph-ranking-button {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 18px 10px 1fr 50px 28px;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 6px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: #cfc7bd;
+  cursor: pointer;
+  text-align: left;
+  font-size: 11.5px;
+  transition: background 0.1s, border-color 0.1s;
+}
+
+.knowledge-graph-ranking-button:hover {
+  background: #221f1c;
+  border-color: #3d3731;
+  color: #f4ece0;
+}
+
+.knowledge-graph-ranking-item.is-selected .knowledge-graph-ranking-button {
+  background: rgba(243, 167, 18, 0.12);
+  border-color: #f3a712;
+  color: #f4ece0;
+}
+
+.knowledge-graph-ranking-item.is-central .knowledge-graph-ranking-rank {
+  background: #f3a712;
+  color: #1d1a18;
+}
+
+.knowledge-graph-ranking-rank {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  background: #2a2622;
+  color: #8f857a;
+  font-size: 10.5px;
+  font-weight: 600;
+}
+
+.knowledge-graph-ranking-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  border: 1px solid #1d1a18;
+}
+
+.knowledge-graph-ranking-label {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.knowledge-graph-ranking-bar {
+  display: block;
+  height: 6px;
+  background: #2a2622;
+  border-radius: 3px;
+  overflow: hidden;
+  position: relative;
+}
+
+.knowledge-graph-ranking-bar-fill {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, #44544d, #f3a712);
+  border-radius: 3px;
+}
+
+.knowledge-graph-ranking-score {
+  font-variant-numeric: tabular-nums;
+  font-size: 10.5px;
+  text-align: right;
+  color: #8f857a;
+}
+
+.knowledge-graph-ranking-clusters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  padding-top: 6px;
+  border-top: 1px dashed #2c2824;
+}
+
+.knowledge-graph-ranking-clusters-label {
+  font-size: 11px;
+  color: #8f857a;
+  margin-right: 2px;
+}
+
+.knowledge-graph-ranking-cluster-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+/* 视觉分隔条（chip 区把同类 chip 分组用） */
+.knowledge-graph-filter-divider {
+  display: inline-block;
+  width: 1px;
+  height: 16px;
+  background: #2c2824;
+  margin: 0 2px;
+}
+
+/* 中心节点强调 chip：金色高亮 */
+.knowledge-graph-chip.knowledge-graph-chip--accent.is-on {
+  background: #f3a712;
+  border-color: #f3a712;
+  color: #1d1a18;
+}
+
+.knowledge-graph-chip.knowledge-graph-chip--accent {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+@media (max-width: 920px) {
+  /* 小屏：排行榜挪到底部，避免挤压 canvas */
+  .knowledge-graph-stage {
+    flex-direction: column;
+  }
+  .knowledge-graph-ranking {
+    flex: 0 0 auto;
+    max-width: 100%;
+    max-height: 220px;
+  }
+}
+
 /* D1 关系筛选 chip 行：在 toolbar 与 canvas 之间 */
 .knowledge-graph-filters {
   display: flex;
@@ -2744,9 +2947,22 @@ button {
 .edit-actions {
   display: flex;
   gap: 8px;
-  padding-top: 10px;
-  margin-top: 2px;
+  padding: 10px 14px;
+  margin: 12px -14px -14px;
   border-top: 1px solid #2c2824;
+  background: rgba(20, 18, 16, 0.96);
+  backdrop-filter: blur(6px);
+  position: sticky;
+  bottom: -14px;
+  z-index: 4;
+}
+
+.edit-actions::before {
+  content: "";
+  position: absolute;
+  inset: -16px 0 100% 0;
+  pointer-events: none;
+  background: linear-gradient(to top, rgba(20, 18, 16, 0.85), rgba(20, 18, 16, 0));
 }
 
 .edit-actions .primary-action.small {
