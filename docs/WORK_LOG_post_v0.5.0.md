@@ -296,3 +296,53 @@ D 全部完成。进入 **FINAL 收尾**：
 - 写 docs/RELEASE_NOTES_v0.6.0.md
 - 更新 README.md + ROADMAP.md
 - 一次最终 commit + push
+
+---
+
+### 2026-05-04 14:25 · FINAL 收尾完成
+
+**做了什么**
+
+- 写 `docs/RELEASE_NOTES_v0.6.0.md`：详尽覆盖 D1-D8 + 性能数据 + 验收 + 已知限制
+- 更新 `README.md`：当前版本 v0.6.0；模块概览补"AI 处理记录全程可溯源 / Cytoscape 含 layout 切换 / 关系筛选 / 共现术语推荐 / COCO·IIIF·IIML·CSV 四种导出"；版本表加 v0.6.0；WORK_LOG 链接补 v0.5.0
+- 更新 `docs/ROADMAP.md`：v0.6.0 已交付摘要；M3-2.5 关系筛选打勾；M3-2.6 大图性能 + 共现推荐打勾；新增 2.7 学术溯源 + 2.8 学术导出节
+
+**整体收尾**
+
+本次连续推进 commit 清单（最新在上）：
+```
+?         docs(v0.6.0): release notes + README + ROADMAP（即将提交）
+5ce94c7 docs(work-log): D7+D8 完成 — COCO / IIIF 导出
+d6685c3 feat(annotation): D7 + D8 COCO JSON / IIIF Web Annotation 导出
+e51f7d5 docs(work-log): D6 完成 — 共现术语推荐
+411ef5a feat(annotation): D6 共现术语推荐
+3cabbda docs(work-log): D5 完成 — 主 chunk < 600 KB
+585d46a perf(app): D5 StoneViewer lazy 加载 882→477 KB
+c0ec6db docs(work-log): D4 完成 — AI 处理记录 section
+9c180aa feat(annotation): D4 AI 处理记录 section
+d85163f docs(work-log): D3 完成 — processingRuns 写入
+b2b2808 feat(annotation): D3 SAM / YOLO processingRuns 写入 IIML
+e541f3e docs(work-log): D2 完成 — 图谱 layout + 节点尺寸
+61c4f60 feat(annotation): D2 知识图谱 layout 切换 + 节点 size 按度数
+fcc0f73 docs(work-log): D1 完成 — 知识图谱关系筛选
+c35c5c1 feat(annotation): D1 知识图谱关系筛选 / 高亮
+```
+
+未打 git tag（按惯例留给用户决定）。
+
+**接力交接**
+
+下一个 agent / 用户醒来时优先读：
+1. 本工作日志（`WORK_LOG_post_v0.5.0.md`）—— 完整时间线 + 每个子项实现细节
+2. `RELEASE_NOTES_v0.6.0.md` —— 整体功能 + 验收 + 已知限制
+3. `ROADMAP.md` 第 2.5–2.8 节 —— 剩余可做项
+
+**typecheck 全程绿**，但 **未做浏览器端到端测试**，验收时建议跑
+`RELEASE_NOTES_v0.6.0.md` §8 的 8 条验收清单。
+
+下一波建议（按价值）：
+- **立即 / 1 周内**：v0.6.0 端到端验收 + 修浏览器侧 bug
+- **2-4 周**：M3-2.5 多解释并存 UI 专项 + M3-2.6 推荐加权
+- **长线 M4**：多资源版本切换（原图 / RTI / 拓片 / 线图）+ `.hpsml` 包
+
+工作日志结束。

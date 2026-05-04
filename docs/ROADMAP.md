@@ -1,14 +1,16 @@
 # 下一步工作计划
 
-> 当前版本：`v0.5.0` —— 在 v0.4.0（AI 加深）基础上完成 M3 第三波：
-> 标注间关系基础（IIML relations）+ 空间关系自动推导 + 画布关联连线 + Cytoscape
-> 知识图谱 tab + 键盘快捷键 + 候选类别 chip 过滤 + alignment 状态显示。
-> 标注模块从"独立条目"升级为"叙事网络 + 知识图谱"。
+> 当前版本：`v0.6.0` —— 在 v0.5.0（关系网络）基础上完成 M3 收尾 + M4 起步：
+> 知识图谱关系筛选 + Cytoscape layout 切换 + 节点 size 按度数 +
+> SAM/YOLO processingRuns 写入 IIML + AI 处理记录 section + 共现术语推荐
+> + COCO / IIIF Web Annotation 导出 + StoneViewer lazy 加载（主 chunk
+> 882 → 477 KB）。
+> 标注模块的 AI 调用全程可追溯，且能直接喂 ML 训练 + 与外部博物馆平台互操作。
 > 本文档面向 AI IDE 与协作者，按"近期 → 中期 → 远期"列出下一步要做的工作。
 
 ---
 
-## 0. 当前已交付（截至 v0.5.0）
+## 0. 当前已交付（截至 v0.6.0）
 
 ### 浏览模块
 
@@ -73,6 +75,34 @@
 - 候选 tab 类别 chip 过滤。
 - 头部画像石下拉显示 alignment 状态（"✓ " 前缀）。
 
+#### M3 收尾（v0.6.0 新增）
+
+- **知识图谱关系筛选**：kind chip（4 组）+ origin chip（仅显示出现的）；
+  toggle 多选 OR；被排除的边淡化（`.is-faded` opacity 0.12）不重建图。
+- **Cytoscape 大图性能**：4 layout 切换（cose / concentric / breadthfirst /
+  grid）；> 100 节点默认 grid；节点 size 按 degree 动态映射。
+- **SAM / YOLO processingRuns 写入 IIML**：每次 AI 调用追加一条
+  `IimlProcessingRun` 含 method / model / input 摘要 / output /
+  resultAnnotationIds / startedAt / endedAt / warning / error。
+- **AI 处理记录 section**：`ProcessingRunsList` 折叠展示选中标注的全部
+  AI 调用历史；点产出 chip 跳转到对应标注。
+- **共现术语推荐**：`cooccurrence.ts` 算 term ↔ term 共现矩阵；TermPicker
+  在搜索框下方加 chip 行；含 terms 标注 < 5 时静默不显示。
+
+#### 学术导出（v0.6.0 新增）
+
+- **COCO JSON**：`exporters.exportToCoco` 标准 COCO 数据集；BBox/Polygon
+  转 segmentation；structuralLevel 作为 categories；扩展字段 iiml_id /
+  iiml_label 保留 IIML 链路。
+- **IIIF Web Annotation**：`exporters.exportToIiifAnnotationPage` W3C
+  Web Annotation Data Model；BBox→FragmentSelector / Polygon→SvgSelector；
+  body 按 purpose 拆分（tagging / describing / identifying / classifying
+  / transcribing）；motivation 区分 inscription。
+
+#### 工程瘦身（v0.6.0 新增）
+
+- StoneViewer lazy → 主 chunk 882 KB → 477 KB（gzip 234 → 144 KB），减少 46%。
+
 ### AI 子服务（FastAPI）
 
 - `/ai/health`：服务健康检查 + SAM 加载状态轮询（pending / downloading / loading / ready / error）。
@@ -136,7 +166,7 @@
 - [ ] **Relic2Contour / 论文 25**：等其变成成熟开源模型后接入；当前先占位。
 - [ ] **风格化线图严格审核**（论文 34 LoRA 扩散）：所有 AI 生成的线图标记为 candidate，必须人工确认才进入 IIML（当前 Canny 是纯算法不写库，不需要审核流程）。
 
-### 2.5 多解释并存与标注间关系（v0.5.0 完成大半）
+### 2.5 多解释并存与标注间关系（v0.5.0 + v0.6.0 完成大半）
 
 - [x] **叙事 / 层级关系**：14 种受控谓词（holds / rides / attacks / faces /
   partOf / contains / nextTo / above / below / leftOf / rightOf / overlaps /
@@ -144,22 +174,40 @@
 - [x] **空间关系自动推导**：deriveSpatialRelations 按几何推导 6 种空间关系；
   不入库，"采纳"才升级为 manual。
 - [x] **画布关联连线**：选中标注时画 manual 实线 + auto 虚线连到所有相关。
-- [ ] **多解释并存**：alternativeInterpretationOf 类型已支持，但 UI 上还没专门
-  的"多视角对比"展示（同一区域多个解释并排）；下个版本做。
-- [ ] **关系筛选 / 高亮**：选某个 kind / origin 时，知识图谱与画布只显示对应
-  边。当前是全部显示。
+- [x] **关系筛选 / 高亮**（v0.6.0 D1）：知识图谱 kind chip + origin chip
+  toggle；被排除的边淡化不隐藏。
+- [ ] **多解释并存 UI**：alternativeInterpretationOf 类型已支持，但 UI 上
+  还没专门的"多视角对比"展示（同一区域多个解释并排）；留下个版本做。
 
-### 2.6 知识图谱可视化（v0.5.0 完成基础版）
+### 2.6 知识图谱可视化（v0.5.0 + v0.6.0 完成）
 
-- [x] **Cytoscape 节点 / 边图**：标注按 structuralLevel 着色，关系按 4 组着色；
-  cose 力导向布局；适应窗口 / 重新布局按钮。
+- [x] **Cytoscape 节点 / 边图**：标注按 structuralLevel 着色，关系按 4 组着色。
 - [x] **双向联动**：图上点节点 → 画布选中；画布选中 → 图上节点高亮 + 关联
   边高亮。
-- [ ] **共现推荐**：标注完"西王母"后，自动推荐"玉兔 / 九尾狐 / 三足乌"等共
-  现术语。需要先积累 100+ 标注数据。
-- [ ] **关系筛选 / 高亮**：见 2.5 末项。
-- [ ] **大图性能**：> 200 节点时 cose 慢 1-2s，可加按数量切换布局
-  （concentric / breadthfirst）。
+- [x] **大图性能**（v0.6.0 D2）：4 layout 切换 + > 100 节点默认 grid +
+  节点 size 按 degree 动态映射。
+- [x] **共现推荐**（v0.6.0 D6）：基于 annotation.terms 共现矩阵推荐 top 5；
+  含 terms 标注 < 5 时静默。
+- [ ] **更智能的推荐**：当前共现只看 term ↔ term，不看"距离 / 关系" 加权；
+  下个版本可纳入 spatial / narrative relations 加权。
+
+### 2.7 学术溯源（v0.6.0 新增 - D3 + D4）
+
+- [x] **processingRuns 写入 IIML**：SAM / YOLO 每次调用追加一条记录，含
+  method / model / input 摘要 / output / resultAnnotationIds / 时间 / 错误。
+- [x] **AI 处理记录 section**：详情面板可折叠展示选中标注的全部 AI 调用历史。
+- [ ] **多用户协作 provenance**：当前 createdBy 写死 "local-user"；多用户
+  环境需要登录态 + IIML provenance 字段完整化。
+
+### 2.8 学术导出（v0.6.0 新增 - D7 + D8，部分 M4）
+
+- [x] **COCO JSON**：BBox / Polygon → segmentation + categories（按
+  structuralLevel）+ iiml_id 扩展字段保留链路。
+- [x] **IIIF Web Annotation**：W3C Web Annotation Data Model；BBox →
+  FragmentSelector，Polygon → SvgSelector；body 按 purpose 拆分；motivation
+  区分 inscription。
+- [ ] **`.hpsml` 自定义研究包**：扩展 IIML 加入拼接方案、知识图谱、术语版本快照
+  等，作为"研究档案完整包"。M4 范围。
 
 ### 2.7 类 Git 版本管理（可选，待评估）
 
