@@ -686,6 +686,11 @@ export function App() {
       const resourceId = doc?.resources[0]?.id ?? `${selectedStone.id}:model`;
       setYoloScanning(true);
       dispatchAnnotation({ type: "set-status", status: "YOLO 扫描中…" });
+      const startedAt = new Date().toISOString();
+      const createdIds: string[] = [];
+      let runModel = "yolov8n";
+      let runError: string | undefined;
+      let runWarning: string | undefined;
       try {
         const response = await runYoloDetection({
           stoneId: selectedStone.id,
@@ -693,19 +698,21 @@ export function App() {
           confThreshold: options.confThreshold,
           maxDetections: options.maxDetections
         });
+        runModel = response.model;
         if (response.error) {
+          runError = response.error;
           dispatchAnnotation({ type: "set-status", status: `YOLO 扫描失败：${response.error}` });
           return;
         }
         const detections = response.detections ?? [];
         if (detections.length === 0) {
+          runWarning = "no-detection";
           dispatchAnnotation({ type: "set-status", status: "YOLO 没找到符合条件的候选，可降低阈值再试" });
           return;
         }
         // 把每个 bbox 转成 candidate annotation。frame 跟随当前 sourceMode；
         // bbox_uv 已经是 image-normalized（v 向下），与前端 UV 约定一致，直接用。
         const baseColorIndex = doc?.annotations.length ?? 0;
-        let createdCount = 0;
         detections.forEach((detection, index) => {
           // 后端总是输出 bbox_uv（image-normalized 与前端 UV 一致）。pixel bbox 仅作为
           // 旧接口兼容，新代码这里只信任 bbox_uv，缺失就跳过。
@@ -735,16 +742,44 @@ export function App() {
             }
           });
           dispatchAnnotation({ type: "add-annotation", annotation });
-          createdCount += 1;
+          createdIds.push(annotation.id);
         });
         dispatchAnnotation({
           type: "set-status",
-          status: `YOLO 扫描完成，落入 ${createdCount} 个候选（model=${response.model}）`
+          status: `YOLO 扫描完成，落入 ${createdIds.length} 个候选（model=${response.model}）`
         });
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
+        runError = message;
         dispatchAnnotation({ type: "set-status", status: `YOLO 扫描出错：${message}` });
       } finally {
+        // D3 写入 processingRun（成功 / 失败都报）
+        dispatchAnnotation({
+          type: "add-processing-run",
+          run: {
+            id: `run-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+            method: "yolo",
+            model: runModel,
+            input: {
+              stoneId: selectedStone.id,
+              classFilter: options.classFilter ?? null,
+              confThreshold: options.confThreshold,
+              maxDetections: options.maxDetections,
+              sourceMode: annotationSourceMode
+            },
+            output: {
+              ok: createdIds.length > 0,
+              detectionsCount: createdIds.length
+            },
+            resultAnnotationIds: createdIds,
+            resourceId,
+            frame: annotationSourceMode,
+            startedAt,
+            endedAt: new Date().toISOString(),
+            warning: runWarning,
+            error: runError
+          }
+        });
         setYoloScanning(false);
         setYoloDialogOpen(false);
       }
@@ -886,6 +921,7 @@ export function App() {
                   yoloScanning={yoloScanning}
                   onCreate={(annotation, asDraft) => dispatchAnnotation({ type: "add-annotation", annotation, asDraft })}
                   onDelete={(id) => dispatchAnnotation({ type: "delete-annotation", id })}
+                  onProcessingRun={(run) => dispatchAnnotation({ type: "add-processing-run", run })}
                   onSaveAlignment={(alignment) => dispatchAnnotation({ type: "set-alignment", alignment })}
                   onSelect={(id) => dispatchAnnotation({ type: "select", id })}
                   onSourceModeChange={setAnnotationSourceMode}

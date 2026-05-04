@@ -33,6 +33,7 @@ import type {
   IimlAnnotation,
   IimlAnnotationFrame,
   IimlGeometry,
+  IimlProcessingRun,
   IimlRelation,
   ProjectionContext
 } from "./types";
@@ -67,6 +68,8 @@ type AnnotationCanvasProps = {
   onToolChange: (tool: AnnotationTool) => void;
   // 标定采点回调；UV 已是当前 sourceMode 坐标系下的归一化点。
   onCalibrationPoint?: (uv: UV) => void;
+  // D3 学术溯源：每次 SAM 调用后追加一条 processingRun（成功 / 失败都报）
+  onProcessingRun?: (run: IimlProcessingRun) => void;
 };
 
 // 视图态：annotation 自身（保留原 frame）+ 当前画布要渲染的 geometry +
@@ -154,7 +157,8 @@ export function AnnotationCanvas({
   onDelete,
   onSelect,
   onToolChange,
-  onCalibrationPoint
+  onCalibrationPoint,
+  onProcessingRun
 }: AnnotationCanvasProps) {
   const stageRef = useRef<Konva.Stage | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -366,44 +370,89 @@ export function AnnotationCanvas({
     setIsSamPending(true);
     const stoneId = resourceId.split(":")[0] ?? resourceId;
     const baseColor = newColor();
+    const startedAt = new Date().toISOString();
+
+    // D3 收集本次 prompt 摘要（不存全部坐标，避免 IIML 文档膨胀）
+    const promptSummary = {
+      positiveCount: draft.points.filter((point) => point.label === 1).length,
+      negativeCount: draft.points.filter((point) => point.label === 0).length,
+      hasBox: Boolean(draft.box),
+      sourceMode
+    };
 
     void (async () => {
+      let createdAnnotation: IimlAnnotation | undefined;
+      let usedPath: "source" | "screenshot" = "source";
+      let lastError: unknown;
       try {
-        const highRes = await requestSamCandidateWithSource({
+        createdAnnotation = await requestSamCandidateWithSource({
           stoneId,
           prompts: draft,
           resourceId,
           color: baseColor,
           frame: sourceMode
         });
-        if (highRes) {
-          onCreate(highRes, false);
-          onSelect(highRes.id);
-          return;
+        if (createdAnnotation) {
+          onCreate(createdAnnotation, false);
+          onSelect(createdAnnotation.id);
         }
       } catch (error) {
         console.warn("SAM source path failed, falling back to screenshot:", error);
+        lastError = error;
       }
 
-      const stoneCanvas = findStoneCanvas(containerRef.current);
-      if (!stoneCanvas) {
-        return;
-      }
-      try {
-        const shot = await requestSamCandidate({
-          prompts: draft,
-          stoneCanvas,
-          projection,
-          resourceId,
-          color: baseColor,
-          frame: sourceMode
-        });
-        if (shot) {
-          onCreate(shot, false);
-          onSelect(shot.id);
+      if (!createdAnnotation) {
+        usedPath = "screenshot";
+        const stoneCanvas = findStoneCanvas(containerRef.current);
+        if (stoneCanvas) {
+          try {
+            const shot = await requestSamCandidate({
+              prompts: draft,
+              stoneCanvas,
+              projection,
+              resourceId,
+              color: baseColor,
+              frame: sourceMode
+            });
+            if (shot) {
+              createdAnnotation = shot;
+              onCreate(shot, false);
+              onSelect(shot.id);
+            }
+          } catch (error) {
+            console.error("SAM screenshot path also failed:", error);
+            lastError = error;
+          }
         }
-      } catch (error) {
-        console.error("SAM screenshot path also failed:", error);
+      }
+
+      // D3 写入 processingRun（成功 / 失败都报）
+      if (onProcessingRun) {
+        const endedAt = new Date().toISOString();
+        const run: IimlProcessingRun = {
+          id: `run-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          method: "sam",
+          model: createdAnnotation?.generation?.model ?? "unknown",
+          input: { ...promptSummary, path: usedPath },
+          output: {
+            ok: Boolean(createdAnnotation),
+            polygonCount: createdAnnotation ? 1 : 0
+          },
+          confidence: createdAnnotation?.generation?.confidence,
+          resultAnnotationIds: createdAnnotation ? [createdAnnotation.id] : [],
+          resourceId,
+          frame: sourceMode,
+          startedAt,
+          endedAt,
+          error: createdAnnotation
+            ? undefined
+            : lastError instanceof Error
+              ? lastError.message
+              : lastError !== undefined
+                ? String(lastError)
+                : "no-candidate"
+        };
+        onProcessingRun(run);
       }
     })().finally(() => {
       setIsSamPending(false);

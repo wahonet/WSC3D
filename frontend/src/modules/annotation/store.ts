@@ -1,4 +1,4 @@
-import type { AnnotationAction, AnnotationState, IimlAlignment, IimlAnnotation, IimlDocument, IimlRelation } from "./types";
+import type { AnnotationAction, AnnotationState, IimlAlignment, IimlAnnotation, IimlDocument, IimlProcessingRun, IimlRelation } from "./types";
 
 const maxHistory = 40;
 
@@ -142,6 +142,19 @@ export function annotationReducer(state: AnnotationState, action: AnnotationActi
         state.selectedAnnotationId
       );
     }
+    case "add-processing-run": {
+      // 处理记录追加；不进 undo 栈避免污染（用 set-doc 风格直接设值）
+      // 但走 updateDoc 仍会进 undo 栈。这里保持一致以便后续也能通过撤销移除一条
+      // 误触的 SAM 调用记录——不影响功能。
+      return updateDoc(
+        state,
+        (doc) => ({
+          ...doc,
+          processingRuns: [...(doc.processingRuns ?? []), action.run]
+        }),
+        state.selectedAnnotationId
+      );
+    }
     case "set-alignment": {
       // alignment 落在 culturalObject 下；undefined 表示清除已有标定。
       return updateDoc(
@@ -209,6 +222,28 @@ function updateDoc(
 
 export function cloneDoc(doc: IimlDocument): IimlDocument {
   return JSON.parse(JSON.stringify(doc)) as IimlDocument;
+}
+
+/**
+ * 从 IIML 文档中取处理运行记录；缺失返回空数组。
+ * processingRuns 字段在 v0.5.0 之前是 Record<string, unknown>[]，这里做最小
+ * 校验把缺关键字段的条目滤掉。
+ */
+export function getProcessingRuns(doc: IimlDocument | undefined): IimlProcessingRun[] {
+  const raw = doc?.processingRuns;
+  if (!Array.isArray(raw)) {
+    return [];
+  }
+  return raw.filter((run): run is IimlProcessingRun => {
+    if (!run || typeof run !== "object") return false;
+    const candidate = run as Partial<IimlProcessingRun>;
+    return (
+      typeof candidate.id === "string" &&
+      typeof candidate.method === "string" &&
+      typeof candidate.model === "string" &&
+      typeof candidate.startedAt === "string"
+    );
+  });
 }
 
 /**

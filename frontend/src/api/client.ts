@@ -113,6 +113,33 @@ export type IimlRelation = {
   updatedAt?: string;
 };
 
+// 处理运行记录：每次 AI 调用（SAM / YOLO / Canny / 未来其它）追加一条，
+// 写入 IimlDocument.processingRuns[]，便于研究溯源（论文 24/25/26/34 都强调
+// 候选必须可追溯到具体模型 + 参数 + 时间）。
+export type IimlProcessingRun = {
+  id: string;
+  method: "sam" | "yolo" | "canny" | "sam-merge" | string;
+  model: string;
+  modelVersion?: string;
+  // 处理输入（prompt 摘要）；不同 method 字段不同，用 Record 兜底
+  input?: Record<string, unknown>;
+  // 输出汇总（生成了几个 annotation 等）
+  output?: Record<string, unknown>;
+  // 整体置信度 / 平均置信度（每条 annotation 自己也有）
+  confidence?: number;
+  // 该 run 直接产出的 annotation id 列表（合并 / 后续编辑后可能不全部存在）
+  resultAnnotationIds?: string[];
+  // 关联的画像石（resourceId 形如 "asset-29:model"）
+  resourceId?: string;
+  // 该 run 跑的坐标系（image / model）
+  frame?: IimlAnnotationFrame;
+  startedAt: string;
+  endedAt?: string;
+  // 失败时记 error / warning
+  warning?: string;
+  error?: string;
+};
+
 // 3D 模型 / 高清图坐标系之间的 4 点单应性标定。
 // controlPoints 至少 4 对，按用户采集顺序存储，渲染时用 4 个点解 3×3 矩阵。
 export type IimlAlignmentControlPoint = {
@@ -222,7 +249,7 @@ export type IimlDocument = {
   annotations: IimlAnnotation[];
   relations?: IimlRelation[];
   vocabularies?: VocabularyTerm[];
-  processingRuns?: Array<Record<string, unknown>>;
+  processingRuns?: IimlProcessingRun[];
   provenance?: Record<string, unknown>;
 };
 

@@ -6,6 +6,7 @@ import type {
   IimlDocument,
   IimlGeometry,
   IimlPoint,
+  IimlProcessingRun,
   IimlRelation,
   IimlRelationKind,
   IimlRelationOrigin,
@@ -50,6 +51,7 @@ export type AnnotationAction =
   | { type: "add-relation"; relation: IimlRelation }
   | { type: "update-relation"; id: string; patch: Partial<IimlRelation> }
   | { type: "delete-relation"; id: string }
+  | { type: "add-processing-run"; run: IimlProcessingRun }
   | { type: "undo" }
   | { type: "redo" };
 
@@ -61,6 +63,7 @@ export type {
   IimlDocument,
   IimlGeometry,
   IimlPoint,
+  IimlProcessingRun,
   IimlRelation,
   IimlRelationKind,
   IimlRelationOrigin,

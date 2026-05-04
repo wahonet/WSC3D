@@ -11,6 +11,7 @@ import type {
   IimlAnnotation,
   IimlAnnotationFrame,
   IimlDocument,
+  IimlProcessingRun,
   ProjectionContext
 } from "./types";
 import { YoloScanDialog, type YoloScanOptions } from "./YoloScanDialog";
@@ -44,6 +45,8 @@ type AnnotationWorkspaceProps = {
   yoloScanning?: boolean;
   onYoloSubmit?: (options: YoloScanOptions) => void;
   onYoloCancel?: () => void;
+  // D3 学术溯源：每次 SAM 调用追加一条 processingRun
+  onProcessingRun?: (run: IimlProcessingRun) => void;
 };
 
 type CalibrationDraft = {
@@ -74,7 +77,8 @@ export function AnnotationWorkspace({
   yoloDialogOpen = false,
   yoloScanning = false,
   onYoloSubmit,
-  onYoloCancel
+  onYoloCancel,
+  onProcessingRun
 }: AnnotationWorkspaceProps) {
   const [projection, setProjection] = useState<ProjectionContext | undefined>(undefined);
   const [calibration, setCalibration] = useState<CalibrationDraft | undefined>(undefined);
@@ -273,6 +277,7 @@ export function AnnotationWorkspace({
         onCalibrationPoint={handleAddCalibrationPoint}
         onCreate={onCreate}
         onDelete={onDelete}
+        onProcessingRun={onProcessingRun}
         onSelect={onSelect}
         onToolChange={onToolChange}
         onUpdate={onUpdate}
