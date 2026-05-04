@@ -608,8 +608,9 @@ export function KnowledgeGraphView({
         </button>
       </div>
 
-      <div className="knowledge-graph-filters" role="group" aria-label="布局">
-        <span className="knowledge-graph-filter-label">布局：</span>
+      {/* 布局 + 着色 + 中心节点 合成一行，chip 字号小 */}
+      <div className="knowledge-graph-filters" role="group" aria-label="布局与着色">
+        <span className="knowledge-graph-filter-label">布局</span>
         {layoutOptions.map((option) => (
           <button
             key={option.id}
@@ -623,10 +624,8 @@ export function KnowledgeGraphView({
             {option.label}
           </button>
         ))}
-      </div>
-
-      <div className="knowledge-graph-filters" role="group" aria-label="着色与中心节点">
-        <span className="knowledge-graph-filter-label">着色：</span>
+        <span className="knowledge-graph-filter-divider" aria-hidden />
+        <span className="knowledge-graph-filter-label">着色</span>
         {nodeColorModeOptions.map((option) => (
           <button
             key={option.id}
@@ -651,13 +650,16 @@ export function KnowledgeGraphView({
           onClick={() => setHighlightCentral((v) => !v)}
           title="给 top-5 中心节点加金色光环 + ★ 标识"
         >
-          <Crown size={12} />
-          中心节点
+          <Crown size={11} />
+          中心
         </button>
       </div>
 
-      <div className="knowledge-graph-filters" role="group" aria-label="中心性算法">
-        <span className="knowledge-graph-filter-label">中心性：</span>
+      {/* 中心性 + 类别 + 来源 合成一行 */}
+      <div className="knowledge-graph-filters" role="group" aria-label="中心性与关系筛选">
+        <span className="knowledge-graph-filter-label" title="节点重要性打分算法">
+          中心性
+        </span>
         {centralityKinds.map((kind) => (
           <button
             key={kind}
@@ -671,53 +673,54 @@ export function KnowledgeGraphView({
             {centralityKindLabels[kind]}
           </button>
         ))}
+        {relations.length > 0 ? (
+          <>
+            <span className="knowledge-graph-filter-divider" aria-hidden />
+            <span className="knowledge-graph-filter-label">类别</span>
+            {kindGroups.map((group) => (
+              <button
+                key={group.id}
+                type="button"
+                className={
+                  activeKindGroups.has(group.id)
+                    ? "knowledge-graph-chip is-on"
+                    : "knowledge-graph-chip"
+                }
+                onClick={() => toggleKindGroup(group.id)}
+                title={`仅高亮"${group.label}"组的关系，其他淡化`}
+              >
+                {group.label}
+              </button>
+            ))}
+            {usedOrigins.size > 1 ? (
+              <>
+                <span className="knowledge-graph-filter-divider" aria-hidden />
+                <span className="knowledge-graph-filter-label">来源</span>
+                {(Array.from(usedOrigins) as IimlRelationOrigin[]).map((origin) => (
+                  <button
+                    key={origin}
+                    type="button"
+                    className={
+                      activeOrigins.has(origin)
+                        ? "knowledge-graph-chip is-on"
+                        : "knowledge-graph-chip"
+                    }
+                    onClick={() => toggleOrigin(origin)}
+                    title={`仅高亮 origin = ${origin} 的关系`}
+                  >
+                    {originLabels[origin] ?? origin}
+                  </button>
+                ))}
+              </>
+            ) : null}
+            {filterActive ? (
+              <button type="button" className="ghost-link" onClick={clearFilters}>
+                清除过滤
+              </button>
+            ) : null}
+          </>
+        ) : null}
       </div>
-
-      {relations.length > 0 ? (
-        <div className="knowledge-graph-filters" role="group" aria-label="关系筛选">
-          <span className="knowledge-graph-filter-label">类别：</span>
-          {kindGroups.map((group) => (
-            <button
-              key={group.id}
-              type="button"
-              className={
-                activeKindGroups.has(group.id)
-                  ? "knowledge-graph-chip is-on"
-                  : "knowledge-graph-chip"
-              }
-              onClick={() => toggleKindGroup(group.id)}
-              title={`仅高亮"${group.label}"组的关系，其他淡化`}
-            >
-              {group.label}
-            </button>
-          ))}
-          {usedOrigins.size > 1 ? (
-            <>
-              <span className="knowledge-graph-filter-label">来源：</span>
-              {(Array.from(usedOrigins) as IimlRelationOrigin[]).map((origin) => (
-                <button
-                  key={origin}
-                  type="button"
-                  className={
-                    activeOrigins.has(origin)
-                      ? "knowledge-graph-chip is-on"
-                      : "knowledge-graph-chip"
-                  }
-                  onClick={() => toggleOrigin(origin)}
-                  title={`仅高亮 origin = ${origin} 的关系`}
-                >
-                  {originLabels[origin] ?? origin}
-                </button>
-              ))}
-            </>
-          ) : null}
-          {filterActive ? (
-            <button type="button" className="ghost-link" onClick={clearFilters}>
-              清除过滤
-            </button>
-          ) : null}
-        </div>
-      ) : null}
 
       {annotationCount === 0 ? (
         <p className="annotation-empty">暂无标注，无法渲染图谱。</p>
@@ -725,12 +728,37 @@ export function KnowledgeGraphView({
         <div className="knowledge-graph-stage">
           <div ref={containerRef} className="knowledge-graph-canvas" />
           {rankingPanelOpen && rankingScores.length > 0 ? (
-            <aside className="knowledge-graph-ranking" aria-label={`${centralityKindLabels[centralityKind]} 排行榜`}>
+            <aside
+              className="knowledge-graph-ranking"
+              aria-label={`${centralityKindLabels[centralityKind]} 排行榜`}
+            >
               <header className="knowledge-graph-ranking-head">
-                <Sparkles size={14} />
-                <span>{centralityKindLabels[centralityKind]} 排行榜</span>
+                <Sparkles size={13} />
+                <span>
+                  {centralityKindLabels[centralityKind]} 排行榜 · top {rankingScores.length}
+                </span>
+                <span className="knowledge-graph-ranking-hint" title={centralityKindHints[centralityKind]}>
+                  {shortHintFor(centralityKind)}
+                </span>
+                {clusterSizes.length > 1 ? (
+                  <span className="knowledge-graph-ranking-clusters" aria-label="群组规模">
+                    群组
+                    {clusterSizes.slice(0, 6).map((size, idx) => (
+                      <span
+                        key={idx}
+                        className="knowledge-graph-ranking-cluster-chip"
+                        title={`群组 ${idx} 含 ${size} 个节点`}
+                        style={{
+                          background: clusterColors[idx % clusterColors.length],
+                          color: idx === 0 ? "#1d1a18" : "#f4ece0"
+                        }}
+                      >
+                        {size}
+                      </span>
+                    ))}
+                  </span>
+                ) : null}
               </header>
-              <p className="knowledge-graph-ranking-hint">{centralityKindHints[centralityKind]}</p>
               <ol className="knowledge-graph-ranking-list">
                 {rankingScores.map((score, index) => {
                   const cluster = clusterOf.get(score.id);
@@ -749,7 +777,7 @@ export function KnowledgeGraphView({
                         type="button"
                         className="knowledge-graph-ranking-button"
                         onClick={() => onSelectAnnotation(score.id)}
-                        title={`点击在画布上选中此标注（cluster=${cluster ?? "-"}, raw=${score.score.toFixed(4)}）`}
+                        title={`点击选中此标注（cluster=${cluster ?? "-"}, raw=${score.score.toFixed(4)}）`}
                       >
                         <span className="knowledge-graph-ranking-rank">{index + 1}</span>
                         <span
@@ -777,30 +805,26 @@ export function KnowledgeGraphView({
                   );
                 })}
               </ol>
-              {clusterSizes.length > 1 ? (
-                <div className="knowledge-graph-ranking-clusters">
-                  <span className="knowledge-graph-ranking-clusters-label">群组规模：</span>
-                  {clusterSizes.slice(0, 8).map((size, idx) => (
-                    <span
-                      key={idx}
-                      className="knowledge-graph-ranking-cluster-chip"
-                      title={`群组 ${idx} 含 ${size} 个节点`}
-                      style={{
-                        background: clusterColors[idx % clusterColors.length],
-                        color: idx === 0 ? "#1d1a18" : "#f4ece0"
-                      }}
-                    >
-                      {size}
-                    </span>
-                  ))}
-                </div>
-              ) : null}
             </aside>
           ) : null}
         </div>
       )}
     </div>
   );
+}
+
+// 排行榜 head 展示一条 hint 短文案；过长的完整 hint 放 title 悬浮
+function shortHintFor(kind: CentralityKind): string {
+  switch (kind) {
+    case "pageRank":
+      return "被高权重邻居指向 → 综合权威";
+    case "degree":
+      return "直接邻居最多 → 形象级主角";
+    case "betweenness":
+      return "最多最短路径 → 桥梁";
+    case "closeness":
+      return "到其它节点最近 → 群核";
+  }
 }
 
 function kindLabelOf(kind: string): string {

@@ -1258,6 +1258,8 @@ export function App() {
                 onAddResource={(resource) => dispatchAnnotation({ type: "add-resource", resource })}
                 onUpdateResource={(id, patch) => dispatchAnnotation({ type: "update-resource", id, patch })}
                 onDeleteResource={(id) => dispatchAnnotation({ type: "delete-resource", id })}
+                stone={selectedStone}
+                onStatusMessage={(status) => dispatchAnnotation({ type: "set-status", status })}
                 onMergeCandidates={handleMergeCandidates}
                 onRejectCandidate={handleRejectCandidate}
                 onRetryCandidate={handleRetryCandidate}

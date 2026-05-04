@@ -1,4 +1,4 @@
-import { Check, Download, Eye, EyeOff, Group, Lock, Network, RotateCcw, Trash2, Unlock, Wand2, X } from "lucide-react";
+import { Check, Download, Eye, EyeOff, Group, Layers, Lock, Network, RotateCcw, Trash2, Unlock, Wand2, X } from "lucide-react";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import type {
   IimlAnnotation,
@@ -6,6 +6,7 @@ import type {
   IimlSource,
   IimlStructuralLevel,
   IimlTermRef,
+  StoneListItem,
   StoneMetadata,
   VocabularyCategory,
   VocabularyTerm
@@ -48,10 +49,15 @@ type AnnotationPanelProps = {
   onExportIiif?: () => void;
   // G2 .hpsml 自定义研究包导出（IIML + 拼接方案 + 词表 + 关系网络快照）
   onExportHpsml?: () => void;
-  // G1 多资源版本管理：增 / 删 / 改 doc.resources。M4 后续做画布资源切换。
+  // G1 多资源版本管理：增 / 删 / 改 doc.resources。v0.7.0 独立 tab，
+  // 可从三维模型生成正射图自动落盘 + 关联到 IIML。
   onAddResource?: (resource: import("./types").IimlResourceEntry) => void;
   onUpdateResource?: (id: string, patch: Partial<import("./types").IimlResourceEntry>) => void;
   onDeleteResource?: (id: string) => void;
+  // 资源 tab 需要用 stone 来取 modelUrl（正射渲染）和 stoneId（上传端点）
+  stone?: StoneListItem;
+  // 资源 tab 内部操作要能更新全局 status（如"正射生成中…"）
+  onStatusMessage?: (status: string) => void;
   // 把多个候选做几何并集合并成一个新候选（保留外环、丢孔洞）。
   // 由 App 层调用 mergePolygonAnnotations，并替换 store 中的旧条目。
   onMergeCandidates: (ids: string[]) => void;
@@ -78,7 +84,7 @@ const structuralLevelOptions: Array<{ value: IimlStructuralLevel; label: string 
   { value: "unknown", label: "未定" }
 ];
 
-type TabKey = "edit" | "review" | "list" | "graph";
+type TabKey = "edit" | "review" | "list" | "graph" | "resources";
 
 export function AnnotationPanel(props: AnnotationPanelProps) {
   const { selectedAnnotation, doc, draftAnnotationId, onSelectAnnotation, relations } = props;
@@ -147,6 +153,20 @@ export function AnnotationPanel(props: AnnotationPanelProps) {
         <button
           type="button"
           role="tab"
+          aria-selected={tab === "resources"}
+          className={tab === "resources" ? "annotation-tab-btn is-active" : "annotation-tab-btn"}
+          onClick={() => setTab("resources")}
+          title="资源版本：原图 / 拓片 / 法线图 / RTI / 点云 / 从三维模型生成的正射图"
+        >
+          <Layers size={13} />
+          资源
+          {(doc?.resources?.length ?? 0) > 0 ? (
+            <span className="annotation-tab-count">{doc?.resources?.length ?? 0}</span>
+          ) : null}
+        </button>
+        <button
+          type="button"
+          role="tab"
           aria-selected={tab === "graph"}
           className={tab === "graph" ? "annotation-tab-btn is-active" : "annotation-tab-btn"}
           onClick={() => setTab("graph")}
@@ -170,6 +190,19 @@ export function AnnotationPanel(props: AnnotationPanelProps) {
             selectedAnnotationId={selectedAnnotation?.id}
             onSelectAnnotation={onSelectAnnotation}
           />
+        ) : tab === "resources" ? (
+          props.onAddResource && props.onUpdateResource && props.onDeleteResource ? (
+            <ResourcesEditor
+              doc={doc}
+              stone={props.stone}
+              onAddResource={props.onAddResource}
+              onUpdateResource={props.onUpdateResource}
+              onDeleteResource={props.onDeleteResource}
+              onStatusMessage={props.onStatusMessage}
+            />
+          ) : (
+            <p className="annotation-empty">资源管理未启用。</p>
+          )
         ) : (
           <ListTab {...props} />
         )}
@@ -589,10 +622,7 @@ function ListTab({
   onExportCsv,
   onExportCoco,
   onExportIiif,
-  onExportHpsml,
-  onAddResource,
-  onUpdateResource,
-  onDeleteResource
+  onExportHpsml
 }: AnnotationPanelProps) {
   const annotations = doc?.annotations ?? [];
 
@@ -646,15 +676,6 @@ function ListTab({
 
   return (
     <div className="annotation-list-tab">
-      {onAddResource && onUpdateResource && onDeleteResource ? (
-        <ResourcesEditor
-          doc={doc}
-          onAddResource={onAddResource}
-          onUpdateResource={onUpdateResource}
-          onDeleteResource={onDeleteResource}
-        />
-      ) : null}
-
       {selectedCount > 0 ? (
         <div className="review-merge-bar">
           <span className="review-merge-info">

@@ -22,17 +22,17 @@ import type { Core, NodeSingular } from "cytoscape";
 export type CentralityKind = "degree" | "betweenness" | "closeness" | "pageRank";
 
 export const centralityKindLabels: Record<CentralityKind, string> = {
-  degree: "度数",
-  betweenness: "介数",
+  degree: "邻居数",
+  betweenness: "桥梁度",
   closeness: "接近度",
-  pageRank: "PageRank"
+  pageRank: "权威度"
 };
 
 export const centralityKindHints: Record<CentralityKind, string> = {
   degree: "直接邻居最多 = 在画面里被最多其他形象围绕（最直觉的主角）",
   betweenness: "处于最多最短路径上 = 桥梁节点（连接两个语义簇的关键形象）",
   closeness: "与其他所有节点平均距离最近 = 群核（构图重心）",
-  pageRank: "被高权重节点指向的节点也高权重 = 综合权威度（论文常用）"
+  pageRank: "被高权重节点指向的节点也高权重 = 综合权威度（Google PageRank 同款算法）"
 };
 
 export type CentralityScore = {

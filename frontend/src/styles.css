@@ -1353,7 +1353,241 @@ button {
   accent-color: #2ec4b6;
 }
 
-/* G1 资源版本管理 */
+/* G1 资源版本管理（独立 tab 版） */
+.resources-tab {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-bottom: 24px;
+}
+
+.resources-tab-head {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.resources-tab-title-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.resources-tab-title-row h3 {
+  margin: 0;
+  font-size: 13px;
+  color: #f4ece0;
+}
+
+.resources-tab-count {
+  padding: 1px 7px;
+  font-size: 10.5px;
+  background: #2ec4b6;
+  color: #11100f;
+  border-radius: 999px;
+  font-weight: 600;
+}
+
+.resources-tab-hint {
+  margin: 0;
+  font-size: 11.5px;
+  line-height: 1.55;
+  color: #8f857a;
+}
+
+.resources-tab-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 11px;
+  background: #1c1916;
+  border: 1px solid #2c2824;
+  border-radius: 6px;
+}
+
+.resources-tab-section-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #f4ece0;
+}
+
+.resources-tab-section-head .ghost-link {
+  margin-left: auto;
+}
+
+.resources-tab-section-head svg {
+  color: #f3a712;
+}
+
+.resources-tab-section-hint {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.5;
+  color: #8f857a;
+}
+
+.resources-ortho-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.resources-ortho-views {
+  display: inline-flex;
+  gap: 3px;
+  padding: 2px;
+  background: #221f1c;
+  border-radius: 6px;
+  border: 1px solid #2c2824;
+}
+
+.resources-ortho-view {
+  padding: 3px 10px;
+  font-size: 11px;
+  background: transparent;
+  color: #cfc7bd;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.resources-ortho-view:hover:not(:disabled) {
+  color: #f4ece0;
+  background: #2a2622;
+}
+
+.resources-ortho-view.is-on {
+  background: #f3a712;
+  color: #1d1a18;
+}
+
+.resources-ortho-view:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.resources-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+}
+
+.resources-list--server {
+  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+}
+
+.resources-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px;
+  background: #15130f;
+  border: 1px solid #2c2824;
+  border-radius: 4px;
+  font-size: 11px;
+}
+
+.resources-item-head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.resources-item-type {
+  padding: 1px 6px;
+  font-size: 10px;
+  background: #2a2622;
+  color: #cfc7bd;
+  border-radius: 3px;
+}
+
+.resources-item-id {
+  flex: 1 1 auto;
+  font-family: var(--mono-font, ui-monospace, "SFMono-Regular", Menlo, monospace);
+  font-size: 10.5px;
+  color: #8f857a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.resources-item-badge {
+  padding: 1px 5px;
+  font-size: 10px;
+  background: #2ec4b6;
+  color: #11100f;
+  border-radius: 3px;
+  font-weight: 600;
+}
+
+.resources-item-thumb {
+  display: block;
+  width: 100%;
+  max-height: 160px;
+  object-fit: contain;
+  background: #0b0a09;
+  border-radius: 3px;
+}
+
+.resources-item-uri {
+  font-family: var(--mono-font, ui-monospace, "SFMono-Regular", Menlo, monospace);
+  font-size: 10.5px;
+  color: #cfc7bd;
+  word-break: break-all;
+}
+
+.resources-item-desc {
+  font-size: 10.5px;
+  color: #8f857a;
+  line-height: 1.45;
+}
+
+.resources-form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  background: #15130f;
+  border: 1px dashed #3d3731;
+  border-radius: 4px;
+  margin-top: 4px;
+}
+
+.resources-form-row {
+  display: grid;
+  grid-template-columns: 56px 1fr;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: #8f857a;
+}
+
+.resources-form-row input,
+.resources-form-row select {
+  width: 100%;
+  padding: 4px 6px;
+  font-size: 11.5px;
+  background: #221f1c;
+  color: #f4ece0;
+  border: 1px solid #2c2824;
+  border-radius: 3px;
+}
+
+.resources-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+/* 旧 .resources-editor 遗留兼容样式（从 ListTab 嵌入时代保留） */
 .resources-editor {
   display: flex;
   flex-direction: column;
@@ -2472,8 +2706,8 @@ button {
   display: flex;
   flex-direction: column;
   height: 100%;
-  min-height: 360px;
-  gap: 8px;
+  min-height: 520px;
+  gap: 6px;
 }
 
 .knowledge-graph-toolbar {
@@ -2493,46 +2727,51 @@ button {
 
 .knowledge-graph-canvas {
   flex: 1 1 auto;
-  min-height: 320px;
+  min-height: 380px;
   background: #1d1a18;
   border: 1px solid #2c2824;
   border-radius: 6px;
   position: relative;
 }
 
-/* E 阶段：图谱 stage 是 canvas + 排行榜侧栏的并列容器 */
+/* 图谱 stage：canvas 占整行 + 排行榜 row 放下方（不再挤压宽度） */
 .knowledge-graph-stage {
   display: flex;
+  flex-direction: column;
   flex: 1 1 auto;
-  min-height: 360px;
+  min-height: 420px;
   gap: 8px;
 }
 
 .knowledge-graph-stage > .knowledge-graph-canvas {
   flex: 1 1 auto;
-  min-width: 0;
+  min-height: 380px;
+  width: 100%;
 }
 
+/* 排行榜：放在 canvas 下方，排成一行 top-N 卡片，可横向滚动 */
 .knowledge-graph-ranking {
-  flex: 0 0 230px;
-  max-width: 260px;
+  flex: 0 0 auto;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 10px 11px;
+  gap: 6px;
+  padding: 8px 10px;
   background: #1c1916;
   border: 1px solid #2c2824;
   border-radius: 6px;
-  overflow-y: auto;
 }
 
 .knowledge-graph-ranking-head {
   display: flex;
   align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  font-weight: 600;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 11.5px;
   color: #f4ece0;
+}
+
+.knowledge-graph-ranking-head > span:first-of-type {
+  font-weight: 600;
 }
 
 .knowledge-graph-ranking-head svg {
@@ -2540,7 +2779,7 @@ button {
 }
 
 .knowledge-graph-ranking-hint {
-  margin: 0;
+  margin: 0 0 0 auto;
   font-size: 11px;
   line-height: 1.45;
   color: #8f857a;
@@ -2551,28 +2790,32 @@ button {
   margin: 0;
   padding: 0;
   display: flex;
-  flex-direction: column;
-  gap: 3px;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  gap: 4px;
+  overflow-x: auto;
+  padding-bottom: 2px;
 }
 
 .knowledge-graph-ranking-item {
   margin: 0;
+  flex: 0 0 auto;
 }
 
 .knowledge-graph-ranking-button {
-  width: 100%;
+  width: 172px;
   display: grid;
-  grid-template-columns: 18px 10px 1fr 50px 28px;
+  grid-template-columns: 16px 8px 1fr 40px 24px;
   align-items: center;
-  gap: 6px;
-  padding: 5px 6px;
-  background: transparent;
-  border: 1px solid transparent;
+  gap: 5px;
+  padding: 4px 6px;
+  background: #15130f;
+  border: 1px solid #2c2824;
   border-radius: 4px;
   color: #cfc7bd;
   cursor: pointer;
   text-align: left;
-  font-size: 11.5px;
+  font-size: 11px;
   transition: background 0.1s, border-color 0.1s;
 }
 
@@ -2643,27 +2886,20 @@ button {
 }
 
 .knowledge-graph-ranking-clusters {
-  display: flex;
-  flex-wrap: wrap;
+  display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding-top: 6px;
-  border-top: 1px dashed #2c2824;
-}
-
-.knowledge-graph-ranking-clusters-label {
-  font-size: 11px;
+  gap: 3px;
+  font-size: 10.5px;
   color: #8f857a;
-  margin-right: 2px;
 }
 
 .knowledge-graph-ranking-cluster-chip {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 22px;
-  height: 18px;
-  padding: 0 6px;
+  min-width: 18px;
+  height: 16px;
+  padding: 0 5px;
   border-radius: 999px;
   font-size: 10px;
   font-weight: 600;
@@ -2708,25 +2944,27 @@ button {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 6px;
-  padding: 6px 8px;
+  gap: 4px;
+  padding: 5px 7px;
   background: #1c1916;
   border: 1px solid #2c2824;
   border-radius: 6px;
-  font-size: 12px;
+  font-size: 11px;
+  line-height: 1.2;
 }
 
 .knowledge-graph-filter-label {
   color: #8f857a;
-  font-size: 11.5px;
+  font-size: 10.5px;
   margin-right: 2px;
 }
 
 .knowledge-graph-chip {
   display: inline-flex;
   align-items: center;
-  padding: 3px 8px;
-  font-size: 11.5px;
+  gap: 3px;
+  padding: 2px 7px;
+  font-size: 10.5px;
   color: #cfc7bd;
   background: #2a2622;
   border: 1px solid #3d3731;

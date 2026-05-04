@@ -20,6 +20,11 @@ const config: CatalogConfig = {
 };
 
 const assemblyPlanDir = path.join(projectRoot, "data", "assembly-plans");
+// 画像石自生成 / 用户上传的资源（PNG / JPG / TIFF 等）落盘目录
+// 按 stoneId 建子目录：data/stone-resources/{stoneId}/{resourceId}.{ext}
+// 当前 v0.7.0 只写入"从三维模型生成的正射图"一种，未来用户上传拓片 / RTI
+// 等也放这里
+const stoneResourceDir = path.join(projectRoot, "data", "stone-resources");
 const port = Number(process.env.PORT ?? 3100);
 const app = express();
 
@@ -57,7 +62,9 @@ type AssemblyPlanRecord = {
 };
 
 app.use(cors());
-app.use(express.json({ limit: "20mb" }));
+// 正射图生成后会以 base64 / raw blob POST 上来，放到 25MB 留一点余量
+app.use(express.json({ limit: "25mb" }));
+app.use(express.raw({ type: "image/png", limit: "25mb" }));
 app.use(morgan("dev"));
 app.use(
   "/assets/models",
@@ -70,6 +77,17 @@ app.use(
   })
 );
 app.use("/assets/reference", express.static(config.referenceDir));
+// 画像石资源静态托管（正射 / 用户上传的拓片等），按 stoneId 分目录
+app.use(
+  "/assets/stone-resources",
+  express.static(stoneResourceDir, {
+    etag: true,
+    maxAge: "1h",
+    setHeaders(res) {
+      res.setHeader("Cache-Control", "public, max-age=3600");
+    }
+  })
+);
 
 app.get("/api/health", (_req, res) => {
   res.json({ ok: true, service: "wsc3d-api", generatedAt: new Date().toISOString() });
@@ -143,6 +161,107 @@ app.get("/api/stones/:id/model", async (req, res, next) => {
       return;
     }
     res.sendFile(stone.model.path);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// v0.7.0：画像石资源（正射 / 拓片 / 法线图等用户生成或上传的图像）列表
+// 返回这块石头下 data/stone-resources/{stoneId}/ 里的全部文件清单，让前端知道
+// 有哪些已经落盘的资源。
+app.get("/api/stones/:id/resources", async (req, res, next) => {
+  try {
+    const stoneId = req.params.id;
+    const dir = path.join(stoneResourceDir, stoneId);
+    let entries: string[];
+    try {
+      entries = await readdir(dir);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+        res.json({ stoneId, resources: [] });
+        return;
+      }
+      throw error;
+    }
+    const resources = entries
+      .filter((name) => /\.(png|jpe?g|tiff?|webp|bmp)$/i.test(name))
+      .map((fileName) => {
+        // 约定文件名格式：{type}-{timestamp}.{ext}，前端存储时按这个命名
+        // 旧文件无前缀也兼容显示
+        const withoutExt = fileName.replace(/\.[^.]+$/u, "");
+        const match = withoutExt.match(/^([a-zA-Z0-9]+)-/);
+        const type = match ? match[1] : "other";
+        return {
+          fileName,
+          type,
+          uri: `/assets/stone-resources/${encodeURIComponent(stoneId)}/${encodeURIComponent(fileName)}`
+        };
+      });
+    res.json({ stoneId, resources });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// v0.7.0：上传画像石资源图片（前端生成的正射 / 用户上传的拓片 / 法线图 等）。
+// Body 支持两种格式：
+//   - Content-Type: image/png → 原始二进制（express.raw 已解码）
+//   - Content-Type: application/json → { type, imageBase64 } 形式
+// 返回 { fileName, type, uri, size }，前端据此在 IIML resources[] 加一条。
+app.post("/api/stones/:id/resources", async (req, res, next) => {
+  try {
+    const stoneId = req.params.id;
+    const safeStoneId = stoneId.replace(/[^a-zA-Z0-9_.-]/gu, "_");
+    if (!safeStoneId) {
+      res.status(400).json({ error: "invalid_stone_id" });
+      return;
+    }
+
+    const rawType = typeof req.query.type === "string"
+      ? req.query.type
+      : typeof (req.body as { type?: unknown })?.type === "string"
+      ? (req.body as { type: string }).type
+      : "ortho";
+    const type = rawType.replace(/[^a-zA-Z0-9]/gu, "").slice(0, 32) || "ortho";
+
+    let buffer: Buffer | null = null;
+    if (Buffer.isBuffer(req.body)) {
+      buffer = req.body;
+    } else if (typeof (req.body as { imageBase64?: unknown })?.imageBase64 === "string") {
+      const b64 = (req.body as { imageBase64: string }).imageBase64;
+      const payload = b64.startsWith("data:")
+        ? b64.slice(b64.indexOf(",") + 1)
+        : b64;
+      buffer = Buffer.from(payload, "base64");
+    }
+
+    if (!buffer || buffer.length === 0) {
+      res.status(400).json({
+        error: "empty_body",
+        hint: "POST PNG as raw body (Content-Type: image/png) or JSON { type, imageBase64 }"
+      });
+      return;
+    }
+    if (buffer.length > 25 * 1024 * 1024) {
+      res.status(413).json({ error: "payload_too_large", maxBytes: 25 * 1024 * 1024 });
+      return;
+    }
+
+    const dir = path.join(stoneResourceDir, safeStoneId);
+    await mkdir(dir, { recursive: true });
+    const timestamp = new Date().toISOString().replace(/[:.]/gu, "-");
+    const fileName = `${type}-${timestamp}.png`;
+    const filePath = path.join(dir, fileName);
+    await writeFile(filePath, buffer);
+
+    res.json({
+      stoneId: safeStoneId,
+      type,
+      fileName,
+      size: buffer.length,
+      uri: `/assets/stone-resources/${encodeURIComponent(safeStoneId)}/${encodeURIComponent(fileName)}`,
+      createdAt: new Date().toISOString()
+    });
   } catch (error) {
     next(error);
   }

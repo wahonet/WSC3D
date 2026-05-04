@@ -473,6 +473,67 @@ export async function probeSourceImage(stoneId: string): Promise<boolean> {
   }
 }
 
+// G-new：画像石生成 / 上传的资源（正射 / 拓片 / 法线图等）
+export type StoneResourceEntry = {
+  fileName: string;
+  type: string;
+  uri: string;
+  size?: number;
+  createdAt?: string;
+};
+
+export async function listStoneResources(stoneId: string): Promise<StoneResourceEntry[]> {
+  const response = await fetch(`/api/stones/${encodeURIComponent(stoneId)}/resources`);
+  if (!response.ok) {
+    return [];
+  }
+  const data = (await response.json()) as { resources?: StoneResourceEntry[] };
+  return data.resources ?? [];
+}
+
+/**
+ * 上传一张 PNG 给后端做该画像石的资源。body 可以直接传 Blob（前端生成正射）
+ * 或传 base64 字符串（比如剪贴板粘贴）。后端会把文件存到 data/stone-resources/
+ * {stoneId}/{type}-{ts}.png 并返回前端可加到 IIML resources 的元信息。
+ */
+export async function uploadStoneResource(
+  stoneId: string,
+  payload: Blob | { type?: string; imageBase64: string },
+  options: { type?: string } = {}
+): Promise<StoneResourceEntry> {
+  const type = options.type ?? (payload instanceof Blob ? "ortho" : payload.type ?? "ortho");
+  let init: RequestInit;
+  if (payload instanceof Blob) {
+    const url = `/api/stones/${encodeURIComponent(stoneId)}/resources?type=${encodeURIComponent(type)}`;
+    init = {
+      method: "POST",
+      headers: { "Content-Type": "image/png" },
+      body: payload
+    };
+    const response = await fetch(url, init);
+    if (!response.ok) {
+      const message = await response.text().catch(() => "unknown");
+      throw new Error(`upload_failed: ${response.status} ${message}`);
+    }
+    return (await response.json()) as StoneResourceEntry;
+  }
+
+  init = {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ type, imageBase64: payload.imageBase64 })
+  };
+  const response = await fetch(
+    `/api/stones/${encodeURIComponent(stoneId)}/resources`,
+    init
+  );
+  if (!response.ok) {
+    const message = await response.text().catch(() => "unknown");
+    throw new Error(`upload_failed: ${response.status} ${message}`);
+  }
+  return (await response.json()) as StoneResourceEntry;
+}
+
 // AI 线图 PNG 端点：基于 source-image 的转码缓存，做边缘检测后落盘。
 // 输出是 RGBA（白线 + alpha 软渐变），可直接半透明叠加在高清图上。
 // 不同 method / 阈值组合各自缓存，浏览器并发请求互不影响。
