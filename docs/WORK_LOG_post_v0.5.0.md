@@ -254,3 +254,45 @@
 - bbox 直接用；polygon 转 segmentation
 - structuralLevel 作为 categories
 - 列表 tab "下载" 区加 COCO 按钮
+
+---
+
+### 2026-05-04 14:00 · D7 + D8 完成 — COCO / IIIF 导出
+
+**commit**: `d6685c3` (feat(annotation): D7 + D8 COCO JSON / IIIF Web Annotation 导出)
+
+由于 D7 / D8 都是导出功能、共享 exporters.ts 文件、UI 都在 ListTab 下载区，
+合并成一个 commit 完成。
+
+**做了什么**
+
+- 新建 frontend/src/modules/annotation/exporters.ts:
+  * exportToCoco(doc, opts)：标准 COCO 格式
+  * exportToIiifAnnotationPage(doc, opts)：W3C Web Annotation Data Model
+  * downloadJson(payload, name) 工具函数
+- AnnotationPanel ListTab 下载区加 COCO / IIIF 按钮
+- App.tsx 加 handleExportCoco / handleExportIiif；用
+  selectedStone.metadata.dimensions 作为 imageSize 默认值；缺省 1000×1000
+
+**怎么实现的**
+
+COCO:
+- BBox → bbox=[x, y, w, h] 像素 + area = w*h
+- Polygon → segmentation=[[x1,y1,x2,y2,...]] + 外接 bbox + shoelace 算 area
+- Point/LineString 跳过（COCO 不支持）
+- categories 用 8 档 structuralLevel + iiml_id / iiml_label 扩展字段保留 IIML 链路
+
+IIIF:
+- BBox → FragmentSelector#xywh=...
+- Polygon → SvgSelector + svg path（M/L 段）
+- Point → 8x8 FragmentSelector
+- body 按 purpose 拆分：tagging / describing / identifying / classifying /
+  transcribing；motivation: inscription level → "transcribing" 其它 → "tagging"
+- generator 标记 WSC3D + method/model 让 SAM/YOLO 来源可追溯
+
+**下一步**
+
+D 全部完成。进入 **FINAL 收尾**：
+- 写 docs/RELEASE_NOTES_v0.6.0.md
+- 更新 README.md + ROADMAP.md
+- 一次最终 commit + push
