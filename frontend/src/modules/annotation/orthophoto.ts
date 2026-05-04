@@ -38,11 +38,14 @@ export type OrthoImageResult = {
   height: number;
   // 模型在 3D 空间的 AABB 尺寸（单位：模型单位），便于外部把像素 ↔ 真实 cm 换算
   modelSize: { width: number; height: number; depth: number };
-  // I2 v0.8.0：生成时的相机 frustum 缩放系数（与 AABB 的比例）。
-  // 默认 1.05 = 在模型 AABB 之外留 5% 白边。反推 modelBox UV ↔ 正射图 UV：
+  // I2 v0.8.0：生成时的相机 frustum 缩放系数（与 AABB 的比例）。默认 1.0 =
+  // frustum 严格贴 AABB 无白边。反推 modelBox UV ↔ 正射图 UV：
   //   out_u = model_u * (1 / frustumScale) + (1 - 1/frustumScale) / 2
   frustumScale: number;
   view: "front" | "back" | "top" | "bottom";
+  // 生成出的图像坐标系与 modelBox UV 是否完全等价（view="front" +
+  // frustumScale=1.0 时满足）。true 则跨 3D ↔ 正射视图共享标注无需变换
+  equivalentToModel: boolean;
 };
 
 const backgroundColors: Record<NonNullable<OrthoImageOptions["background"]>, number | null> = {
@@ -137,8 +140,12 @@ export async function generateOrthoImage(
   const scene = new THREE.Scene();
   scene.add(model);
 
-  // 补 5% 留白防止模型边缘贴到画面边；frustumScale 对外暴露用于跨资源坐标变换
-  const frustumScale = 1.05;
+  // frustumScale = 1.0：frustum 严格裹住 AABB，画面无白边。
+  // 这样 modelBox UV (u, v) ↔ 正射图 UV (u', v') 直接 1:1 对齐（都是 AABB
+  // 归一化坐标），让跨资源标注投影最简化、误差最小。
+  // 如果将来真的需要留白防止抗锯齿边缘截断，可在此改回 1.01 左右并同步更新
+  // resource.transform.frustumScale 让下游投影计算保持一致。
+  const frustumScale = 1.0;
   const frustumHalfW = (planeWidth / 2) * frustumScale;
   const frustumHalfH = (planeHeight / 2) * frustumScale;
   const maxDim = Math.max(size.x, size.y, size.z);
@@ -193,7 +200,8 @@ export async function generateOrthoImage(
       height: outHeight,
       modelSize: { width: size.x, height: size.y, depth: size.z },
       frustumScale,
-      view
+      view,
+      equivalentToModel: view === "front" && Math.abs(frustumScale - 1.0) < 1e-6
     };
   } finally {
     // 销毁顺序：先移除模型、释放资源，再 dispose renderer

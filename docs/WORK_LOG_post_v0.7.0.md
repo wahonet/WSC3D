@@ -217,4 +217,109 @@ commit + push 这一波，然后开始 **I1 多资源画布切换**。
 - **长线**：YOLO 微调汉画像石专用模型（v0.7.0 的 SAM 批量精修 + v0.8.0 的正射
   图能加速积累训练数据）；HED / Relic2Contour 深度学习线图
 
+工作日志（H + I 阶段）结束。
+
+---
+
+### 2026-05-04 17:00 · J 补丁 — 正射图 1:1 对齐 + 跨资源 SAM/YOLO + 双向标注同步
+
+**触发**：v0.8.0 推完当天验收，我自己跑了一下发现三个问题：
+
+1. 生成的正射图还有白边（frustumScale 留了 5%）
+2. SAM / YOLO 只能跑 pic/ 原图，切到正射图底图后点 SAM 还是在 pic/ 上跑
+3. 正射图和 3D 模型上的标注不互通，在正射图画了东西切回 3D 看不到
+
+用户明确要"生成正射时就要自动做好对齐"。回头分析，I2 的 `resource.transform`
+只铺了数据模型没实装投影，是因为通用跨资源投影要支持任意变换太复杂。但如果
+**限定**到"view=front + frustumScale=1.0 的正射图"这一个 case，它的图像 UV
+与 modelBox UV 数学上就完全相等，不需要任何投影——这才是用户要的"自动对齐"。
+
+#### J.1 去白边
+
+`frontend/src/modules/annotation/orthophoto.ts`：`frustumScale = 1.05 → 1.0`。
+frustum 严格贴 AABB，生成 PNG 边缘没有白边。`OrthoImageResult` 加
+`equivalentToModel: boolean`，生成时 view=front && Math.abs(frustumScale-1)<1e-6
+为 true；`types.ts` 里 `IimlResourceTransform.orthographic-from-model` 也加
+同名字段存进 IIML。
+
+#### J.2 后端 SAM / YOLO 接 imageUri
+
+`ai-service/app/sam.py`：
+- 新增 `resolve_resource_uri(uri)` 辅助函数：把前端传过来的 URI 反解成本地
+  路径。支持 `/assets/stone-resources/...` → `<repo>/data/stone-resources/...`
+  （和 backend express 的 static 挂载一一对应）、`file://` 绝对路径、相对
+  repo 根的路径；**不走 HTTP fetch**，ai-service 不依赖 backend 在线
+- 新增 `sam_segment_by_uri(uri, prompts_uv)`：直接读本地文件 → cv2 → RGB →
+  跑 `_run_predictor`。返回坐标系是图像 UV；调用方（前端）保证 URI 与画布
+  坐标系等价时可当 modelBox UV 用
+
+`ai-service/app/yolo.py`：对应加 `yolo_detect_by_uri(uri, ...)`，共享 sam.py
+的 `resolve_resource_uri`
+
+`ai-service/app/main.py`：`SamRequest` / `YoloRequest` schema 都加 `imageUri`
+字段；路由优先级改成 **imageUri > stoneId > imageBase64**；出错提示更新为
+`imageUri_or_stoneId_or_imageBase64_required`
+
+#### J.3 前端 AI 调用透传 imageUri
+
+一条完整调用链：
+
+`api/client.ts` → `sam.ts` → `AnnotationCanvas` / `App.tsx`
+
+- `runSamSegmentationBySource` 参数加 `imageUri?`（SAM 要求 imageUri 或 stoneId
+  至少给一个）；`runYoloDetection` 同型
+- `refineBBoxWithSam(annotation, stoneId, imageUri?)` 和
+  `requestSamCandidateWithSource({ stoneId, imageUri, ... })` 都加 imageUri
+- `AnnotationCanvas` 新增 `activeImageUri?: string` prop，SAM 手动 prompt
+  提交时透传给 `requestSamCandidateWithSource`
+- `AnnotationWorkspace` 新增 `onActiveImageResourceChange` 回调，把当前底图
+  资源（id / uri / type / equivalentToModel）冒泡到 App 层；App 存一份
+  `activeImageResource` state
+- `App.tsx`：
+  - `handleSubmitYoloScan` 用 `activeImageResource.uri` 作为 YOLO 输入；
+    候选 `resourceId` / `frame` 跟随活动资源（等价资源 → frame=model 让候选
+    自动在 3D 模型上可见）
+  - `handleRefineWithSam` 从 `annotation.resourceId` 反查 `doc.resources[].uri`，
+    在原资源上跑 SAM 精修；不错位到 pic/
+
+#### J.4 等价正射图 → 3D 模型双向标注同步
+
+关键在 `AnnotationWorkspace`：
+
+```ts
+const activeResourceEquivalentToModel = // transform.equivalentToModel===true
+  // 或 view=front && frustumScale≈1 的兜底
+const effectiveSourceMode =
+  sourceMode === "image" && activeResourceEquivalentToModel ? "model" : sourceMode
+```
+
+传给 `AnnotationCanvas` 的 `sourceMode` 改用 `effectiveSourceMode`：
+
+- **在等价正射图底图上**：画布按 model 坐标系处理 → 新建标注 frame=model →
+  切回 3D 模型视图直接能看到
+- **3D 模型上已有的 model frame 标注**：切到等价正射图底图时直接显示
+  （effectiveSourceMode = model，跟 annotation.frame 一致）
+- **非等价资源**（top/bottom 方向 / 拓片 / frustumScale≠1 老数据）：
+  effectiveSourceMode 保持 image，仍按原 frame 规则处理，4 点标定兜底
+
+UI 上在等价正射图顶部加一枚绿色小徽章 "此图与 3D 模型坐标系已对齐 · 标注
+自动双向同步"（`.annotation-resource-aligned-hint` CSS 类），用户一眼看到
+就知道可以放心标。
+
+#### 验证
+
+- `npm run typecheck`（backend + frontend）：全绿
+- `python -c "from app.main import app; print('ok')"`（ai-service 冒烟）：ok
+
+**端到端浏览器验证**留给后续跑 §9 的 4 条验收清单。
+
+#### 遗留
+
+- 非等价资源（top/bottom/back 方向、拓片、法线图）的画布跨资源投影仍是
+  v0.9.0 TODO；画布层按 `resource.transform` 做通用投影需要重写渲染
+  pipeline（每条标注 runtime 计算投影矩阵 + 投影后几何缓存 + 编辑/拖拽
+  逆变换），工程量较大
+- 老正射图（v0.8.0 H3 生成，frustumScale=1.05）生成时没写 equivalentToModel，
+  用户需要重新生成一次才会识别为等价
+
 工作日志结束。

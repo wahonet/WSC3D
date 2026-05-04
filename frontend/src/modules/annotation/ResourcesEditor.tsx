@@ -128,6 +128,7 @@ export function ResourcesEditor({
           modelAABB: result.modelSize,
           pixelSize: { width: result.width, height: result.height },
           frustumScale: result.frustumScale,
+          equivalentToModel: result.equivalentToModel,
           generatedAt: new Date().toISOString()
         }
       });
@@ -177,7 +178,10 @@ export function ResourcesEditor({
   function describeTransform(transform: IimlResourceTransform): string {
     if (transform.kind === "orthographic-from-model") {
       const viewLabel = orthoViewOptions.find((o) => o.id === transform.view)?.label ?? transform.view;
-      return `正射投影 · ${viewLabel} · AABB ${transform.modelAABB.width.toFixed(1)}×${transform.modelAABB.height.toFixed(1)} · frustum ${transform.frustumScale.toFixed(2)}× · 像素 ${transform.pixelSize.width}×${transform.pixelSize.height}`;
+      const equiv = transform.equivalentToModel
+        ? "（与 3D 模型 UV 等价，标注自动双向共享）"
+        : "";
+      return `正射投影 · ${viewLabel} · AABB ${transform.modelAABB.width.toFixed(1)}×${transform.modelAABB.height.toFixed(1)} · frustum ${transform.frustumScale.toFixed(2)}× · 像素 ${transform.pixelSize.width}×${transform.pixelSize.height} ${equiv}`;
     }
     if (transform.kind === "homography-4pt") {
       return `4 点单应性 · ${transform.controlPoints.length} 对对应点`;

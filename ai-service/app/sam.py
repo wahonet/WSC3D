@@ -27,6 +27,12 @@ _PIC_DIR = Path(
 )
 _SOURCE_EXTS = {".tif", ".tiff", ".png", ".jpg", ".jpeg", ".webp", ".bmp"}
 
+# 项目根目录，用于把前端传过来的 /assets/stone-resources/... URI 反解到
+# <repo>/data/stone-resources/... 本地路径（backend express 实际托管这条路径）
+_PROJECT_ROOT = Path(
+    os.environ.get("WSC3D_ROOT", Path(__file__).resolve().parent.parent.parent)
+)
+
 # predictor 实例与加载状态；predict 时加互斥锁，避免并发 set_image 冲突。
 _predictor_lock = threading.Lock()
 _predictor: Optional[Any] = None
@@ -516,4 +522,82 @@ def sam_segment_by_stone(stone_id: str, prompts_uv: list[dict]) -> dict:
     # 模型标签加 :source 后缀方便前端区分。
     if result.get("model") and not result["model"].endswith(":source"):
         result["model"] = f"{result['model']}:source"
+    return result
+
+
+# --------------------------------------------------------------
+# v0.8.0 J：任意资源 URI 路径（正射图 / 拓片 / 法线图等）
+# --------------------------------------------------------------
+
+
+def resolve_resource_uri(uri: str) -> Optional[Path]:
+    """
+    把前端传过来的资源 URI 反解成本地文件路径。支持：
+      - /assets/stone-resources/...  → <repo>/data/stone-resources/...
+      - /ai/source-image/...         → 直接走 get_source_image_png（转码缓存）
+      - file://... 绝对路径          → 本地文件
+      - 其他相对路径                 → 相对于项目根
+    HTTP URL 不支持（ai-service 不该依赖 backend 在线）。返回 None = 无法解析。
+    """
+    if not uri:
+        return None
+    if uri.startswith("/assets/stone-resources/"):
+        rel = uri[len("/assets/stone-resources/") :]
+        return _PROJECT_ROOT / "data" / "stone-resources" / rel
+    if uri.startswith("file://"):
+        return Path(uri[len("file://") :])
+    if uri.startswith("/"):
+        # 其它 /api/.. 或 /assets/.. 暂不支持
+        return None
+    candidate = _PROJECT_ROOT / uri
+    return candidate if candidate.exists() else None
+
+
+def _load_image_from_uri(uri: str) -> Optional[tuple[np.ndarray, str]]:
+    path = resolve_resource_uri(uri)
+    if path is None or not path.exists() or not path.is_file():
+        print(f"[SAM] uri not resolvable: {uri}", flush=True)
+        return None
+    try:
+        image = cv2.imread(str(path), cv2.IMREAD_COLOR)
+        if image is None:
+            print(f"[SAM] cv2.imread returned None: {path}", flush=True)
+            return None
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+    except Exception as exc:  # noqa: BLE001
+        print(f"[SAM] load-from-uri failed: {exc}", flush=True)
+        return None
+    return image, path.name
+
+
+def sam_segment_by_uri(uri: str, prompts_uv: list[dict]) -> dict:
+    """
+    v0.8.0 J：让 SAM 用任意资源 URI（正射图 / 拓片 / 法线图 / 外链 PNG）作为输入。
+    prompts 用 UV 传入，返回 polygon 为同一 UV（归一化到图像尺寸，v 向下）。
+
+    调用方（前端）确保 URI 对应的图像与当前画布坐标系等价时（如生成时
+    equivalentToModel 的正射图），返回的 UV 可直接当 modelBox UV 用；否则由
+    前端做必要的跨资源变换。
+    """
+    loaded = _load_image_from_uri(uri)
+    if loaded is None:
+        return {
+            "polygons": [],
+            "confidence": 0.0,
+            "model": "none",
+            "error": "resource-uri-not-found",
+            "sourceMode": "resource-uri",
+            "uri": uri,
+        }
+    image, name = loaded
+    height, width = image.shape[:2]
+    prompts_px = [_uv_to_pixel_prompt(p, width, height) for p in prompts_uv]
+    result = _run_predictor(image, prompts_px, fallback_source="resource-uri")
+    result["coordinateSystem"] = "image-uv"
+    result["sourceMode"] = "resource-uri"
+    result["sourceImage"] = name
+    result["sourceSize"] = [width, height]
+    result["sourceUri"] = uri
+    if result.get("model") and not result["model"].endswith(":resource"):
+        result["model"] = f"{result['model']}:resource"
     return result

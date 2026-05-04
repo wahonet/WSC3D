@@ -8,7 +8,7 @@ from typing import Any, Optional
 import cv2
 import numpy as np
 
-from .sam import get_source_image_png
+from .sam import get_source_image_png, resolve_resource_uri
 from .utils import decode_image
 
 # YOLOv8 nano 通用模型：~6 MB，对汉画像石"人物 / 鸟兽"等 COCO 类别可识别，但对
@@ -294,6 +294,57 @@ def yolo_detect(
     if result is None:
         result = _fallback_contour_detections(image, max_detections)
     result["sourceMode"] = "screenshot"
+    return result
+
+
+def yolo_detect_by_uri(
+    uri: str,
+    class_filter: Optional[list[str]] = None,
+    conf_threshold: float = 0.10,
+    max_detections: int = 80,
+) -> dict:
+    """
+    v0.8.0 J：按任意资源 URI 跑 YOLO（正射图 / 拓片 / 法线图等）。URI 由前端
+    传，必须是本机 `/assets/stone-resources/...` 或 file:// 绝对路径；HTTP
+    URL 不支持（ai-service 不依赖 backend 在线）。
+    """
+    path = resolve_resource_uri(uri)
+    if path is None or not path.exists():
+        return {
+            "detections": [],
+            "model": "none",
+            "error": "resource-uri-not-found",
+            "coordinateSystem": "image-normalized",
+            "sourceMode": "resource-uri",
+            "uri": uri,
+        }
+    try:
+        image = cv2.imread(str(path), cv2.IMREAD_COLOR)
+        if image is None:
+            return {
+                "detections": [],
+                "model": "error",
+                "error": "image-read-failed",
+                "coordinateSystem": "image-normalized",
+                "sourceMode": "resource-uri",
+                "uri": uri,
+            }
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+    except Exception as exc:  # noqa: BLE001
+        return {
+            "detections": [],
+            "model": "error",
+            "error": f"image-read-failed: {exc}",
+            "coordinateSystem": "image-normalized",
+            "sourceMode": "resource-uri",
+            "uri": uri,
+        }
+    result = _detections_from_model(image, class_filter, conf_threshold, max_detections)
+    if result is None:
+        result = _fallback_contour_detections(image, max_detections)
+    result["sourceMode"] = "resource-uri"
+    result["sourceImage"] = Path(path).name
+    result["sourceUri"] = uri
     return result
 
 

@@ -45,12 +45,17 @@ export type IimlResourceTransform =
   | {
       // 正射图由 3D 模型按固定方向 + OrthographicCamera 生成；变换是纯线性
       // 仿射（modelBox UV ↔ 正射图 UV）。frustumScale = 生成时 frustum /
-      // modelAABB 比例（默认 1.05 留白）；offset = (1 - 1/frustumScale) / 2
+      // modelAABB 比例（默认 1.0 紧贴 AABB 无白边）；view="front" +
+      // frustumScale===1 时 UV 与 modelBox UV 完全相等，记为 equivalentToModel
       kind: "orthographic-from-model";
       view: "front" | "back" | "top" | "bottom";
       modelAABB: { width: number; height: number; depth: number };
       pixelSize: { width: number; height: number };
       frustumScale: number;
+      // 是否"与 3D 模型 modelBox UV 坐标等价"：true 时在该资源上新建的标注
+      // 直接记 frame="model"，3D 视图与正射图视图自动双向共享标注，不需要
+      // alignment 校准。v0.8.0 版本仅 view==="front" + frustumScale===1.0 满足
+      equivalentToModel?: boolean;
       // 生成时附带的相机参数，便于未来反推与导出完整变换矩阵
       generatedAt?: string;
     }

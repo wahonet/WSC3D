@@ -48,6 +48,17 @@ type AnnotationWorkspaceProps = {
   onYoloCancel?: () => void;
   // D3 学术溯源：每次 SAM 调用追加一条 processingRun
   onProcessingRun?: (run: IimlProcessingRun) => void;
+  // J v0.8.0：活动底图资源变化时通知父级。父级据此让 YOLO 批量扫描 / SAM 精修
+  // 走正确的 imageUri（而不是默认 pic/ 原图），并决定候选标注的 frame /
+  // resourceId 绑定。undefined = 默认 pic/ 原图。
+  onActiveImageResourceChange?: (info: ActiveImageResourceInfo | undefined) => void;
+};
+
+export type ActiveImageResourceInfo = {
+  id: string;
+  uri: string;
+  type: string;
+  equivalentToModel: boolean;
 };
 
 type CalibrationDraft = {
@@ -102,7 +113,8 @@ export function AnnotationWorkspace({
   yoloScanning = false,
   onYoloSubmit,
   onYoloCancel,
-  onProcessingRun
+  onProcessingRun,
+  onActiveImageResourceChange
 }: AnnotationWorkspaceProps) {
   const [projection, setProjection] = useState<ProjectionContext | undefined>(undefined);
   const [calibration, setCalibration] = useState<CalibrationDraft | undefined>(undefined);
@@ -168,8 +180,63 @@ export function AnnotationWorkspace({
     return imageLikeResources.find((r) => r.id === activeImageResourceId)?.uri;
   }, [activeImageResourceId, imageLikeResources]);
 
+  // I4 v0.8.0 J：当前底图资源是否"与 3D 模型 UV 等价"——典型场景是 view=front +
+  // frustumScale=1.0 的正射图，它的图像归一化坐标与 modelBox UV 完全 1:1 对应。
+  // 等价时：
+  //   - 画布坐标系视作 model（即使 sourceMode === "image"）
+  //   - 在正射图上新建的标注 frame 记为 "model"，3D 模型视图上自动能看到
+  //   - model frame 的历史标注也直接显示在正射图上（同一坐标系）
+  // 不等价时：后续可走 homography / affine / orthographic 反推（v0.9.0 TODO），
+  // 目前保留原 image frame 行为，用户可走 4 点标定做跨 frame 投影。
+  const activeResourceEquivalentToModel = useMemo(() => {
+    if (!activeImageResourceId) return false;
+    const raw = (doc?.resources ?? []).find(
+      (r) => typeof (r as Record<string, unknown>).id === "string" && String((r as Record<string, unknown>).id) === activeImageResourceId
+    ) as Record<string, unknown> | undefined;
+    if (!raw) return false;
+    const transform = raw.transform as Record<string, unknown> | undefined;
+    if (!transform) return false;
+    if (transform.kind !== "orthographic-from-model") return false;
+    // 显式标记（新生成的正射图）优先
+    if (transform.equivalentToModel === true) return true;
+    // 老数据兜底：view=front 且 frustumScale ~ 1.0 也视作等价
+    const view = transform.view;
+    const frustumScale = typeof transform.frustumScale === "number" ? transform.frustumScale : 1.05;
+    return view === "front" && Math.abs(frustumScale - 1.0) < 1e-3;
+  }, [activeImageResourceId, doc?.resources]);
+
+  // 传给 AnnotationCanvas 的"实际画布坐标系"。image 模式 + 等价资源 → model。
+  const effectiveSourceMode: AnnotationSourceMode =
+    sourceMode === "image" && activeResourceEquivalentToModel ? "model" : sourceMode;
+
   const resourceId = activeImageResourceId ?? doc?.resources[0]?.id ?? `${stone.id}:model`;
   const alignment = getAlignment(doc);
+
+  // 把"当前底图资源"告诉父级（App.tsx），让 YOLO 批量扫描 / SAM 精修能自动
+  // 走正确的 imageUri + 候选 frame。sourceMode=model 时资源是 3D，父级应收到
+  // undefined（走默认 stoneId → pic/ 原图路径仍然是最佳的，因为 SAM 需要 2D
+  // 图像，不能直接喂 3D 模型）。
+  useEffect(() => {
+    if (!onActiveImageResourceChange) return;
+    if (sourceMode === "model" || !activeImageResourceId || !activeImageUrl) {
+      onActiveImageResourceChange(undefined);
+      return;
+    }
+    const raw = imageLikeResources.find((r) => r.id === activeImageResourceId);
+    onActiveImageResourceChange({
+      id: activeImageResourceId,
+      uri: activeImageUrl,
+      type: raw?.type ?? "Other",
+      equivalentToModel: activeResourceEquivalentToModel
+    });
+  }, [
+    sourceMode,
+    activeImageResourceId,
+    activeImageUrl,
+    activeResourceEquivalentToModel,
+    imageLikeResources,
+    onActiveImageResourceChange
+  ]);
   // B3 关系连线需要的 relations 列表（与 RelationsEditor 用同一份 store 读出）
   const relations = useMemo(() => getRelations(doc), [doc]);
 
@@ -350,6 +417,7 @@ export function AnnotationWorkspace({
       )}
       <AnnotationCanvas
         activeTool={activeTool}
+        activeImageUri={activeImageUrl}
         alignment={alignment}
         annotations={doc?.annotations ?? []}
         calibrationDraft={calibrationDraftView}
@@ -358,7 +426,7 @@ export function AnnotationWorkspace({
         relations={relations}
         resourceId={resourceId}
         selectedAnnotationId={selectedAnnotationId}
-        sourceMode={sourceMode}
+        sourceMode={effectiveSourceMode}
         onCalibrationPoint={handleAddCalibrationPoint}
         onCreate={onCreate}
         onDelete={onDelete}
@@ -416,6 +484,16 @@ export function AnnotationWorkspace({
                   {resource.label}
                 </button>
               ))}
+            </div>
+          ) : null}
+          {activeResourceEquivalentToModel ? (
+            <div
+              className="annotation-resource-aligned-hint"
+              role="note"
+              title="I4 v0.8.0 J：该正射图 frustum 严格对齐 3D 模型 AABB，图像 UV 与 modelBox UV 1:1 对应"
+            >
+              <span className="aligned-dot" aria-hidden />
+              此图与 3D 模型坐标系已对齐 · 标注自动双向同步
             </div>
           ) : null}
           <div className="annotation-layer-switch" role="group" aria-label="图层">

@@ -21,7 +21,8 @@ export type SamRefineResult = {
  */
 export async function refineBBoxWithSam(
   annotation: IimlAnnotation,
-  stoneId: string
+  stoneId: string,
+  imageUri?: string
 ): Promise<SamRefineResult | undefined> {
   if (annotation.target.type !== "BBox") {
     return undefined;
@@ -37,7 +38,8 @@ export async function refineBBoxWithSam(
     return undefined;
   }
   const response = await runSamSegmentationBySource({
-    stoneId,
+    stoneId: imageUri ? undefined : stoneId,
+    imageUri,
     prompts: [{ type: "box_uv", bbox_uv: [minU, minV, maxU, maxV] }]
   });
   if (response.error || !response.polygons?.length) {
@@ -230,6 +232,9 @@ export type SamSourceInput = {
   resourceId: string;
   color: string;
   frame: IimlAnnotationFrame;
+  // v0.8.0 J：任意资源 URI（正射图 / 拓片 / 法线图 …）。传了就走 imageUri
+  // 分支；不传则 fallback 到 stoneId → pic/ 原图。
+  imageUri?: string;
 };
 
 /**
@@ -247,6 +252,7 @@ export type SamSourceInput = {
  */
 export async function requestSamCandidateWithSource({
   stoneId,
+  imageUri,
   prompts,
   resourceId,
   color,
@@ -275,7 +281,12 @@ export async function requestSamCandidateWithSource({
     apiPrompts.push({ type: "box_uv", bbox_uv: [u1, v1, u2, v2] });
   }
 
-  const response = await runSamSegmentationBySource({ stoneId, prompts: apiPrompts });
+  const response = await runSamSegmentationBySource({
+    // imageUri 优先（任意资源底图）；否则 stoneId 走 pic/ 原图
+    stoneId: imageUri ? undefined : stoneId,
+    imageUri,
+    prompts: apiPrompts
+  });
   if (response.error || !response.polygons?.length) {
     return undefined;
   }

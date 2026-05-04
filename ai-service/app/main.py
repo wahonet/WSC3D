@@ -8,9 +8,9 @@ from .canny import LINEART_METHODS, canny_line, get_lineart_png
 from .sam import get_source_image_png
 from .sam import get_status as get_sam_status
 from .sam import kickoff_load as sam_kickoff_load
-from .sam import sam_segment, sam_segment_by_stone
+from .sam import sam_segment, sam_segment_by_stone, sam_segment_by_uri
 from .utils import ok_response
-from .yolo import yolo_detect, yolo_detect_by_stone
+from .yolo import yolo_detect, yolo_detect_by_stone, yolo_detect_by_uri
 
 app = FastAPI(title="WSC3D AI Service", version="0.1.0")
 
@@ -38,9 +38,10 @@ class SamPrompt(BaseModel):
 
 class SamRequest(BaseModel):
     # 三个输入入口（由高到低优先级）：
-    #   stoneId     —— 按画像石 id 去 pic/ 目录匹配原图（推荐，支持高清图）
+    #   imageUri    —— 任意资源 URI（正射图 / 拓片 / 法线图 …），v0.8.0 J 起
+    #                   与 stoneId 同等支持，允许 SAM 跑在非 pic/ 的任意底图
+    #   stoneId     —— 按画像石 id 去 pic/ 目录匹配原图
     #   imageBase64 —— 前端截图 base64（当前视角，1000px 级）
-    #   imageUri    —— M3-a 预留：后端直接读本地文件，避免 100MB 原图 base64
     stoneId: str | None = None
     imageBase64: str | None = None
     imageUri: str | None = None
@@ -48,11 +49,12 @@ class SamRequest(BaseModel):
 
 
 class YoloRequest(BaseModel):
-    # 与 SamRequest 同型：stoneId 优先（走 pic 高清图），否则用 imageBase64 截图。
+    # 与 SamRequest 同型：imageUri 优先 > stoneId (pic/ 高清图) > imageBase64 截图。
     # 默认 conf 0.10：汉画像石灰度浮雕在 COCO 模型上置信度普遍偏低，0.25 实测会
     # 过滤掉绝大多数检测。前端如果想严格筛选，UI 滑杆自己拉高。
     stoneId: str | None = None
     imageBase64: str | None = None
+    imageUri: str | None = None
     classFilter: list[str] | None = None
     confThreshold: float = 0.10
     maxDetections: int = 80
@@ -75,13 +77,15 @@ def health():
 @app.post("/ai/sam")
 def sam(request: SamRequest):
     prompts = [prompt.model_dump(exclude_none=True) for prompt in request.prompts]
-    # 优先用高清原图：stoneId 有且 pic/ 里能匹配到文件就走这条分支。
+    # 优先级 imageUri > stoneId (pic/ 高清图) > imageBase64 (前端截图)
+    if request.imageUri:
+        return sam_segment_by_uri(request.imageUri, prompts)
     if request.stoneId:
         return sam_segment_by_stone(request.stoneId, prompts)
     if request.imageBase64:
         return sam_segment(request.imageBase64, prompts)
     return {
-        "error": "stoneId_or_imageBase64_required",
+        "error": "imageUri_or_stoneId_or_imageBase64_required",
         "polygons": [],
         "confidence": 0.0,
         "model": "unavailable",
@@ -90,6 +94,13 @@ def sam(request: SamRequest):
 
 @app.post("/ai/yolo")
 def yolo(request: YoloRequest):
+    if request.imageUri:
+        return yolo_detect_by_uri(
+            request.imageUri,
+            class_filter=request.classFilter,
+            conf_threshold=request.confThreshold,
+            max_detections=request.maxDetections,
+        )
     if request.stoneId:
         return yolo_detect_by_stone(
             request.stoneId,
@@ -105,7 +116,7 @@ def yolo(request: YoloRequest):
             max_detections=request.maxDetections,
         )
     return {
-        "error": "stoneId_or_imageBase64_required",
+        "error": "imageUri_or_stoneId_or_imageBase64_required",
         "detections": [],
         "model": "unavailable",
         "coordinateSystem": "image-normalized",

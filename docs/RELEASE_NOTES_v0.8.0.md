@@ -1,4 +1,4 @@
-# WSC3D v0.8.0 — 图谱 UI 修缮 · 资源独立 tab · 三维生成正射图 · 多资源画布切换 · 跨资源坐标变换 · .hpsml 解包
+# WSC3D v0.8.0 — 图谱 UI 修缮 · 资源独立 tab · 三维生成正射图 · 多资源画布切换 · 跨资源坐标变换 · .hpsml 解包 · 正射图 1:1 对齐与跨资源 SAM/YOLO（J 补丁）
 
 > 发布日期：2026-05-04
 > 对应计划：v0.7.0 验收反馈修缮 + v0.8.0 M4 多资源架构落地
@@ -234,23 +234,98 @@ H 和 I 共 2 次 feat commit + 1 次 docs 收尾 commit（v0.7.0 → v0.8.0 共
 
 ---
 
-## 9. 已知限制
+## 9. J 补丁：正射图 1:1 对齐 + 跨资源 SAM / YOLO
+
+收到用户反馈"生成的正射还有白边、SAM / YOLO 只能跑 pic/、正射和 3D 模型标注
+不同步"之后在当天补的 J 补丁。核心思路是让正射图从生成开始就**严格对齐 3D
+模型 AABB**，这样正射图 UV 数值上等于 modelBox UV，跨资源标注同步不需要再做
+数学变换。
+
+### 9.1 正射图 frustumScale 1.05 → 1.0
+
+- `frontend/src/modules/annotation/orthophoto.ts`：生成 frustum 从"AABB × 1.05
+  留白"改为"严格贴 AABB"。生成的 PNG 紧贴模型边缘，没有白边
+- 返回值增加 `equivalentToModel: boolean`；view=front + frustumScale=1.0 满足
+  时为 true，表示该正射图图像 UV 与 modelBox UV 完全 1:1 对应
+- `IimlResourceTransform.orthographic-from-model` 也加 `equivalentToModel?: boolean`
+  字段跟随持久化；老数据（没有该字段）通过 view=front + |frustumScale-1|<1e-3
+  的兜底判据也能识别为等价
+
+### 9.2 SAM / YOLO 后端接 imageUri
+
+- `ai-service/app/sam.py`：新增 `sam_segment_by_uri(uri, prompts_uv)`。URI 解析
+  支持 `/assets/stone-resources/...` → `<repo>/data/stone-resources/...` 本地
+  路径反解；不走 HTTP，不依赖 backend 在线
+- `ai-service/app/yolo.py`：对应加 `yolo_detect_by_uri(uri, ...)`
+- `ai-service/app/main.py`：`SamRequest` / `YoloRequest` schema 加 `imageUri`
+  字段；路由优先级 **imageUri > stoneId > imageBase64**
+- 这条新路径的坐标系是"图像 UV"；当图像 UV 与 modelBox UV 等价时，前端直接
+  当 model frame 坐标用，不需要额外变换
+
+### 9.3 前端 AI 调用随资源走
+
+- `frontend/src/api/client.ts`：`runSamSegmentationBySource` / `runYoloDetection`
+  参数加 `imageUri?: string`；SAM 路径要求 imageUri 或 stoneId 至少给一个
+- `frontend/src/modules/annotation/sam.ts`：`refineBBoxWithSam` 和
+  `requestSamCandidateWithSource` 加 `imageUri` 参数；传了就走 imageUri 分支
+- `frontend/src/modules/annotation/AnnotationCanvas.tsx`：新增 `activeImageUri`
+  prop；SAM 手动 prompt 提交时透传过去
+- `frontend/src/modules/annotation/AnnotationWorkspace.tsx`：新增
+  `onActiveImageResourceChange` 回调，把当前底图资源（id / uri / type /
+  equivalentToModel）告诉 App 层，让 YOLO 批量扫描 / SAM 精修都能拿到正确的
+  imageUri
+- `frontend/src/App.tsx`：
+  - `handleSubmitYoloScan` 读 `activeImageResource.uri` 作为 YOLO 输入；候选
+    `frame` 按 equivalentToModel 决定（等价时记 model，否则跟随 sourceMode）
+  - `handleRefineWithSam` 从 `annotation.resourceId` 反查资源 URI，在原资源上
+    跑 SAM 精修，不错位到 pic/
+
+### 9.4 跨资源标注自动同步（等价正射图）
+
+- `AnnotationWorkspace` 新增派生状态 `activeResourceEquivalentToModel`
+  （`transform.equivalentToModel === true` 或 view=front + frustumScale≈1）
+- `effectiveSourceMode = sourceMode === "image" && activeResourceEquivalentToModel
+  ? "model" : sourceMode`：在等价正射图上，画布按 model 坐标系处理
+- 传给 AnnotationCanvas 的 `sourceMode` 用 effectiveSourceMode → 在等价正射图
+  上新建的标注 frame="model"，3D 模型视图自动能看到；反过来 model frame 的
+  历史标注也直接在等价正射图上显示
+- UI 额外提示：等价正射图顶部有一枚绿色徽章"此图与 3D 模型坐标系已对齐 ·
+  标注自动双向同步"（`.annotation-resource-aligned-hint` 样式）
+- 非等价资源（top/bottom/back 方向、或 frustumScale 不是 1.0 的老数据）仍按
+  image frame 处理，用户可走已有的 4 点单应性标定跨 frame 投影；**这部分的
+  自动反投影留 v0.9.0**（画布层按 resource.transform 投影任意资源坐标）
+
+### 9.5 验收
+
+- 生成正射图：图像紧贴模型 AABB，无白边
+- 在等价正射图底图上 SAM 框选 → 候选直接出现在 3D 模型视图上（切回 3D 模型
+  模式可见）
+- 在 3D 模型上已有的标注 → 切到等价正射图底图自动出现在同样的位置
+- YOLO 批量扫描：在正射图底图上点扫描，扫的是正射图而非 pic/ 原图；候选
+  resourceId 指向正射资源，SAM 精修时走该资源的 imageUri
+
+---
+
+## 10. 已知限制
 
 - 本次发布所有功能已经过 typecheck，但 **未做浏览器端到端测试**
 - 正射图生成依赖 WebGL 2.0 和 GLTFLoader；某些浏览器 / GPU 驱动对 offscreen
   context 支持不佳时会失败（目前异常走 status 提示，不阻塞主流程）
-- 跨资源坐标变换 **只铺了数据模型**，画布渲染层暂仍按 annotation.frame 显示，
-  跨资源投影（如 model-frame 标注显示在正射图上）留 v0.9.0
+- **J 补丁后**：等价正射图（view=front + frustumScale=1.0）的跨 3D ↔ 正射
+  双向标注同步已实现；非等价资源（top/bottom 方向 / 拓片 / 法线图）的画布
+  跨资源投影仍留 v0.9.0（目前靠 annotation.frame + 4 点标定做跨 frame）
 - .hpsml 解包 **只支持 overwrite / skip 两种冲突策略**；三方合并 IIML（保留
   双方的 annotation 差异）留 v0.9.0
 - 多资源切换的 activeImageResourceId **不进 IIML 持久化**，切了石头 / 刷新
   浏览器会回到默认 pic/ 原图；这是设计（资源切换是临时视图状态）
 - Canny 线图后端管线只处理 pic/ 原图，切到非 pic/ 资源时前端强制禁用 +线图；
   想要正射图的线图需要 v0.9.0 扩展 canny 管线支持任意 URI
+- 老正射图（v0.8.0 H3 生成、frustumScale=1.05）不会被自动识别为等价；重新
+  生成一次即可（生成按钮已默认 frustumScale=1.0）
 
 ---
 
-## 10. 下一步（v0.9.0 候选）
+## 11. 下一步（v0.9.0 候选）
 
 详细规划见 [`ROADMAP.md`](ROADMAP.md)。简要：
 

@@ -632,16 +632,22 @@ export async function runSamSegmentation(payload: {
   return response.json();
 }
 
-// 高清图路径：让后端根据 stoneId 去 pic/ 目录找对应原图。
-// prompt 点 / 响应 polygon 都用 modelBox UV（v 向下，与屏幕坐标一致），
-// 后端不再做 y 翻转，前端直接把 polygon 当 UV 渲染。
+// SAM 高清图路径：
+//   优先 imageUri（任意资源 URI，正射图 / 拓片 / 法线图 …，v0.8.0 J 加入），
+//   否则 stoneId（pic/ 原图）。prompt 点 / 响应 polygon 都用图像 UV（v 向下），
+//   前端直接当画布 UV 渲染；当底图是 equivalentToModel 的正射图时，图像 UV
+//   与 modelBox UV 数值上相等，可直接作为 model frame 标注。
 export async function runSamSegmentationBySource(payload: {
-  stoneId: string;
+  stoneId?: string;
+  imageUri?: string;
   prompts: Array<
     | { type: "point_uv"; u: number; v: number; label: 0 | 1 }
     | { type: "box_uv"; bbox_uv: [number, number, number, number] }
   >;
 }): Promise<SamSegmentationResponse> {
+  if (!payload.stoneId && !payload.imageUri) {
+    throw new Error("runSamSegmentationBySource 需要 stoneId 或 imageUri");
+  }
   const response = await fetch("/ai/sam", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -653,10 +659,11 @@ export async function runSamSegmentationBySource(payload: {
   return response.json();
 }
 
-// 通用 YOLO 检测：stoneId 优先（高清图路径），否则 imageBase64（截图）。
+// 通用 YOLO 检测：优先 imageUri > stoneId (pic/ 高清图) > imageBase64 (截图)。
 // 后端会按 confThreshold 与 maxDetections 过滤；class_filter 仅保留你关心的标签。
 export async function runYoloDetection(payload: {
   stoneId?: string;
+  imageUri?: string;
   imageBase64?: string;
   classFilter?: string[];
   confThreshold?: number;

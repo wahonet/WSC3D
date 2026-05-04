@@ -57,6 +57,9 @@ type AnnotationCanvasProps = {
   projection?: ProjectionContext;
   // 当前底图坐标系：3D 模型 modelBox UV 或高清图自身 UV。
   sourceMode: IimlAnnotationFrame;
+  // v0.8.0 J：当前底图对应的资源 URI（正射图 / 拓片 / 法线图等）。传了则 SAM
+  // 调用会用这个 URI 作为输入图像，而不是 stoneId → pic/ 原图。
+  activeImageUri?: string;
   // 可选：modelUv ↔ imageUv 的 4 点单应性标定，用于跨 frame 显示。
   alignment?: IimlAlignment;
   // 标定流程态；activeTool === "calibrate" 时画布按此渲染已收集的对应点。
@@ -150,6 +153,7 @@ export function AnnotationCanvas({
   activeTool,
   projection,
   sourceMode,
+  activeImageUri,
   alignment,
   calibrationDraft,
   onCreate,
@@ -387,6 +391,7 @@ export function AnnotationCanvas({
       try {
         createdAnnotation = await requestSamCandidateWithSource({
           stoneId,
+          imageUri: activeImageUri,
           prompts: draft,
           resourceId,
           color: baseColor,

@@ -31,7 +31,7 @@ import { refineBBoxWithSam } from "./modules/annotation/sam";
 import { TaskProgressPanel, type TaskProgress } from "./modules/annotation/TaskProgressPanel";
 import { annotationPalette, annotationReducer, getProcessingRuns, getRelations, initialAnnotationState } from "./modules/annotation/store";
 import { deriveSpatialRelations } from "./modules/annotation/spatial";
-import type { AnnotationSourceMode } from "./modules/annotation/AnnotationWorkspace";
+import type { ActiveImageResourceInfo, AnnotationSourceMode } from "./modules/annotation/AnnotationWorkspace";
 import type { YoloScanOptions } from "./modules/annotation/YoloScanDialog";
 import type { AdjustmentAxis, AdjustmentMode } from "./modules/assembly/AssemblyAdjustControls";
 import type { AssemblyCameraState } from "./modules/assembly/AssemblyWorkspace";
@@ -116,6 +116,10 @@ export function App() {
   // YOLO 批量扫描：dialog 状态 + 推理进行中标记
   const [yoloDialogOpen, setYoloDialogOpen] = useState(false);
   const [yoloScanning, setYoloScanning] = useState(false);
+  // J v0.8.0：当前底图资源（正射图 / 拓片 / 法线图等）；undefined = 默认 pic/ 原图。
+  // 由 AnnotationWorkspace 通过 onActiveImageResourceChange 回传，供 YOLO 批量
+  // 扫描 / SAM 精修路由到正确 imageUri，并决定候选 frame / resourceId 绑定。
+  const [activeImageResource, setActiveImageResource] = useState<ActiveImageResourceInfo | undefined>(undefined);
   // C5' 头部画像石下拉：每块石头是否已做 4 点对齐校准
   const [alignmentStatuses, setAlignmentStatuses] = useState<Record<string, boolean>>({});
   // G3 任务进度面板：长任务（SAM 批量精修 / 多石头 YOLO）的进度 + 取消
@@ -798,6 +802,23 @@ export function App() {
         });
         return;
       }
+      // J v0.8.0：精修候选时，如果候选绑到某个资源（正射图 / 拓片）且该资源有
+      // uri，就用 imageUri 直接让 SAM 在该资源上跑精修；否则默认 pic/ 原图。
+      // 这样在正射图上做的 YOLO 候选能就地精修，不会错位到 pic/ 原图上。
+      const annotationResource = doc.resources?.find(
+        (r) => typeof (r as Record<string, unknown>).id === "string" && (r as Record<string, unknown>).id === annotation.resourceId
+      ) as Record<string, unknown> | undefined;
+      const annotationResourceUri = annotationResource && typeof annotationResource.uri === "string"
+        ? String(annotationResource.uri)
+        : undefined;
+      // 只对类 image 资源启用 imageUri 路径，避免误把 3DModel 资源 uri 当图喂给 SAM
+      const annotationResourceType = annotationResource && typeof annotationResource.type === "string"
+        ? String(annotationResource.type)
+        : undefined;
+      const imageTypes = new Set(["Orthophoto", "Rubbing", "NormalMap", "LineDrawing", "OriginalImage", "RTI", "Other"]);
+      const imageUri = annotationResourceUri && annotationResourceType && imageTypes.has(annotationResourceType)
+        ? annotationResourceUri
+        : undefined;
       const startedAt = new Date().toISOString();
       dispatchAnnotation({ type: "set-status", status: "SAM 精修中…" });
       let runError: string | undefined;
@@ -805,7 +826,7 @@ export function App() {
       let runModel = "mobile-sam-vit-t";
       let resultId: string | undefined;
       try {
-        const result = await refineBBoxWithSam(annotation, stoneId);
+        const result = await refineBBoxWithSam(annotation, stoneId, imageUri);
         if (!result) {
           runWarning = "no-polygon";
           dispatchAnnotation({
@@ -1006,9 +1027,23 @@ export function App() {
         return;
       }
       const doc = annotationState.doc;
-      const resourceId = doc?.resources[0]?.id ?? `${selectedStone.id}:model`;
+      // J v0.8.0：如果用户在"高清图"模式下选了某个资源（正射图 / 拓片 / 法线图），
+      // YOLO 就扫这个资源；否则扫 pic/ 默认原图。候选 resourceId / frame 跟随。
+      //   - equivalentToModel 正射图：frame 记为 model（与 3D 坐标系 1:1 对齐，
+      //     候选自动出现在 3D 模型视图）
+      //   - 其他资源：frame 记为 image（当前资源坐标系；与 3D 模型同步需 4 点标定）
+      const activeUri = activeImageResource?.uri;
+      const candidateFrame: AnnotationSourceMode = activeImageResource?.equivalentToModel
+        ? "model"
+        : annotationSourceMode;
+      const candidateResourceId = activeImageResource?.id
+        ?? doc?.resources?.[0]?.id
+        ?? `${selectedStone.id}:model`;
       setYoloScanning(true);
-      dispatchAnnotation({ type: "set-status", status: "YOLO 扫描中…" });
+      dispatchAnnotation({
+        type: "set-status",
+        status: activeUri ? `YOLO 扫描中…（${activeImageResource?.type ?? "资源"}）` : "YOLO 扫描中…"
+      });
       const startedAt = new Date().toISOString();
       const createdIds: string[] = [];
       let runModel = "yolov8n";
@@ -1016,7 +1051,9 @@ export function App() {
       let runWarning: string | undefined;
       try {
         const response = await runYoloDetection({
-          stoneId: selectedStone.id,
+          // imageUri 优先：让 YOLO 扫当前底图（正射图 / 拓片）
+          stoneId: activeUri ? undefined : selectedStone.id,
+          imageUri: activeUri,
           classFilter: options.classFilter,
           confThreshold: options.confThreshold,
           maxDetections: options.maxDetections
@@ -1061,9 +1098,9 @@ export function App() {
           }
           const annotation = createAnnotationFromGeometry({
             geometry: { type: "BBox", coordinates: uv },
-            resourceId,
+            resourceId: candidateResourceId,
             color: annotationPalette[(baseColorIndex + index) % annotationPalette.length],
-            frame: annotationSourceMode,
+            frame: candidateFrame,
             label: `YOLO 候选：${detection.label}`,
             structuralLevel: "figure",
             reviewStatus: "candidate",
@@ -1073,6 +1110,7 @@ export function App() {
               confidence: detection.confidence,
               prompt: {
                 stoneId: selectedStone.id,
+                imageUri: activeUri ?? null,
                 classFilter: options.classFilter ?? null,
                 confThreshold: options.confThreshold,
                 maxDetections: options.maxDetections,
@@ -1114,8 +1152,8 @@ export function App() {
               detectionsCount: createdIds.length
             },
             resultAnnotationIds: createdIds,
-            resourceId,
-            frame: annotationSourceMode,
+            resourceId: candidateResourceId,
+            frame: candidateFrame,
             startedAt,
             endedAt: new Date().toISOString(),
             warning: runWarning,
@@ -1126,7 +1164,7 @@ export function App() {
         setYoloDialogOpen(false);
       }
     },
-    [annotationSourceMode, annotationState.doc, selectedStone]
+    [annotationSourceMode, annotationState.doc, selectedStone, activeImageResource]
   );
 
   return (
@@ -1263,6 +1301,7 @@ export function App() {
                   stone={selectedStone}
                   yoloDialogOpen={yoloDialogOpen}
                   yoloScanning={yoloScanning}
+                  onActiveImageResourceChange={setActiveImageResource}
                   onCreate={(annotation, asDraft) => dispatchAnnotation({ type: "add-annotation", annotation, asDraft })}
                   onDelete={(id) => dispatchAnnotation({ type: "delete-annotation", id })}
                   onProcessingRun={(run) => dispatchAnnotation({ type: "add-processing-run", run })}
