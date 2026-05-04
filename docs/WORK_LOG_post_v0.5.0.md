@@ -222,3 +222,35 @@
   共现频次最高的 5 个术语
 - 点 chip 直接加进当前 annotation.terms
 - 数据少时（< 5 个标注）静默不显示
+
+---
+
+### 2026-05-04 13:35 · D6 完成 — 共现术语推荐
+
+**commit**: `411ef5a` (feat(annotation): D6 共现术语推荐（基于已有标注 terms 统计）)
+
+**做了什么**
+
+- 新建 cooccurrence.ts · recommendCooccurringTerms：
+  * 扫所有 annotation 构 term ↔ term 共现矩阵
+  * 当前已有 termIds = T，candidate score = sum_{s∈T} cooc[s][candidate]
+  * 取 top 5
+  * 当前无 terms 时退化为全局频次推荐
+  * 含 terms 标注 < 5 时返回空（避免噪声）
+- TermPicker 加 suggestedTerms prop + chip 行
+- AnnotationPanel EditTab useMemo 算 suggestedTerms 并下发
+- chip 视觉青色（与已存关系 auto 同色）；query 非空时隐藏避免占空间
+
+**怎么实现的**
+
+- 共现矩阵用 Map<id, Map<id, count>>，对称写入；O(M*K²) M < 200 几毫秒
+- vocabularyTerms 做 id → term 的 Map 加速查找
+- 已选 terms 自动排除（不再推荐自己）
+
+**下一步**
+
+进入 **D7 — COCO JSON 导出**：
+- 按 COCO 格式（images / annotations / categories）导出当前 doc
+- bbox 直接用；polygon 转 segmentation
+- structuralLevel 作为 categories
+- 列表 tab "下载" 区加 COCO 按钮
