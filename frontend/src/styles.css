@@ -1353,6 +1353,137 @@ button {
   accent-color: #2ec4b6;
 }
 
+/* G1 资源版本管理 */
+.resources-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 9px 10px;
+  background: #1c1916;
+  border: 1px solid #2c2824;
+  border-radius: 6px;
+}
+
+.resources-editor-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #f4ece0;
+  font-weight: 600;
+}
+
+.resources-editor-count {
+  padding: 1px 7px;
+  font-size: 10.5px;
+  background: #2ec4b6;
+  color: #11100f;
+  border-radius: 999px;
+}
+
+.resources-editor-head .ghost-link {
+  margin-left: auto;
+}
+
+.resources-editor-hint {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.5;
+  color: #8f857a;
+}
+
+.resources-editor-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.resources-editor-item {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 6px 8px;
+  background: #15130f;
+  border: 1px solid #2c2824;
+  border-radius: 4px;
+  font-size: 11.5px;
+}
+
+.resources-editor-item-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.resources-editor-item-type {
+  padding: 1px 7px;
+  font-size: 10.5px;
+  background: #2a2622;
+  color: #cfc7bd;
+  border-radius: 4px;
+}
+
+.resources-editor-item-id {
+  flex: 1 1 auto;
+  font-family: var(--mono-font, ui-monospace, "SFMono-Regular", Menlo, monospace);
+  font-size: 10.5px;
+  color: #8f857a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.resources-editor-item-uri {
+  font-family: var(--mono-font, ui-monospace, "SFMono-Regular", Menlo, monospace);
+  font-size: 11px;
+  color: #cfc7bd;
+  word-break: break-all;
+}
+
+.resources-editor-item-desc {
+  font-size: 11px;
+  color: #8f857a;
+}
+
+.resources-editor-form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  background: #15130f;
+  border: 1px dashed #3d3731;
+  border-radius: 4px;
+}
+
+.resources-editor-form-row {
+  display: grid;
+  grid-template-columns: 56px 1fr;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: #8f857a;
+}
+
+.resources-editor-form-row input,
+.resources-editor-form-row select {
+  width: 100%;
+  padding: 4px 6px;
+  font-size: 11.5px;
+  background: #221f1c;
+  color: #f4ece0;
+  border: 1px solid #2c2824;
+  border-radius: 3px;
+}
+
+.resources-editor-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
 /* G3 任务进度面板（右下角浮窗） */
 .task-progress-panel {
   position: fixed;

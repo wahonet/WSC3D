@@ -38,6 +38,20 @@ export type AnnotationState = {
   redoStack: IimlDocument[];
 };
 
+export type IimlResourceEntry = {
+  id: string;
+  type: string;
+  uri: string;
+  // G1：可选元数据。description / acquisition / acquiredBy 让多源资源可追溯
+  description?: string;
+  acquisition?: string;
+  acquiredBy?: string;
+  acquiredAt?: string;
+  // 派生标记：UI 不参与持久化，标识"哪个资源是当前 UI 默认对应的"
+  // 真正持久化只看 doc.resources[]；activeResourceId 是 UI state
+  [key: string]: unknown;
+};
+
 export type AnnotationAction =
   | { type: "set-doc"; doc: IimlDocument }
   | { type: "set-tool"; tool: AnnotationTool }
@@ -52,6 +66,9 @@ export type AnnotationAction =
   | { type: "update-relation"; id: string; patch: Partial<IimlRelation> }
   | { type: "delete-relation"; id: string }
   | { type: "add-processing-run"; run: IimlProcessingRun }
+  | { type: "add-resource"; resource: IimlResourceEntry }
+  | { type: "update-resource"; id: string; patch: Partial<IimlResourceEntry> }
+  | { type: "delete-resource"; id: string }
   | { type: "undo" }
   | { type: "redo" };
 

@@ -242,3 +242,59 @@
 **下一步**
 
 整理一次 commit，push 后开始 **G1 多资源版本切换** 和 **G2 .hpsml 研究包导出**。
+
+---
+
+### 2026-05-04 16:10 · G1 + G2 完成 — 多资源版本管理 + .hpsml 包导出
+
+**做了什么**
+
+#### G2 .hpsml 自定义研究包导出
+
+- `exporters.ts` 新增 `exportToHpsml(doc, relations, options)`：把 IIML 文档 +
+  关系网络 + 拼接方案 + 词表快照 + stone metadata 打成单 JSON
+- 包结构：`{ format: "hpsml", formatVersion, package: {exportedAt/exporter/notes/generatorRunId},
+  iiml: 完整 IIML 文档, context: {stone, metadata, relatedAssemblyPlans, vocabulary,
+  networkStats: {annotationCount/relationCount/processingRunCount/relationKindBreakdown}} }`
+- `App.handleExportHpsml`：从 `savedPlans` 过滤出含当前 stoneId 的拼接方案；
+  `vocabularyCategories` + `vocabularyTerms` 直接传当前已加载的版本快照
+- AnnotationPanel ListTab 下载区加 `.hpsml` 按钮（与 JSON / CSV / COCO / IIIF 同级）
+- 文件名 `<stoneId>-<ts>.hpsml.json`；导出后 status 显示 `标注 N 条 / 关系 N 条 /
+  AI 记录 N 条 / 拼接方案 N 个`
+
+**意义**：项目自有的"研究档案完整包"格式。比单导 IIML 更完整 —— 拼接方案、
+词表快照、关系网络统计都打包带走，便于多机协作 + 长期归档 + 多版本对照。
+解包时拆 `iiml` 字段就是标准 IIML 文档，向后兼容。
+
+#### G1 多资源版本管理（轻量版）
+
+- `types.ts` 新增 `IimlResourceEntry` 类型 + `add/update/delete-resource` 三个
+  reducer action
+- store reducer 加对应 case，走 updateDoc 进 undo 栈（误增可撤销）
+- 新建 `ResourcesEditor` 组件挂在 ListTab 顶部：
+  - 列出 `doc.resources`（type chip + URI + 描述 + 删除按钮）
+  - "添加" inline 表单：8 种类型（Mesh3D / OriginalImage / Rubbing / NormalMap /
+    LineDrawing / RTI / PointCloud / Other）+ URI + 可选描述
+  - 提交后自动生成 `resource-<ts>-<random>` id
+- AnnotationPanelProps 加 `onAddResource / onUpdateResource / onDeleteResource`
+  三个回调；App.tsx 接 dispatchAnnotation
+- 提示明确告诉用户："当前画布仍按 3D 模型 / 高清图 双源显示，其他资源类型仅作元数据归档（M4 后续做画布资源切换）"
+
+**意义**：让 IIML schema 已有但 v0.6.0 之前 UI 不可见的 resources[] 字段
+可见 + 可管。导出 IIIF / .hpsml 时全部带出，与外部博物馆平台互操作时多源
+可见。M4 第二阶段做"画布资源选择 UI + 按 resource 加载"时，这一层
+metadata 已经就位。
+
+**怎么实现的**
+
+- .hpsml 故意做超集（包含 IIML），文件名 `.hpsml.json` 让编辑器识别为 JSON 但
+  扩展名上有项目标识。format/formatVersion 字段方便未来解包校验
+- ResourcesEditor 不实装 inline 编辑（只提供添加 / 删除），保持组件简单；
+  `onUpdateResource` 留作将来扩展点（如拖拽排序 / 改 URI）
+- IimlResourceEntry 用 `[key: string]: unknown` 索引签名兜住未来字段扩展
+  （不会因为加新字段就破坏旧数据）
+
+**下一步**
+
+整理一次 commit。然后写 v0.7.0 release notes + 更新 README + ROADMAP，最后再
+commit + push 一次完成本轮交付。

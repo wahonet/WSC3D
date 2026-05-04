@@ -1,4 +1,17 @@
-import type { IimlAnnotation, IimlDocument, IimlGeometry, IimlStructuralLevel } from "./types";
+import type {
+  IimlAnnotation,
+  IimlDocument,
+  IimlGeometry,
+  IimlRelation,
+  IimlStructuralLevel
+} from "./types";
+import type {
+  AssemblyPlanRecord,
+  StoneListItem,
+  StoneMetadata,
+  VocabularyCategory,
+  VocabularyTerm
+} from "../../api/client";
 
 // =============================================================================
 // D7 COCO JSON 导出
@@ -399,3 +412,116 @@ export function downloadJson(payload: unknown, fileName: string): void {
 
 // 给 Geometry 类型推导一个 type-only 引用，避免未使用 import 警告
 export type _GeometryRef = IimlGeometry;
+
+// =============================================================================
+// G2 .hpsml — Han Pictorial Stone Markup Language 自定义研究包导出
+// =============================================================================
+//
+// .hpsml 是项目自有的"研究档案完整包"格式，扩展 IIML 文档加入：
+//   - 元数据（stone.metadata，包含尺寸 / 层级 / 出处）快照
+//   - 拼接方案（assembly plans）涉及该 stoneId 的全部条目
+//   - 词表快照（vocabularyCategories + vocabularyTerms 当前版本）
+//   - 关系网络（relations + 自动空间推导结果，由前端负责传入）
+//   - AI 处理记录（processingRuns 全量）
+//   - 导出元信息（exportedAt / exporter / version）
+//
+// 落盘是单个 JSON（建议扩展名 .hpsml.json，便于编辑器识别）。
+// 解包 / 校验由后端 backend/src/services/hpsml.ts 负责（待实现）。
+//
+// 与 IIML 的关系：.hpsml 包含 IIML 全文 + 周边研究档案，是 IIML 的超集。
+// 解包时拆出 iiml 字段就是标准 IIML 文档，可独立使用。
+
+export type HpsmlExportOptions = {
+  // 当前画像石的 stone metadata；用于在包外存一份方便协作时不依赖原始 catalog
+  stone?: StoneListItem;
+  metadata?: StoneMetadata;
+  // 与该 stoneId 相关的拼接方案（前端从 fetchAssemblyPlans 拉到后过滤传入）
+  relatedAssemblyPlans?: AssemblyPlanRecord[];
+  // 词表快照（导出时刻）
+  vocabularyCategories?: VocabularyCategory[];
+  vocabularyTerms?: VocabularyTerm[];
+  // 谁导的（缺省 "local-user"）
+  exporter?: string;
+  // 导出说明（可选，用户写一段研究上下文供日后查阅）
+  notes?: string;
+};
+
+export type HpsmlPackage = {
+  // 文件格式签名 + 版本，便于后续解包校验
+  format: "hpsml";
+  formatVersion: "0.1.0";
+  // 导出元信息
+  package: {
+    exportedAt: string;
+    exporter: string;
+    notes?: string;
+    // 实际生成机器的简短 ID（uuid 截断），便于多机协作时区分来源
+    generatorRunId: string;
+  };
+  // IIML 主体（标注 / 关系 / processingRuns 全部在里面）
+  iiml: IimlDocument;
+  // 周边研究档案
+  context: {
+    stone?: StoneListItem;
+    metadata?: StoneMetadata;
+    relatedAssemblyPlans: AssemblyPlanRecord[];
+    vocabulary: {
+      categories: VocabularyCategory[];
+      terms: VocabularyTerm[];
+    };
+    // 关系网络分析结果：节点度数 / 连通分量数 / 关系总数（计算开销可控的 quick stats）
+    networkStats: {
+      annotationCount: number;
+      relationCount: number;
+      processingRunCount: number;
+      relationKindBreakdown: Record<string, number>;
+    };
+  };
+};
+
+export function exportToHpsml(
+  doc: IimlDocument,
+  relations: IimlRelation[],
+  options: HpsmlExportOptions = {}
+): HpsmlPackage {
+  const exportedAt = new Date().toISOString();
+  const generatorRunId = `wsc3d-${Math.random().toString(36).slice(2, 10)}`;
+
+  // 关系类别分布
+  const relationKindBreakdown: Record<string, number> = {};
+  for (const relation of relations) {
+    const key = relation.kind || "unknown";
+    relationKindBreakdown[key] = (relationKindBreakdown[key] ?? 0) + 1;
+  }
+
+  return {
+    format: "hpsml",
+    formatVersion: "0.1.0",
+    package: {
+      exportedAt,
+      exporter: options.exporter ?? "local-user",
+      notes: options.notes,
+      generatorRunId
+    },
+    // 把 relations 也带回 iiml.relations，确保 IIML 单独解包时也完整
+    iiml: {
+      ...doc,
+      relations: relations as unknown as IimlDocument["relations"]
+    },
+    context: {
+      stone: options.stone,
+      metadata: options.metadata,
+      relatedAssemblyPlans: options.relatedAssemblyPlans ?? [],
+      vocabulary: {
+        categories: options.vocabularyCategories ?? [],
+        terms: options.vocabularyTerms ?? []
+      },
+      networkStats: {
+        annotationCount: doc.annotations.length,
+        relationCount: relations.length,
+        processingRunCount: Array.isArray(doc.processingRuns) ? doc.processingRuns.length : 0,
+        relationKindBreakdown
+      }
+    }
+  };
+}

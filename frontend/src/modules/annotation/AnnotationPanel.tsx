@@ -15,6 +15,7 @@ import { ColorPopover } from "./ColorPopover";
 import { KnowledgeGraphView } from "./KnowledgeGraphView";
 import { ProcessingRunsList } from "./ProcessingRunsList";
 import { RelationsEditor } from "./RelationsEditor";
+import { ResourcesEditor } from "./ResourcesEditor";
 import { SourcesEditor } from "./SourcesEditor";
 import { TermPicker } from "./TermPicker";
 import { annotationPalette } from "./store";
@@ -45,6 +46,12 @@ type AnnotationPanelProps = {
   // D7 / D8 学术导出
   onExportCoco?: () => void;
   onExportIiif?: () => void;
+  // G2 .hpsml 自定义研究包导出（IIML + 拼接方案 + 词表 + 关系网络快照）
+  onExportHpsml?: () => void;
+  // G1 多资源版本管理：增 / 删 / 改 doc.resources。M4 后续做画布资源切换。
+  onAddResource?: (resource: import("./types").IimlResourceEntry) => void;
+  onUpdateResource?: (id: string, patch: Partial<import("./types").IimlResourceEntry>) => void;
+  onDeleteResource?: (id: string) => void;
   // 把多个候选做几何并集合并成一个新候选（保留外环、丢孔洞）。
   // 由 App 层调用 mergePolygonAnnotations，并替换 store 中的旧条目。
   onMergeCandidates: (ids: string[]) => void;
@@ -581,7 +588,11 @@ function ListTab({
   onExportIiml,
   onExportCsv,
   onExportCoco,
-  onExportIiif
+  onExportIiif,
+  onExportHpsml,
+  onAddResource,
+  onUpdateResource,
+  onDeleteResource
 }: AnnotationPanelProps) {
   const annotations = doc?.annotations ?? [];
 
@@ -635,6 +646,15 @@ function ListTab({
 
   return (
     <div className="annotation-list-tab">
+      {onAddResource && onUpdateResource && onDeleteResource ? (
+        <ResourcesEditor
+          doc={doc}
+          onAddResource={onAddResource}
+          onUpdateResource={onUpdateResource}
+          onDeleteResource={onDeleteResource}
+        />
+      ) : null}
+
       {selectedCount > 0 ? (
         <div className="review-merge-bar">
           <span className="review-merge-info">
@@ -722,6 +742,17 @@ function ListTab({
               title="导出 IIIF Web Annotation：与外部文物 / 博物馆平台互操作"
             >
               <Download size={14} /> IIIF
+            </button>
+          ) : null}
+          {onExportHpsml ? (
+            <button
+              type="button"
+              className="secondary-action small"
+              onClick={onExportHpsml}
+              disabled={!doc}
+              title=".hpsml 研究包：IIML + 拼接方案 + 词表 + 关系网络快照（项目自有完整档案格式）"
+            >
+              <Download size={14} /> .hpsml
             </button>
           ) : null}
         </div>

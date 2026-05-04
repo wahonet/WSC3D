@@ -6,6 +6,9 @@ __pycache__/
 ai-service/.venv/
 ai-service/weights/
 ai-service/cache/
+# YOLO 权重文件，运行时由 ultralytics 自动下载或手动放置，不入库
+ai-service/yolov8n.pt
+ai-service/*.pt
 参考图/
 画像石结构化分档/
 # 高清原图（tif/tiff/jpg 几百 MB 量级，AI 服务通过 /ai/source-image 转码缓存读取）

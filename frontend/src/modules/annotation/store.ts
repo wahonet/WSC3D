@@ -155,6 +155,38 @@ export function annotationReducer(state: AnnotationState, action: AnnotationActi
         state.selectedAnnotationId
       );
     }
+    case "add-resource": {
+      return updateDoc(
+        state,
+        (doc) => ({
+          ...doc,
+          resources: [...(doc.resources ?? []), action.resource]
+        }),
+        state.selectedAnnotationId
+      );
+    }
+    case "update-resource": {
+      return updateDoc(
+        state,
+        (doc) => ({
+          ...doc,
+          resources: (doc.resources ?? []).map((resource) =>
+            resource.id === action.id ? { ...resource, ...action.patch } : resource
+          )
+        }),
+        state.selectedAnnotationId
+      );
+    }
+    case "delete-resource": {
+      return updateDoc(
+        state,
+        (doc) => ({
+          ...doc,
+          resources: (doc.resources ?? []).filter((resource) => resource.id !== action.id)
+        }),
+        state.selectedAnnotationId
+      );
+    }
     case "set-alignment": {
       // alignment 落在 culturalObject 下；undefined 表示清除已有标定。
       return updateDoc(

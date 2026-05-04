@@ -23,7 +23,7 @@ import {
   type VocabularyCategory,
   type VocabularyTerm
 } from "./api/client";
-import { exportToCoco, exportToIiifAnnotationPage, downloadJson } from "./modules/annotation/exporters";
+import { exportToCoco, exportToHpsml, exportToIiifAnnotationPage, downloadJson } from "./modules/annotation/exporters";
 import { createAnnotationFromGeometry, polygonFromUVs } from "./modules/annotation/geometry";
 import { describeMergeFailure, mergePolygonAnnotations } from "./modules/annotation/merge";
 import { refineBBoxWithSam } from "./modules/annotation/sam";
@@ -667,7 +667,7 @@ export function App() {
     });
   }, [annotationState.doc, selectedId, selectedStone]);
 
-  // D8 IIIF Web Annotation 导出：canvasId 用占位 URN，用户后续可自行替换
+  // D8 IIIF Web Annotation 导出：canvasId 用占位 URN，后续可自行替换
   // 为真实 IIIF Canvas URL 后再上传到外部平台。
   const handleExportIiif = useCallback(() => {
     const doc = annotationState.doc;
@@ -687,6 +687,39 @@ export function App() {
       status: `已导出 IIIF AnnotationPage（${page.items.length} 条 Annotation）`
     });
   }, [annotationState.doc, selectedId, selectedStone]);
+
+  // G2 .hpsml 自定义研究包导出：把 IIML + 拼接方案 + 词表 + 元数据 + 关系网络
+  // 打成一个 JSON 包。这是项目自有的研究档案完整格式，便于多机协作 / 长期归档。
+  const handleExportHpsml = useCallback(() => {
+    const doc = annotationState.doc;
+    if (!doc || !selectedId) return;
+    // 找出与该 stoneId 相关的拼接方案（任一 item.stoneId 命中即算相关）
+    const relatedAssemblyPlans = savedPlans.filter((plan) =>
+      plan.items.some((item) => item.stoneId === selectedId)
+    );
+    const pkg = exportToHpsml(doc, annotationRelations, {
+      stone: selectedStone,
+      metadata,
+      relatedAssemblyPlans,
+      vocabularyCategories,
+      vocabularyTerms,
+      exporter: "local-user"
+    });
+    downloadJson(pkg, `${selectedId}-${formatExportTimestamp()}.hpsml.json`);
+    dispatchAnnotation({
+      type: "set-status",
+      status: `已导出 .hpsml 研究包（标注 ${pkg.context.networkStats.annotationCount} 条 / 关系 ${pkg.context.networkStats.relationCount} 条 / AI 记录 ${pkg.context.networkStats.processingRunCount} 条 / 拼接方案 ${pkg.context.relatedAssemblyPlans.length} 个）`
+    });
+  }, [
+    annotationState.doc,
+    annotationRelations,
+    selectedId,
+    selectedStone,
+    metadata,
+    savedPlans,
+    vocabularyCategories,
+    vocabularyTerms
+  ]);
 
   // SAM 候选审核：接受 = 标记 approved；拒绝 = 直接删除；重试 = 删除后切回 SAM 工具让用户重点。
   const handleAcceptCandidate = useCallback((id: string) => {
@@ -1221,6 +1254,10 @@ export function App() {
                 onExportIiml={handleExportIiml}
                 onExportCoco={handleExportCoco}
                 onExportIiif={handleExportIiif}
+                onExportHpsml={handleExportHpsml}
+                onAddResource={(resource) => dispatchAnnotation({ type: "add-resource", resource })}
+                onUpdateResource={(id, patch) => dispatchAnnotation({ type: "update-resource", id, patch })}
+                onDeleteResource={(id) => dispatchAnnotation({ type: "delete-resource", id })}
                 onMergeCandidates={handleMergeCandidates}
                 onRejectCandidate={handleRejectCandidate}
                 onRetryCandidate={handleRetryCandidate}
