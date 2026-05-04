@@ -85,3 +85,34 @@
 **下一步**
 
 进入 **D2 — Cytoscape 大图性能优化**：layout 切换 + 节点 size 按度数。
+
+---
+
+### 2026-05-04 12:20 · D2 完成 — 知识图谱 layout + 节点尺寸
+
+**commit**: `61c4f60` (feat(annotation): D2 知识图谱 layout 切换 + 节点 size 按度数)
+
+**做了什么**
+
+- layout 4 选：cose / concentric / breadthfirst / grid；点 chip 直接
+  cy.layout().run() 不重建图
+- 节点数 > 100 时默认 grid（cose 慢）；阈值跨越自动切回推荐 layout
+- 节点 size 按 degree 动态：`mapData(degree, 0, 12, 22, 50)`
+- buildLayoutOptions(name) 封装 4 套配置，未来加 dagre / klay 只动一处
+
+**怎么实现的**
+
+- 节点 data 加 degree 字段（init 时算 source/target 出现次数）
+- mapData 是 cytoscape selector 字符串 DSL，TS 类型 number 用 unknown 中转
+- layout 切换通过 handleLayoutChange → cy.layout().run()，不进 useEffect
+  依赖（用 eslint-disable 注释说明）
+- 布局 chip 与 kind chip 同色系区分，避免视觉混乱
+
+**下一步**
+
+进入 **D3 — SAM / YOLO processingRuns 写入 IIML**：
+- IIML schema 已有 processingRuns: Array<Record<string, unknown>>
+- 每次 SAM 调用后追加一条 record：{ method, model, timestamp, prompt 摘要,
+  outputAnnotationId, confidence }
+- App.tsx handleSubmitYoloScan 同样写入
+- 详情面板下一节 D4 做"AI 处理记录" section 展示
