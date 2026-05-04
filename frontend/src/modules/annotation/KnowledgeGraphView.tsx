@@ -1,7 +1,7 @@
 import cytoscape from "cytoscape";
 import type { Core, EdgeDefinition, ElementDefinition, NodeDefinition } from "cytoscape";
-import { useEffect, useRef } from "react";
-import type { IimlAnnotation, IimlDocument, IimlRelation, IimlStructuralLevel } from "./types";
+import { useEffect, useMemo, useRef, useState } from "react";
+import type { IimlAnnotation, IimlDocument, IimlRelation, IimlRelationOrigin, IimlStructuralLevel } from "./types";
 import { relationKindOptions } from "./RelationsEditor";
 
 // 按结构层级着色（与 EditTab 的 structuralLevel 选项呼应；颜色取自 styles 调色板）
@@ -36,6 +36,20 @@ type KnowledgeGraphViewProps = {
   onSelectAnnotation: (id?: string) => void;
 };
 
+// 关系类别（kind）按 4 组归类，用于 chip 过滤；与 RelationsEditor 词表保持一致
+const kindGroups: Array<{ id: "narrative" | "hierarchy" | "spatial" | "interpret"; label: string }> = [
+  { id: "narrative", label: "叙事" },
+  { id: "hierarchy", label: "层级" },
+  { id: "spatial", label: "空间" },
+  { id: "interpret", label: "解释" }
+];
+
+const originLabels: Record<IimlRelationOrigin, string> = {
+  manual: "人工",
+  "spatial-auto": "自动",
+  "ai-suggest": "AI"
+};
+
 /**
  * 知识图谱 tab：用 Cytoscape.js 渲染 annotations + relations 的节点-边图。
  *
@@ -64,6 +78,40 @@ export function KnowledgeGraphView({
   useEffect(() => {
     onSelectRef.current = onSelectAnnotation;
   }, [onSelectAnnotation]);
+
+  // D1 关系筛选：kind 组 + origin 各自 toggle；空集合 = 不过滤
+  const [activeKindGroups, setActiveKindGroups] = useState<Set<string>>(new Set());
+  const [activeOrigins, setActiveOrigins] = useState<Set<IimlRelationOrigin>>(new Set());
+
+  const toggleKindGroup = (group: string) => {
+    setActiveKindGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(group)) next.delete(group);
+      else next.add(group);
+      return next;
+    });
+  };
+  const toggleOrigin = (origin: IimlRelationOrigin) => {
+    setActiveOrigins((prev) => {
+      const next = new Set(prev);
+      if (next.has(origin)) next.delete(origin);
+      else next.add(origin);
+      return next;
+    });
+  };
+  const clearFilters = () => {
+    setActiveKindGroups(new Set());
+    setActiveOrigins(new Set());
+  };
+
+  // doc 中实际存在的 origin 类型，避免 chip 显示空"AI"等无意义选项
+  const usedOrigins = useMemo(() => {
+    const set = new Set<IimlRelationOrigin>();
+    for (const relation of relations) {
+      set.add(relation.origin);
+    }
+    return set;
+  }, [relations]);
 
   // 元素列表的稳定 key —— 用 annotation id + relation id 做内容指纹；
   // 对内容相同的 doc / relations 不重建图，只刷高亮。
@@ -119,7 +167,10 @@ export function KnowledgeGraphView({
           target: relation.target,
           label: kindLabelOf(relation.kind),
           color: kindGroupColors[group],
-          isAuto: relation.origin !== "manual"
+          isAuto: relation.origin !== "manual",
+          // D1 过滤需要：把 kind 与 origin 写进 data，运行时按 chip 刷 .is-faded
+          kind: relation.kind,
+          origin: relation.origin
         }
       };
       elements.push(edge);
@@ -193,6 +244,14 @@ export function KnowledgeGraphView({
             width: 2.4,
             opacity: 1
           }
+        },
+        {
+          // D1 过滤：被 chip 排除的边淡化（保持空间不变，便于回切对比）
+          selector: "edge.is-faded",
+          style: {
+            opacity: 0.12,
+            width: 1
+          }
         }
       ],
       layout: {
@@ -259,6 +318,33 @@ export function KnowledgeGraphView({
     });
   }, [selectedAnnotationId]);
 
+  // D1 关系过滤：根据 activeKindGroups / activeOrigins 给不匹配的边打
+  // .is-faded class 淡化（而不是隐藏，保持空间布局稳定，便于回切对比）
+  useEffect(() => {
+    const cy = cyRef.current;
+    if (!cy) {
+      return;
+    }
+    const hasKindFilter = activeKindGroups.size > 0;
+    const hasOriginFilter = activeOrigins.size > 0;
+    cy.batch(() => {
+      cy.edges().removeClass("is-faded");
+      if (!hasKindFilter && !hasOriginFilter) {
+        return;
+      }
+      cy.edges().forEach((edge) => {
+        const kind = edge.data("kind") as string | undefined;
+        const origin = edge.data("origin") as IimlRelationOrigin | undefined;
+        const group = kind ? kindToGroup[kind] : undefined;
+        const kindOk = !hasKindFilter || (group !== undefined && activeKindGroups.has(group));
+        const originOk = !hasOriginFilter || (origin !== undefined && activeOrigins.has(origin));
+        if (!(kindOk && originOk)) {
+          edge.addClass("is-faded");
+        }
+      });
+    });
+  }, [activeKindGroups, activeOrigins, annotationsKey, relationsKey]);
+
   const handleRelayout = () => {
     const cy = cyRef.current;
     if (!cy) return;
@@ -275,6 +361,7 @@ export function KnowledgeGraphView({
   };
 
   const annotationCount = doc?.annotations.length ?? 0;
+  const filterActive = activeKindGroups.size > 0 || activeOrigins.size > 0;
 
   return (
     <div className="knowledge-graph-tab">
@@ -289,6 +376,51 @@ export function KnowledgeGraphView({
           重新布局
         </button>
       </div>
+      {relations.length > 0 ? (
+        <div className="knowledge-graph-filters" role="group" aria-label="关系筛选">
+          <span className="knowledge-graph-filter-label">类别：</span>
+          {kindGroups.map((group) => (
+            <button
+              key={group.id}
+              type="button"
+              className={
+                activeKindGroups.has(group.id)
+                  ? "knowledge-graph-chip is-on"
+                  : "knowledge-graph-chip"
+              }
+              onClick={() => toggleKindGroup(group.id)}
+              title={`仅高亮"${group.label}"组的关系，其他淡化`}
+            >
+              {group.label}
+            </button>
+          ))}
+          {usedOrigins.size > 1 ? (
+            <>
+              <span className="knowledge-graph-filter-label">来源：</span>
+              {(Array.from(usedOrigins) as IimlRelationOrigin[]).map((origin) => (
+                <button
+                  key={origin}
+                  type="button"
+                  className={
+                    activeOrigins.has(origin)
+                      ? "knowledge-graph-chip is-on"
+                      : "knowledge-graph-chip"
+                  }
+                  onClick={() => toggleOrigin(origin)}
+                  title={`仅高亮 origin = ${origin} 的关系`}
+                >
+                  {originLabels[origin] ?? origin}
+                </button>
+              ))}
+            </>
+          ) : null}
+          {filterActive ? (
+            <button type="button" className="ghost-link" onClick={clearFilters}>
+              清除过滤
+            </button>
+          ) : null}
+        </div>
+      ) : null}
       {annotationCount === 0 ? (
         <p className="annotation-empty">暂无标注，无法渲染图谱。</p>
       ) : (

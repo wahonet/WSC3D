@@ -1856,6 +1856,49 @@ button {
   position: relative;
 }
 
+/* D1 关系筛选 chip 行：在 toolbar 与 canvas 之间 */
+.knowledge-graph-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  background: #1c1916;
+  border: 1px solid #2c2824;
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+.knowledge-graph-filter-label {
+  color: #8f857a;
+  font-size: 11.5px;
+  margin-right: 2px;
+}
+
+.knowledge-graph-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  font-size: 11.5px;
+  color: #cfc7bd;
+  background: #2a2622;
+  border: 1px solid #3d3731;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+
+.knowledge-graph-chip:hover {
+  color: #f4ece0;
+  border-color: #6f6a62;
+}
+
+.knowledge-graph-chip.is-on {
+  color: #11100f;
+  background: #2ec4b6;
+  border-color: #2ec4b6;
+}
+
 .annotation-canvas {
   position: absolute !important;
   inset: 0;
