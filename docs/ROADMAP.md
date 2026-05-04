@@ -1,16 +1,14 @@
 # 下一步工作计划
 
-> 当前版本：`v0.7.0` —— 在 v0.6.0 基础上：
-> ① 紧急修复（保存按钮 dirty 状态 / YOLO 检测优化 / 知识图谱中心识别 + 群组检测 + 排行榜）；
-> ② AI 加深（5 种线图算法 / SAM 自动 prompt：YOLO bbox 一键升 polygon / 多解释并存 UI）；
-> ③ M3 收尾（批量任务进度面板，可中途取消）；
-> ④ M4 起步（多资源版本管理 + .hpsml 自定义研究包导出）。
-> 所有日志统一第一人称，去除 v0.4.0 ~ v0.6.0 的 AI agent 表述。
+> 当前版本：`v0.8.0` —— 在 v0.7.0 基础上：
+> ① 图谱 UI 修缮（chip 行 4 → 2；PageRank 中文化"权威度"；排行榜从侧栏挪到 canvas 下方横向滚动）；
+> ② "资源"独立 tab + 从三维模型一键生成正射图（offscreen Three.js 渲染 + 后端落盘 + 自动关联 IIML resources）；
+> ③ M4 多资源架构落地（多资源画布切换 SourceImageView `imageUrl?` / 跨资源坐标变换数据模型 `IimlResourceTransform` / .hpsml 解包导入 backend services）。
 > 本文档按"近期 → 中期 → 远期"列出下一步要做的工作。
 
 ---
 
-## 0. 当前已交付（截至 v0.7.0）
+## 0. 当前已交付（截至 v0.8.0）
 
 ### 浏览模块
 
@@ -102,6 +100,39 @@
 #### 工程瘦身（v0.6.0 新增）
 
 - StoneViewer lazy → 主 chunk 882 KB → 477 KB（gzip 234 → 144 KB），减少 46%。
+
+#### 图谱 UI 修缮 + 资源独立 tab + 正射图生成（v0.8.0 新增）
+
+- **图谱 UI 修缮**（v0.8.0 H1）：chip 行 4 → 2；中心性算法中文化
+  （权威度 / 邻居数 / 桥梁度 / 接近度）；排行榜从右侧 230px 侧栏挪到 canvas
+  下方横向滚动；canvas 占整行 min-height 380px；群组规模 chip 并入 head
+- **资源独立 tab**（v0.8.0 H2）：AnnotationPanel TabKey 加 "resources"；原
+  嵌在 ListTab 的 ResourcesEditor 移到独立 tab 下；卡片显示 160px max-height
+  缩略图；分 3 个 section（生成正射 / IIML 条目 / 后端已落盘）
+- **从三维模型生成正射图**（v0.8.0 H3）：`frontend/src/modules/annotation/orthophoto.ts`
+  独立 offscreen Three.js 渲染器；4 视图方向（front/back/top/bottom）；
+  OrthographicCamera frustum 裹 AABB + 5% 留白；AmbientLight 0.75 +
+  DirectionalLight 1.0 斜上 45° 单灯；PNG blob 3072px 长边
+- **后端资源落盘端点**（v0.8.0 H3）：`POST/GET /api/stones/:id/resources`
+  落盘到 `data/stone-resources/{stoneId}/{type}-{timestamp}.png`；静态托管
+  `/assets/stone-resources/`
+
+#### 多资源架构（v0.8.0 M4 落地）
+
+- **多资源画布切换**（v0.8.0 I1）：SourceImageView 新增 `imageUrl?` prop
+  覆写默认 pic/ 原图；AnnotationWorkspace 新增 activeImageResourceId 状态 +
+  资源切换 segmented UI；切非 pic/ 资源时禁用 Canny 叠加
+- **跨资源坐标变换（数据模型）**（v0.8.0 I2）：IimlResourceTransform 联合类型
+  （orthographic-from-model / homography-4pt / affine-matrix 3 种 kind）；
+  IimlResourceEntry.transform 可选字段；正射图生成时自动填入
+  `{ kind: "orthographic-from-model", view, modelAABB, pixelSize, frustumScale }`；
+  ResourcesEditor 卡片显示金绿色提示条。**画布投影实装留 v0.9.0**
+- **.hpsml 解包导入**（v0.8.0 I3）：`backend/src/services/hpsml.ts` 新增
+  `importHpsmlPackage`；校验 format/formatVersion；解 stoneId（options >
+  context.stone.id > iiml.documentId 前缀）；IIML 走 saveIimlDoc 完整 ajv 校验；
+  拼接方案导入 `data/assembly-plans/`；conflictStrategy overwrite/skip；
+  `POST /api/hpsml/import?stoneId=...&conflict=...`；前端 ListTab 下载区
+  加"导入 .hpsml"按钮，导入后若是当前 stoneId 自动刷新画布
 
 #### 紧急修复 + 图谱完善（v0.7.0 新增）
 
@@ -275,15 +306,21 @@
 
 ## 3. M4 — 多源资源与导出
 
-### 3.1 多源资源版本切换（v0.7.0 G1 完成元数据层；画布层留 v0.8.0）
+### 3.1 多源资源版本切换（v0.7.0 元数据层 + v0.8.0 画布切换 + 坐标变换数据模型）
 
 - [x] **一对象多资源**（v0.7.0 G1）：同一 `culturalObject` 下挂多份 `resources`
-  （Mesh3D / OriginalImage / Rubbing / NormalMap / LineDrawing / RTI /
-  PointCloud / Other）；ResourcesEditor UI 可管。
-- [ ] **画布资源切换 UI**：在右上角底图切换条基础上扩展为多选项，按 resource
-  加载图像 / 模型；标注 `resourceId` 绑定到具体版本。**v0.8.0 重点**。
-- [ ] **跨版本坐标变换**：`coordinateSystem.transform` 字段，所有版本最终归一
-  到一个统一坐标空间。**v0.8.0 重点**。
+  （Mesh3D / OriginalImage / Orthophoto / Rubbing / NormalMap / LineDrawing /
+  RTI / PointCloud / Other）；ResourcesEditor UI 可管。
+- [x] **画布资源切换 UI**（v0.8.0 I1）：SourceImageView 新增 imageUrl? prop；
+  AnnotationWorkspace 新增 activeImageResourceId 状态 + segmented 切换；
+  切非 pic/ 资源时禁用 Canny 叠加。
+- [x] **从三维模型生成正射图**（v0.8.0 H3）：offscreen Three.js 渲染器；
+  4 视图方向；后端落盘 + 自动关联 IIML resources。
+- [x] **跨版本坐标变换数据模型**（v0.8.0 I2）：IimlResourceTransform 联合类型
+  （orthographic-from-model / homography-4pt / affine-matrix）；正射图生成时
+  自动填入变换元数据。
+- [ ] **跨版本坐标变换 画布投影实装**（v0.9.0）：读 `resource.transform` 自动
+  把 model-frame 标注投影到正射图坐标系显示，投影失败时 fallback 隐藏。
 - [x] **资源元数据**（v0.7.0 G1）：description / acquisition / acquiredBy /
   acquiredAt 字段，便于研究溯源。
 
@@ -297,7 +334,11 @@
 ### 3.3 数据交换与协作
 
 - [ ] **导入 / 合并外部 IIML**：检测同 ID 标注差异，UI 展示三方合并。
-- [ ] **.hpsml 解包 / 导入**：跨机器协作时把另一台导出的 .hpsml 包导入本机。
+- [x] **.hpsml 解包 / 导入**（v0.8.0 I3）：backend/src/services/hpsml.ts +
+  POST /api/hpsml/import；前端 AnnotationPanel ListTab 加"导入 .hpsml"按钮；
+  支持 overwrite / skip 冲突策略。
+- [ ] **.hpsml 三方合并**（v0.9.0）：两个 .hpsml 里同 id 标注差异时 UI 显示
+  三方对比（当前 / import / 合并结果）。
 - [ ] **多用户多解释合并**：基于 IIML `provenance.author` 字段，多研究者数据可叠加查看。
 
 ---

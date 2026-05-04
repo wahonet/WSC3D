@@ -1,12 +1,12 @@
 # 汉画像石数字化研究平台 (WSC3D)
 
-> 当前版本：`v0.7.0` —— 紧急修复 · 图谱完善 · 多解释 UI · AI 加深 · 多资源 · .hpsml 包
+> 当前版本：`v0.8.0` —— 图谱 UI 修缮 · 资源独立 tab · 三维生成正射图 · 多资源画布切换 · 跨资源坐标变换 · .hpsml 解包
 
 面向汉画像石数字化研究的本地化工作台，目前提供三大模块：
 
 - **浏览**：单块画像石的 3D / 2D / 正射视图，可切换光照、背景、视角骰子，支持基于结构化尺寸的真实距离测量。
 - **拼接**：多块画像石加载至同一拼接场景，提供平移/旋转微调、长边等比缩放、面对面贴合，方案可保存为 JSON。
-- **标注**：基于 IIML 的图像志标注工作台。**3D 模型 / 高清原图双底图**自由切换；**5 种 AI 线图算法**（canny / canny-plus / sobel / scharr / morph）；**YOLO 批量扫描**（CLAHE 双跑 + 精确 debug 提示）+ **SAM 多 prompt 精修** + **YOLO bbox 一键 SAM 精修**三层 AI 候选 + **AI 处理记录**全程可溯源；候选**几何并集合并**；4 点**对齐校准**双向投影；**标注间关系**（14 种受控词）+ **空间关系自动推导** + **Cytoscape 知识图谱**（4 种中心性识别 / MCL 群组检测 / top-N 节点高亮 / 排行榜）；**多解释并存对比**（同一区域多视角并排）；**多资源版本管理**（Mesh3D / OriginalImage / Rubbing / NormalMap / LineDrawing / RTI / PointCloud）；**批量任务进度面板**（可中途取消）；**COCO / IIIF / IIML / CSV / .hpsml** 五种格式导出。
+- **标注**：基于 IIML 的图像志标注工作台。**3D 模型 / 高清原图双底图** + **多资源画布切换**（pic/原图 / 正射 / 拓片 / 法线图 / RTI / 点云自由切换）；**一键从三维模型生成正射图**作为标注底图替代；**跨资源坐标变换**元数据（v0.9.0 将实装画布投影）；**5 种 AI 线图算法**（canny / canny-plus / sobel / scharr / morph）；**YOLO 批量扫描**（CLAHE 双跑 + 精确 debug 提示）+ **SAM 多 prompt 精修** + **YOLO bbox 一键 SAM 精修**三层 AI 候选 + **AI 处理记录**全程可溯源；候选**几何并集合并**；4 点**对齐校准**双向投影；**标注间关系**（14 种受控词）+ **空间关系自动推导** + **Cytoscape 知识图谱**（4 种中心性：权威度/邻居数/桥梁度/接近度 + MCL 群组检测 + top-N 金色光环 + 横向排行榜）；**多解释并存对比**（同一区域多视角并排）；**独立"资源"tab** 管理 8 种资源类型；**批量任务进度面板**（可中途取消）；**COCO / IIIF / IIML / CSV / .hpsml** 五种格式导出 + **.hpsml 一键解包导入**。
 
 ## 快速开始
 
@@ -182,6 +182,7 @@ pic/               高清原图 tif/jpg/png（不入库，AI 服务读这里）
 
 | 版本 | 主题 | 链接 |
 | --- | --- | --- |
+| v0.8.0 | 图谱 UI 修缮 · 资源独立 tab · 三维生成正射图 · 多资源画布切换 · 跨资源坐标变换 · .hpsml 解包 | [Release Notes](docs/RELEASE_NOTES_v0.8.0.md) |
 | v0.7.0 | 紧急修复 · 图谱完善 · 多解释 UI · AI 加深 · 多资源 · .hpsml 包 | [Release Notes](docs/RELEASE_NOTES_v0.7.0.md) |
 | v0.6.0 | M3 收尾 · 学术导出 · 工程瘦身 | [Release Notes](docs/RELEASE_NOTES_v0.6.0.md) |
 | v0.5.0 | 关系网络 · 知识图谱 · 工程闭环 | [Release Notes](docs/RELEASE_NOTES_v0.5.0.md) |
@@ -191,15 +192,16 @@ pic/               高清原图 tif/jpg/png（不入库，AI 服务读这里）
 | v0.2.1 | 拼接模块多石拖动修复 | [Release Notes](docs/RELEASE_NOTES_v0.2.1.md) |
 | v0.2.0 | 标注模块「一标注一图层」重构 | [Release Notes](docs/RELEASE_NOTES_v0.2.0.md) |
 
-> 工作日志：v0.4.0 → v0.5.0 → v0.6.0 → v0.7.0 的连续推进时间线，详见
+> 工作日志：v0.4.0 → v0.5.0 → v0.6.0 → v0.7.0 → v0.8.0 的连续推进时间线，详见
 > [`WORK_LOG_post_v0.4.0.md`](docs/WORK_LOG_post_v0.4.0.md) +
 > [`WORK_LOG_post_v0.5.0.md`](docs/WORK_LOG_post_v0.5.0.md) +
-> [`WORK_LOG_post_v0.6.0.md`](docs/WORK_LOG_post_v0.6.0.md)。
+> [`WORK_LOG_post_v0.6.0.md`](docs/WORK_LOG_post_v0.6.0.md) +
+> [`WORK_LOG_post_v0.7.0.md`](docs/WORK_LOG_post_v0.7.0.md)。
 
 ## 下一步计划
 
 详细计划见 [`docs/ROADMAP.md`](docs/ROADMAP.md)。简要：
 
-- **v0.8.0 候选**：多资源画布切换（SourceImageView + StoneViewer 接入按 resource 加载）+ 跨资源坐标变换（`coordinateSystem.transform` 字段）+ .hpsml 解包 / 导入（backend services）。
-- **AI 加深**：用现有 COCO 导出 + 1000+ 标注积累后微调汉画像石专用 YOLO（v0.7.0 的批量 SAM 精修能加速积累训练数据）；AI 线图接入 HED / Relic2Contour 深度学习方法。
+- **v0.9.0 候选**：画布跨资源投影（读 `resource.transform` 把标注投影到当前底图坐标系）+ .hpsml 三方合并 + canny 管线支持任意 URI（正射 / 拓片也能叠线图）+ 资源选择状态持久化。
+- **AI 加深**：用现有 COCO 导出 + 1000+ 标注积累后微调汉画像石专用 YOLO（v0.7.0 的批量 SAM 精修 + v0.8.0 正射图能加速积累训练数据）；AI 线图接入 HED / Relic2Contour 深度学习方法。
 - **工程**：Playwright 端到端覆盖（需要稳定 dev 环境）；多用户协作 provenance；图谱节点群组识别加权。

@@ -169,3 +169,52 @@ commit + push 这一波，然后开始 **I1 多资源画布切换**。
 
 写 v0.8.0 release notes + 更新 README + ROADMAP，最后 commit + push 一次完成
 本轮交付。
+
+---
+
+### 2026-05-04 18:10 · FINAL 收尾完成
+
+**做了什么**
+
+- 写 `docs/RELEASE_NOTES_v0.8.0.md`：详尽覆盖 H1+H2+H3（图谱 UI / 资源 tab /
+  正射图生成）+ I1+I2+I3（多资源画布切换 / 跨资源坐标变换数据模型 /
+  .hpsml 解包导入）共 6 个子项；验收要点 6 条 + 已知限制 + v0.9.0 候选
+- 更新 `README.md`：当前版本 v0.8.0；模块概览合并 v0.7.0 + v0.8.0 全部功能
+  + 版本表加 v0.8.0 + 工作日志链接补 v0.7.0 + 下一步改 v0.9.0 候选
+- 更新 `docs/ROADMAP.md`：header 改"截至 v0.8.0"；已交付清单加"图谱 UI 修缮
+  + 资源独立 tab + 正射图生成 + 多资源架构"段；3.1 多资源切换 / 3.3 数据交换
+  协作条目打勾；加新 v0.9.0 项（画布投影 / 三方合并）
+
+**整体收尾**
+
+本次 v0.8.0 推进 commit 清单（最新在上）：
+
+```
+?         docs(v0.8.0): release notes + README + ROADMAP + 工作日志收尾（即将提交）
+8cb7236 feat(annotation+backend): I1+I2+I3 多资源画布切换 + 跨资源坐标变换 + .hpsml 解包导入
+8fb2583 feat(annotation+backend): H1+H2+H3 图谱 UI + 资源 tab 独立 + 三维模型生成正射图
+```
+
+2 次 feat commit + 1 次 docs 收尾 commit。未打 git tag。
+
+**接力交接**
+
+下次回来续做时优先读：
+
+1. 本工作日志（`WORK_LOG_post_v0.7.0.md`）—— 完整 H/I 时间线 + 每个子项实现细节
+2. `RELEASE_NOTES_v0.8.0.md` —— 整体功能 + 验收 6 条 + 已知限制
+3. `ROADMAP.md` 第 3.1（多资源）/ 3.3（数据交换）节 —— 剩余可做项
+
+**typecheck 全程绿**，但 **未做浏览器端到端测试**，验收时跑
+`RELEASE_NOTES_v0.8.0.md` §8 的 6 条验收清单。
+
+下一波（v0.9.0）建议按价值：
+
+- **立即 / 1 周内**：v0.8.0 端到端验收 + 修浏览器侧 bug
+- **2-4 周**：画布跨资源投影实装（读 `resource.transform` → AnnotationCanvas
+  按变换显示标注）；canny 管线支持任意 URI（正射图 / 拓片叠线图）
+- **中期**：.hpsml 三方合并 UI；资源选择状态持久化
+- **长线**：YOLO 微调汉画像石专用模型（v0.7.0 的 SAM 批量精修 + v0.8.0 的正射
+  图能加速积累训练数据）；HED / Relic2Contour 深度学习线图
+
+工作日志结束。
