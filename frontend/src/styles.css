@@ -1823,6 +1823,124 @@ button {
   margin-bottom: 4px;
 }
 
+/* D4 AI 处理记录 section */
+.processing-runs {
+  display: grid;
+  gap: 6px;
+  padding: 8px 10px;
+  background: #1c1916;
+  border: 1px solid #2c2824;
+  border-radius: 6px;
+  margin-bottom: 10px;
+}
+
+.processing-runs-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 0;
+  background: transparent;
+  border: none;
+  color: #cfc7bd;
+  font-size: 12.5px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.processing-runs-head:hover {
+  color: #f4ece0;
+}
+
+.processing-runs-title {
+  font-weight: 600;
+  color: #f4ece0;
+}
+
+.processing-runs-head .muted-text {
+  margin-left: auto;
+  font-size: 11.5px;
+}
+
+.processing-runs-list {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.processing-runs-item {
+  padding: 6px 8px;
+  background: #25211d;
+  border: 1px solid #2c2824;
+  border-radius: 4px;
+  font-size: 11.5px;
+  color: #cfc7bd;
+}
+
+.processing-runs-item.is-failed {
+  background: rgba(255, 95, 87, 0.08);
+  border-color: rgba(255, 95, 87, 0.4);
+}
+
+.processing-runs-item-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 2px;
+}
+
+.processing-runs-method {
+  padding: 1px 6px;
+  background: #f3a712;
+  color: #11100f;
+  border-radius: 999px;
+  font-weight: 600;
+  font-size: 10.5px;
+}
+
+.processing-runs-model {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10.5px;
+}
+
+.processing-runs-confidence {
+  margin-left: auto;
+  padding: 1px 6px;
+  background: #2c2824;
+  color: #cfc7bd;
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.processing-runs-detail {
+  font-size: 11px;
+  color: #a9a096;
+  line-height: 1.4;
+}
+
+.processing-runs-result-id {
+  margin-left: 4px;
+  background: transparent;
+  border: 0;
+  color: #f3a712;
+  cursor: pointer;
+  padding: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+}
+
+.processing-runs-result-id:hover {
+  text-decoration: underline;
+}
+
+.processing-runs-error {
+  color: #ff8a82;
+}
+
 /* B4 知识图谱 tab：cytoscape 容器需要明确高度 */
 .knowledge-graph-tab {
   display: flex;

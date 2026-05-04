@@ -25,7 +25,7 @@ import {
 } from "./api/client";
 import { createAnnotationFromGeometry } from "./modules/annotation/geometry";
 import { describeMergeFailure, mergePolygonAnnotations } from "./modules/annotation/merge";
-import { annotationPalette, annotationReducer, getRelations, initialAnnotationState } from "./modules/annotation/store";
+import { annotationPalette, annotationReducer, getProcessingRuns, getRelations, initialAnnotationState } from "./modules/annotation/store";
 import { deriveSpatialRelations } from "./modules/annotation/spatial";
 import type { AnnotationSourceMode } from "./modules/annotation/AnnotationWorkspace";
 import type { YoloScanOptions } from "./modules/annotation/YoloScanDialog";
@@ -351,6 +351,11 @@ export function App() {
   const spatialRelationCandidates = useMemo(
     () => deriveSpatialRelations(annotationState.doc?.annotations ?? []),
     [annotationState.doc?.annotations]
+  );
+  // D3 + D4 AI 处理记录
+  const annotationProcessingRuns = useMemo(
+    () => getProcessingRuns(annotationState.doc),
+    [annotationState.doc]
   );
 
   useEffect(() => {
@@ -960,6 +965,7 @@ export function App() {
                 onRetryCandidate={handleRetryCandidate}
                 onSelectAnnotation={(id) => dispatchAnnotation({ type: "select", id })}
                 onUpdateAnnotation={(id, patch) => dispatchAnnotation({ type: "update-annotation", id, patch })}
+                processingRuns={annotationProcessingRuns}
                 relations={annotationRelations}
                 spatialCandidates={spatialRelationCandidates}
                 onAddRelation={(relation) => dispatchAnnotation({ type: "add-relation", relation })}

@@ -12,6 +12,7 @@ import type {
 } from "../../api/client";
 import { ColorPopover } from "./ColorPopover";
 import { KnowledgeGraphView } from "./KnowledgeGraphView";
+import { ProcessingRunsList } from "./ProcessingRunsList";
 import { RelationsEditor } from "./RelationsEditor";
 import { SourcesEditor } from "./SourcesEditor";
 import { TermPicker } from "./TermPicker";
@@ -46,6 +47,8 @@ type AnnotationPanelProps = {
   onAddRelation: (relation: import("./types").IimlRelation) => void;
   onUpdateRelation: (id: string, patch: Partial<import("./types").IimlRelation>) => void;
   onDeleteRelation: (id: string) => void;
+  // D3 + D4 AI 处理记录；store getProcessingRuns 过滤后传入
+  processingRuns?: import("./types").IimlProcessingRun[];
 };
 
 // 结构层级：按 IIML schema 顺序排列；label 使用纯中文，视觉更克制。
@@ -174,6 +177,7 @@ function EditTab({
   metadata,
   relations,
   spatialCandidates,
+  processingRuns = [],
   vocabularyCategories,
   vocabularyTerms,
   onAddRelation,
@@ -464,6 +468,12 @@ function EditTab({
         onAddRelation={onAddRelation}
         onUpdateRelation={onUpdateRelation}
         onDeleteRelation={onDeleteRelation}
+        onSelectAnnotation={onSelectAnnotation}
+      />
+
+      <ProcessingRunsList
+        annotation={annotation}
+        runs={processingRuns}
         onSelectAnnotation={onSelectAnnotation}
       />
 
