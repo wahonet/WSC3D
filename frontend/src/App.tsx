@@ -23,6 +23,7 @@ import {
   type VocabularyCategory,
   type VocabularyTerm
 } from "./api/client";
+import { exportToCoco, exportToIiifAnnotationPage, downloadJson } from "./modules/annotation/exporters";
 import { createAnnotationFromGeometry } from "./modules/annotation/geometry";
 import { describeMergeFailure, mergePolygonAnnotations } from "./modules/annotation/merge";
 import { annotationPalette, annotationReducer, getProcessingRuns, getRelations, initialAnnotationState } from "./modules/annotation/store";
@@ -621,6 +622,48 @@ export function App() {
     dispatchAnnotation({ type: "set-status", status: `已导出 ${fileName}` });
   }, [annotationState.doc, selectedId]);
 
+  // D7 COCO 导出：用 stone.metadata.dimensions 推断像素尺寸；若未知用默认 1000
+  // 实际 ML 训练时一般会重新校对图像尺寸，这里给一个可用的初值。
+  const handleExportCoco = useCallback(() => {
+    const doc = annotationState.doc;
+    if (!doc || !selectedId) return;
+    const dimensions = selectedStone?.metadata?.dimensions;
+    const imageSize = {
+      width: Math.round(dimensions?.width ?? 1000),
+      height: Math.round(dimensions?.height ?? 1000)
+    };
+    const dataset = exportToCoco(doc, {
+      imageSize,
+      imageFileName: `${selectedId}.png`
+    });
+    downloadJson(dataset, `${selectedId}-${formatExportTimestamp()}.coco.json`);
+    dispatchAnnotation({
+      type: "set-status",
+      status: `已导出 COCO（${dataset.annotations.length} 条标注，${imageSize.width}x${imageSize.height}）`
+    });
+  }, [annotationState.doc, selectedId, selectedStone]);
+
+  // D8 IIIF Web Annotation 导出：canvasId 用占位 URN，用户后续可自行替换
+  // 为真实 IIIF Canvas URL 后再上传到外部平台。
+  const handleExportIiif = useCallback(() => {
+    const doc = annotationState.doc;
+    if (!doc || !selectedId) return;
+    const dimensions = selectedStone?.metadata?.dimensions;
+    const imageSize = {
+      width: Math.round(dimensions?.width ?? 1000),
+      height: Math.round(dimensions?.height ?? 1000)
+    };
+    const page = exportToIiifAnnotationPage(doc, {
+      imageSize,
+      canvasId: `urn:wsc3d:${selectedId}:canvas`
+    });
+    downloadJson(page, `${selectedId}-${formatExportTimestamp()}.iiif.json`);
+    dispatchAnnotation({
+      type: "set-status",
+      status: `已导出 IIIF AnnotationPage（${page.items.length} 条 Annotation）`
+    });
+  }, [annotationState.doc, selectedId, selectedStone]);
+
   // SAM 候选审核：接受 = 标记 approved；拒绝 = 直接删除；重试 = 删除后切回 SAM 工具让用户重点。
   const handleAcceptCandidate = useCallback((id: string) => {
     dispatchAnnotation({ type: "update-annotation", id, patch: { reviewStatus: "approved" } });
@@ -968,6 +1011,8 @@ export function App() {
                 onDeleteAnnotation={(id) => dispatchAnnotation({ type: "delete-annotation", id })}
                 onExportCsv={handleExportCsv}
                 onExportIiml={handleExportIiml}
+                onExportCoco={handleExportCoco}
+                onExportIiif={handleExportIiif}
                 onMergeCandidates={handleMergeCandidates}
                 onRejectCandidate={handleRejectCandidate}
                 onRetryCandidate={handleRetryCandidate}

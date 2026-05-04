@@ -38,6 +38,9 @@ type AnnotationPanelProps = {
   onRetryCandidate: (id: string) => void;
   onBulkAcceptCandidates: () => void;
   onBulkRejectCandidates: () => void;
+  // D7 / D8 学术导出
+  onExportCoco?: () => void;
+  onExportIiif?: () => void;
   // 把多个候选做几何并集合并成一个新候选（保留外环、丢孔洞）。
   // 由 App 层调用 mergePolygonAnnotations，并替换 store 中的旧条目。
   onMergeCandidates: (ids: string[]) => void;
@@ -539,7 +542,9 @@ function ListTab({
   onDeleteAnnotation,
   onMergeCandidates,
   onExportIiml,
-  onExportCsv
+  onExportCsv,
+  onExportCoco,
+  onExportIiif
 }: AnnotationPanelProps) {
   const annotations = doc?.annotations ?? [];
 
@@ -660,6 +665,28 @@ function ListTab({
           >
             <Download size={14} /> CSV
           </button>
+          {onExportCoco ? (
+            <button
+              type="button"
+              className="secondary-action small"
+              onClick={onExportCoco}
+              disabled={!doc || annotations.length === 0}
+              title="导出 COCO JSON：用于 YOLO / Detectron2 等开源模型训练"
+            >
+              <Download size={14} /> COCO
+            </button>
+          ) : null}
+          {onExportIiif ? (
+            <button
+              type="button"
+              className="secondary-action small"
+              onClick={onExportIiif}
+              disabled={!doc || annotations.length === 0}
+              title="导出 IIIF Web Annotation：与外部文物 / 博物馆平台互操作"
+            >
+              <Download size={14} /> IIIF
+            </button>
+          ) : null}
         </div>
       </div>
     </div>
