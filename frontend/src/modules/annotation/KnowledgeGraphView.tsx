@@ -50,6 +50,65 @@ const originLabels: Record<IimlRelationOrigin, string> = {
   "ai-suggest": "AI"
 };
 
+// D2 layout 选项；cose 力导向（精确但慢）/ concentric（按 degree 同心圆）
+// / breadthfirst（关系树）/ grid（栅格，最快，> 100 节点推荐）
+type LayoutName = "cose" | "concentric" | "breadthfirst" | "grid";
+
+const layoutOptions: Array<{ id: LayoutName; label: string; hint: string }> = [
+  { id: "cose", label: "力导向", hint: "精确但耗时；适合 < 100 节点" },
+  { id: "concentric", label: "同心圆", hint: "按关系数量分层；中心是关系最多的标注" },
+  { id: "breadthfirst", label: "层级树", hint: "按关系展开为层级树，适合层级关系多的图" },
+  { id: "grid", label: "栅格", hint: "最快；适合 > 100 节点" }
+];
+
+function buildLayoutOptions(name: LayoutName): cytoscape.LayoutOptions {
+  const base = { fit: true, padding: 24, animate: false } as const;
+  switch (name) {
+    case "concentric":
+      return {
+        ...base,
+        name: "concentric",
+        // 度数越高（关系越多）越靠中心
+        concentric: (node: cytoscape.NodeSingular) => node.degree(false),
+        levelWidth: () => 1,
+        minNodeSpacing: 20
+      } as cytoscape.LayoutOptions;
+    case "breadthfirst":
+      return {
+        ...base,
+        name: "breadthfirst",
+        directed: true,
+        spacingFactor: 1.2
+      } as cytoscape.LayoutOptions;
+    case "grid":
+      return {
+        ...base,
+        name: "grid",
+        avoidOverlap: true,
+        condense: false
+      } as cytoscape.LayoutOptions;
+    case "cose":
+    default:
+      return {
+        ...base,
+        name: "cose",
+        idealEdgeLength: 80,
+        nodeOverlap: 12,
+        refresh: 20,
+        randomize: false,
+        componentSpacing: 80,
+        nodeRepulsion: 320000,
+        edgeElasticity: 80,
+        nestingFactor: 1.2,
+        gravity: 1,
+        numIter: 800,
+        initialTemp: 200,
+        coolingFactor: 0.95,
+        minTemp: 1.0
+      } as cytoscape.LayoutOptions;
+  }
+}
+
 /**
  * 知识图谱 tab：用 Cytoscape.js 渲染 annotations + relations 的节点-边图。
  *
@@ -82,6 +141,15 @@ export function KnowledgeGraphView({
   // D1 关系筛选：kind 组 + origin 各自 toggle；空集合 = 不过滤
   const [activeKindGroups, setActiveKindGroups] = useState<Set<string>>(new Set());
   const [activeOrigins, setActiveOrigins] = useState<Set<IimlRelationOrigin>>(new Set());
+  // D2 大图性能：layout 选项；节点数 > 100 时默认 grid（cose 慢）
+  const annotationCountForLayout = doc?.annotations.length ?? 0;
+  const defaultLayout: LayoutName = annotationCountForLayout > 100 ? "grid" : "cose";
+  const [layoutName, setLayoutName] = useState<LayoutName>(defaultLayout);
+  // doc 量级在 100 左右切换时需要把 layoutName 重置为推荐值，避免用户被卡在
+  // 不合适的 layout 上；用 useEffect 监听数量级跳变
+  useEffect(() => {
+    setLayoutName(annotationCountForLayout > 100 ? "grid" : "cose");
+  }, [annotationCountForLayout]);
 
   const toggleKindGroup = (group: string) => {
     setActiveKindGroups((prev) => {
@@ -139,6 +207,17 @@ export function KnowledgeGraphView({
     const elements: ElementDefinition[] = [];
     const annotationIds = new Set<string>();
 
+    // 先算度数（每个 annotation 涉及的关系数），让节点 data.degree 可被
+    // mapData() 引用（D2 节点 size 视觉化"叙事中心"）
+    const degreeMap = new Map<string, number>();
+    for (const annotation of doc.annotations) {
+      degreeMap.set(annotation.id, 0);
+    }
+    for (const relation of relations) {
+      degreeMap.set(relation.source, (degreeMap.get(relation.source) ?? 0) + 1);
+      degreeMap.set(relation.target, (degreeMap.get(relation.target) ?? 0) + 1);
+    }
+
     for (const annotation of doc.annotations) {
       annotationIds.add(annotation.id);
       const node: NodeDefinition = {
@@ -147,7 +226,8 @@ export function KnowledgeGraphView({
           id: annotation.id,
           label: annotation.label || "未命名",
           level: annotation.structuralLevel,
-          color: structuralLevelColors[annotation.structuralLevel] ?? "#6f6a62"
+          color: structuralLevelColors[annotation.structuralLevel] ?? "#6f6a62",
+          degree: degreeMap.get(annotation.id) ?? 0
         }
       };
       elements.push(node);
@@ -198,8 +278,10 @@ export function KnowledgeGraphView({
             "text-margin-y": 4,
             "text-outline-color": "#1d1a18",
             "text-outline-width": 2,
-            width: 22,
-            height: 22,
+            // D2 节点 size 按度数：关系越多、节点越大；放大基数 22，每多 1 度
+            // 加 4px，封顶 50。让"叙事中心"在视觉上一眼可见
+            width: ("mapData(degree, 0, 12, 22, 50)" as unknown) as number,
+            height: ("mapData(degree, 0, 12, 22, 50)" as unknown) as number,
             "border-width": 1.5,
             "border-color": "#1d1a18"
           }
@@ -208,9 +290,7 @@ export function KnowledgeGraphView({
           selector: "node.is-selected",
           style: {
             "border-color": "#f3a712",
-            "border-width": 3,
-            width: 28,
-            height: 28
+            "border-width": 3
           }
         },
         {
@@ -254,26 +334,8 @@ export function KnowledgeGraphView({
           }
         }
       ],
-      layout: {
-        name: "cose",
-        // 调小 idealEdgeLength 让节点更紧凑；汉画像石标注通常 < 50 个，密集
-        // 显示比稀松好看。
-        idealEdgeLength: 80,
-        nodeOverlap: 12,
-        refresh: 20,
-        fit: true,
-        padding: 24,
-        randomize: false,
-        componentSpacing: 80,
-        nodeRepulsion: 320000,
-        edgeElasticity: 80,
-        nestingFactor: 1.2,
-        gravity: 1,
-        numIter: 800,
-        initialTemp: 200,
-        coolingFactor: 0.95,
-        minTemp: 1.0
-      } as cytoscape.LayoutOptions,
+      // D2 layout 由当前 layoutName 决定；> 100 节点默认 grid 避免 cose 卡
+      layout: buildLayoutOptions(layoutName),
       wheelSensitivity: 0.3,
       minZoom: 0.2,
       maxZoom: 2.5
@@ -297,6 +359,9 @@ export function KnowledgeGraphView({
         cyRef.current = null;
       }
     };
+    // layoutName 故意不进依赖：layout 切换走 handleLayoutChange 直接 cy.layout().run()，
+    // 不重建图。重建图只发生在内容变化时，初始化时拿当时的 layoutName 即可。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [annotationsKey, relationsKey, doc]);
 
   // 仅刷高亮，不重建图：避免每次外部 selectedAnnotationId 变化都导致 layout
@@ -348,12 +413,14 @@ export function KnowledgeGraphView({
   const handleRelayout = () => {
     const cy = cyRef.current;
     if (!cy) return;
-    cy.layout({
-      name: "cose",
-      fit: true,
-      padding: 24,
-      randomize: true
-    } as cytoscape.LayoutOptions).run();
+    cy.layout(buildLayoutOptions(layoutName)).run();
+  };
+
+  const handleLayoutChange = (next: LayoutName) => {
+    setLayoutName(next);
+    const cy = cyRef.current;
+    if (!cy) return;
+    cy.layout(buildLayoutOptions(next)).run();
   };
 
   const handleFit = () => {
@@ -375,6 +442,24 @@ export function KnowledgeGraphView({
         <button type="button" className="ghost-link" onClick={handleRelayout}>
           重新布局
         </button>
+      </div>
+      <div className="knowledge-graph-filters" role="group" aria-label="布局">
+        <span className="knowledge-graph-filter-label">布局：</span>
+        {layoutOptions.map((option) => (
+          <button
+            key={option.id}
+            type="button"
+            className={
+              layoutName === option.id
+                ? "knowledge-graph-chip is-on"
+                : "knowledge-graph-chip"
+            }
+            onClick={() => handleLayoutChange(option.id)}
+            title={option.hint}
+          >
+            {option.label}
+          </button>
+        ))}
       </div>
       {relations.length > 0 ? (
         <div className="knowledge-graph-filters" role="group" aria-label="关系筛选">
