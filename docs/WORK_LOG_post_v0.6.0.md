@@ -298,3 +298,55 @@ metadata 已经就位。
 
 整理一次 commit。然后写 v0.7.0 release notes + 更新 README + ROADMAP，最后再
 commit + push 一次完成本轮交付。
+
+---
+
+### 2026-05-04 16:40 · FINAL 收尾完成
+
+**做了什么**
+
+- 写 `docs/RELEASE_NOTES_v0.7.0.md`：详尽覆盖 E1-E4 + F1-F3 + G1-G3 共 10 个
+  子项 + 验收要点（10 条）+ 已知限制 + 下一步
+- 更新 `README.md`：当前版本 v0.7.0；模块概览补"5 种 AI 线图算法 / YOLO 批量
+  扫描（CLAHE 双跑）/ YOLO bbox 一键 SAM 精修 / 4 种中心性识别 + MCL 群组检测
+  + top-N 节点高亮 + 排行榜 / 多解释并存对比 / 多资源版本管理 / 批量任务进度
+  面板 / .hpsml 包导出"；版本表加 v0.7.0；WORK_LOG 链接补 v0.6.0
+- 更新 `docs/ROADMAP.md`：v0.7.0 已交付摘要；2.3 / 2.4 YOLO + 线图扩展打勾；
+  2.5 多解释 UI 打勾；2.6 中心性 + 群组检测 + 排行榜打勾；2.7 SAM 精修溯源
+  打勾；2.8 .hpsml 打勾；新增 2.9 批量任务管理；3.1 多资源元数据层打勾；
+  3.2 .hpsml 实装；header 改"截至 v0.7.0"
+
+**整体收尾**
+
+本次 v0.7.0 推进 commit 清单（最新在上）：
+
+```
+?         docs(v0.7.0): release notes + README + ROADMAP + 工作日志收尾（即将提交）
+d9e38ab feat(annotation): G1 + G2 多资源版本管理 + .hpsml 自定义研究包导出
+e1db714 feat(annotation+ai): F1+F2+F3+G3 多解释 UI / 线图扩展 / SAM 自动 prompt / 任务进度面板
+ef1a672 feat(annotation+ai): E1-E4 紧急修复 + 图谱完善 + YOLO 优化 + 日志重写
+```
+
+3 次主 commit + 1 次收尾 commit。未打 git tag（按惯例留给浏览器端验收完
+再决定）。
+
+**接力交接**
+
+下次回来续做时优先读：
+
+1. 本工作日志（`WORK_LOG_post_v0.6.0.md`）—— 完整时间线 + 每个子项实现细节
+2. `RELEASE_NOTES_v0.7.0.md` —— 整体功能 + 验收 + 已知限制
+3. `ROADMAP.md` 第 2.3-2.9 + 3.1-3.3 节 —— 剩余可做项
+
+**typecheck 全程绿**，但 **未做浏览器端到端测试**，验收时跑
+`RELEASE_NOTES_v0.7.0.md` §8 的 10 条验收清单。
+
+下一波建议（按价值）：
+
+- **立即 / 1 周内**：v0.7.0 端到端验收 + 修浏览器侧 bug
+- **2-4 周（v0.8.0 候选）**：多资源画布切换 + 跨资源坐标变换 +
+  .hpsml 解包 / 导入
+- **长线**：YOLO 微调汉画像石专用模型（v0.7.0 的 SAM 批量精修能加速积累
+  训练数据）+ HED / Relic2Contour 深度学习线图
+
+工作日志结束。

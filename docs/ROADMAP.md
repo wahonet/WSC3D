@@ -1,16 +1,16 @@
 # 下一步工作计划
 
-> 当前版本：`v0.6.0` —— 在 v0.5.0（关系网络）基础上完成 M3 收尾 + M4 起步：
-> 知识图谱关系筛选 + Cytoscape layout 切换 + 节点 size 按度数 +
-> SAM/YOLO processingRuns 写入 IIML + AI 处理记录 section + 共现术语推荐
-> + COCO / IIIF Web Annotation 导出 + StoneViewer lazy 加载（主 chunk
-> 882 → 477 KB）。
-> 标注模块的 AI 调用全程可追溯，且能直接喂 ML 训练 + 与外部博物馆平台互操作。
-> 本文档面向 AI IDE 与协作者，按"近期 → 中期 → 远期"列出下一步要做的工作。
+> 当前版本：`v0.7.0` —— 在 v0.6.0 基础上：
+> ① 紧急修复（保存按钮 dirty 状态 / YOLO 检测优化 / 知识图谱中心识别 + 群组检测 + 排行榜）；
+> ② AI 加深（5 种线图算法 / SAM 自动 prompt：YOLO bbox 一键升 polygon / 多解释并存 UI）；
+> ③ M3 收尾（批量任务进度面板，可中途取消）；
+> ④ M4 起步（多资源版本管理 + .hpsml 自定义研究包导出）。
+> 所有日志统一第一人称，去除 v0.4.0 ~ v0.6.0 的 AI agent 表述。
+> 本文档按"近期 → 中期 → 远期"列出下一步要做的工作。
 
 ---
 
-## 0. 当前已交付（截至 v0.6.0）
+## 0. 当前已交付（截至 v0.7.0）
 
 ### 浏览模块
 
@@ -103,13 +103,48 @@
 
 - StoneViewer lazy → 主 chunk 882 KB → 477 KB（gzip 234 → 144 KB），减少 46%。
 
+#### 紧急修复 + 图谱完善（v0.7.0 新增）
+
+- **保存按钮 dirty 状态**：textarea / input onChange 直接 markDirty，按钮在
+  滚动后仍亮；`.edit-actions` sticky bottom 始终可见
+- **YOLO 检测优化**：CLAHE 自适应直方图增强 + 原图 + 增强图双跑 + IoU 0.55
+  去重；默认 conf 0.10、不过滤类别；response 加 debug 字段（rawDetections /
+  classDistribution / filteredByClass / filteredByConf）；前端按 debug 给精确
+  原因
+- **知识图谱中心识别**：4 种中心性算法（PageRank / Degree / Betweenness /
+  Closeness）；MCL 群组检测；top-N 节点金色光环 + ★；着色 3 模式（按层级 /
+  按群组 / 按中心度）；侧栏排行榜（top-8 + 群组色点 + 进度条）；群组聚拢布局
+
+#### AI 加深（v0.7.0 新增）
+
+- **5 种线图算法**：canny / canny-plus（默认，Canny + 形态学闭运算）/ sobel /
+  scharr / morph（自适应阈值 + 形态学）；前端线图参数面板可切换 + 阈值滑杆 +
+  透明度
+- **SAM 自动 prompt**：`refineBBoxWithSam` 把 YOLO bbox 喂给 SAM 跑精修；单条
+  + 批量两路径；保留 label / 颜色等用户字段，写一条 method=sam-refine 的
+  processingRun
+- **多解释并存 UI**：`AlternativeInterpretationsView` 检测 alternativeInterpretationOf
+  关系（双向），并排对比卡片（标签 / 三层语义 / 来源 / 置信度 / 证据数）
+
+#### M3 收尾 + M4 起步（v0.7.0 新增）
+
+- **批量任务进度面板**：`TaskProgressPanel` 右下角浮窗 + status running/done/
+  failed/cancelled + 进度条 + 取消按钮；SAM 批量精修走该队列可中途取消
+- **多资源版本管理**：`ResourcesEditor` 列出 doc.resources，支持添加 8 种类型
+  （Mesh3D / OriginalImage / Rubbing / NormalMap / LineDrawing / RTI /
+  PointCloud / Other）+ URI + 描述
+- **.hpsml 自定义研究包导出**：`exportToHpsml` 把 IIML + 关系网络 + 拼接方案 +
+  词表快照 + stone metadata 打成单 JSON；context.networkStats 含
+  annotationCount / relationCount / processingRunCount / relationKindBreakdown
+
 ### AI 子服务（FastAPI）
 
 - `/ai/health`：服务健康检查 + SAM 加载状态轮询（pending / downloading / loading / ready / error）。
 - `/ai/sam`：MobileSAM ViT-T 推理；多 prompt（正点 / 负点 / box 一次提交）；`imageBase64` 截图路径与 `stoneId` 高清图路径。
 - `/ai/yolo`（v0.4.0 实装）：YOLOv8n COCO 推理；`stoneId` / `imageBase64` 双路径；返回 bbox（带 `bbox_uv` image-normalized 与 SAM polygon 同约定）。
 - `/ai/source-image/{stone_id}`（v0.3.0 新增）：tif → PNG 转码 + 落盘缓存（`max_edge` 可调，默认 4096）。
-- `/ai/lineart/{stone_id}`（v0.4.0 新增）：Canny 线图 PNG（白线 + alpha），落盘缓存 `cache/lineart/`，预留 `method` 参数扩展 Sobel / HED / Relic2Contour。
+- `/ai/lineart/{stone_id}`（v0.4.0 新增 / v0.7.0 扩展）：5 种算法（canny / canny-plus / sobel / scharr / morph），落盘缓存 `cache/lineart/`，按 method 前缀分别缓存。
+- `/ai/lineart/methods`（v0.7.0 新增）：返回支持的算法列表。
 - `/ai/canny`：旧 base64 路径，保留兼容。
 
 ---
@@ -151,20 +186,23 @@
 - [ ] **更精细的对齐**：4 点扩展到 N 点（≥ 4），用 SVD 而不是 8 元 DLT 求解，提升标定精度；当前 4 点对小型不规则画像石已足够。
 - [ ] **跨 frame 标注就地编辑**：当前跨 frame 标注只能查看，需要切回原 frame 编辑。如确有研究流程上的需要（如在 3D 上拖动一个图坐标系标注），再加反向投影路径。
 
-### 2.3 YOLO 候选检测（已完成 v0.4.0 第一阶段）
+### 2.3 YOLO 候选检测（v0.4.0 第一阶段 + v0.7.0 增强）
 
 - [x] **批量审阅流程**：工具栏 Radar 触发；扫描 → bbox 落入候选 tab → 用 SAM 二次精修。
 - [x] **类别过滤 + 置信度阈值**：YoloScanDialog 提供 `classFilter` chip 多选 + 阈值滑杆 + 最大检测数。
-- [x] **通用 COCO 模型起点**：默认勾选"通常对汉画像石可用"的 30 种 COCO 子集（人物 / 鸟兽 / 常见物）。
-- [ ] **微调汉画像石专用模型**：YOLOv8 在标注积累足够后微调，识别"祥瑞 / 礼器 / 车马 / 建筑"等高价值类（论文 24 提示）。需要先用现有手工 + 半自动标注积累 ~1000 个 bbox 训练集。
-- [ ] **候选 tab 类别筛选**：候选数 > 30 时按 label chip 筛选。
+- [x] **通用 COCO 模型起点**（v0.4.0 默认勾选 30 类，v0.7.0 改为默认不过滤让真实输出可见）。
+- [x] **CLAHE 双跑 + 精确 debug 提示**（v0.7.0 E3）：原图 + CLAHE 增强图双跑按 IoU 去重；response 加 rawDetections / classDistribution / filteredByClass / filteredByConf；前端按 debug 给精确原因。
+- [x] **SAM 自动 prompt：YOLO bbox → polygon**（v0.7.0 F3）：单条 + 批量两路径；保留用户字段；写一条 method=sam-refine 的 processingRun。
+- [ ] **微调汉画像石专用模型**：YOLOv8 在标注积累足够后微调，识别祥瑞 / 礼器 / 车马 / 建筑等高价值类（论文 24 提示）。需要先用现有手工 + 半自动标注积累 ~1000 个 bbox 训练集；v0.7.0 的 SAM 批量精修 + COCO 导出可加速积累。
+- [x] **候选 tab 类别筛选**（v0.5.0 C6 已实装）。
 
-### 2.4 AI 线图（已完成 v0.4.0 第一阶段）
+### 2.4 AI 线图（v0.4.0 第一阶段 + v0.7.0 扩展）
 
 - [x] **Canny 线图叠加层**：在高清图模式下半透明叠加，辨识浅浮雕轮廓；后端落盘缓存 + 前端 mini segmented 切换。
-- [ ] **Sobel / HED 等其它线图算法**：`/ai/lineart?method=...` 已预留 `method` 参数，扩展时仅添 backend 实现。
+- [x] **5 种线图算法**（v0.7.0 F2）：canny / canny-plus（默认，Canny + 形态学闭运算）/ sobel / scharr / morph（自适应阈值 + 形态学）；前端线图参数面板 method chip + low/high + 透明度滑杆。
+- [ ] **HED 等深度学习线图**：`/ai/lineart?method=hed` 待加 holistically-nested edge detection 模型。
 - [ ] **Relic2Contour / 论文 25**：等其变成成熟开源模型后接入；当前先占位。
-- [ ] **风格化线图严格审核**（论文 34 LoRA 扩散）：所有 AI 生成的线图标记为 candidate，必须人工确认才进入 IIML（当前 Canny 是纯算法不写库，不需要审核流程）。
+- [ ] **风格化线图严格审核**（论文 34 LoRA 扩散）：所有 AI 生成的线图标记为 candidate，必须人工确认才进入 IIML（当前线图是纯算法不写库，不需要审核流程）。
 
 ### 2.5 多解释并存与标注间关系（v0.5.0 + v0.6.0 完成大半）
 
@@ -176,10 +214,11 @@
 - [x] **画布关联连线**：选中标注时画 manual 实线 + auto 虚线连到所有相关。
 - [x] **关系筛选 / 高亮**（v0.6.0 D1）：知识图谱 kind chip + origin chip
   toggle；被排除的边淡化不隐藏。
-- [ ] **多解释并存 UI**：alternativeInterpretationOf 类型已支持，但 UI 上
-  还没专门的"多视角对比"展示（同一区域多个解释并排）；留下个版本做。
+- [x] **多解释并存 UI**（v0.7.0 F1）：AlternativeInterpretationsView 检测
+  alternativeInterpretationOf 关系（双向），并排对比卡片（标签 / 三层语义 /
+  来源 / 置信度 / 证据数）。
 
-### 2.6 知识图谱可视化（v0.5.0 + v0.6.0 完成）
+### 2.6 知识图谱可视化（v0.5.0 + v0.6.0 + v0.7.0 完成）
 
 - [x] **Cytoscape 节点 / 边图**：标注按 structuralLevel 着色，关系按 4 组着色。
 - [x] **双向联动**：图上点节点 → 画布选中；画布选中 → 图上节点高亮 + 关联
@@ -188,26 +227,42 @@
   节点 size 按 degree 动态映射。
 - [x] **共现推荐**（v0.6.0 D6）：基于 annotation.terms 共现矩阵推荐 top 5；
   含 terms 标注 < 5 时静默。
-- [ ] **更智能的推荐**：当前共现只看 term ↔ term，不看"距离 / 关系" 加权；
-  下个版本可纳入 spatial / narrative relations 加权。
+- [x] **中心节点识别 + 群组检测 + 排行榜**（v0.7.0 E4）：4 种中心性算法
+  （PageRank / Degree / Betweenness / Closeness）+ MCL 群组检测 + top-N 节点
+  金色光环 + 着色 3 模式（按层级 / 按群组 / 按中心度）+ 群组聚拢布局 +
+  侧栏排行榜。
+- [ ] **更智能的推荐**：当前共现只看 term ↔ term，不看距离 / 关系加权；
+  下个版本可纳入 spatial / narrative relations 加权 + 群组成员加权。
 
-### 2.7 学术溯源（v0.6.0 新增 - D3 + D4）
+### 2.7 学术溯源（v0.6.0 + v0.7.0）
 
 - [x] **processingRuns 写入 IIML**：SAM / YOLO 每次调用追加一条记录，含
   method / model / input 摘要 / output / resultAnnotationIds / 时间 / 错误。
 - [x] **AI 处理记录 section**：详情面板可折叠展示选中标注的全部 AI 调用历史。
-- [ ] **多用户协作 provenance**：当前 createdBy 写死 "local-user"；多用户
+- [x] **SAM 精修溯源**（v0.7.0 F3）：method=sam-refine 的 processingRun 记录
+  upstream annotation id + 原 method + 原 box，链路清晰。
+- [ ] **多用户协作 provenance**：当前 createdBy 写死 local-user；多用户
   环境需要登录态 + IIML provenance 字段完整化。
 
-### 2.8 学术导出（v0.6.0 新增 - D7 + D8，部分 M4）
+### 2.8 学术导出（v0.6.0 + v0.7.0 完成）
 
 - [x] **COCO JSON**：BBox / Polygon → segmentation + categories（按
   structuralLevel）+ iiml_id 扩展字段保留链路。
 - [x] **IIIF Web Annotation**：W3C Web Annotation Data Model；BBox →
   FragmentSelector，Polygon → SvgSelector；body 按 purpose 拆分；motivation
   区分 inscription。
-- [ ] **`.hpsml` 自定义研究包**：扩展 IIML 加入拼接方案、知识图谱、术语版本快照
-  等，作为"研究档案完整包"。M4 范围。
+- [x] **`.hpsml` 自定义研究包**（v0.7.0 G2）：format/iiml/context 三层结构；
+  IIML 全文 + 拼接方案 + 词表快照 + stone metadata + networkStats；
+  解包拆 iiml 字段就是标准 IIML 文档。
+- [ ] **.hpsml 解包 / 导入**：backend services 加 hpsml.ts 实装解包 → 导入
+  IIML / 拼接方案 / 词表，跨机器协作。
+
+### 2.9 批量任务管理（v0.7.0 G3）
+
+- [x] **任务进度面板**：右下角浮窗 + status running/done/failed/cancelled +
+  进度条 + 取消按钮；SAM 批量精修走该队列可中途取消。
+- [ ] **多石头并发 YOLO**：当前 YOLO 单 stone 触发；批量"扫所有石头"留
+  v0.8.0 做，需要并发控制 + 进度面板支持多任务并行。
 
 ### 2.7 类 Git 版本管理（可选，待评估）
 
@@ -220,23 +275,29 @@
 
 ## 3. M4 — 多源资源与导出
 
-### 3.1 多源资源版本切换
+### 3.1 多源资源版本切换（v0.7.0 G1 完成元数据层；画布层留 v0.8.0）
 
-- [ ] **一对象多资源**：同一 `culturalObject` 下挂多份 `resources`（原图 / RTI / 拓片 / 线图 / 法线图 / 网格）。
-- [ ] **画布资源切换 UI**：在右上角"底图切换条"基础上扩展为多选项，标注 `resourceId` 绑定到具体版本。
-- [ ] **跨版本坐标变换**：`coordinateSystem.transform` 字段，所有版本最终归一到一个统一坐标空间。
-- [ ] **资源元数据**：拍摄方式、设备、分辨率、采集者，便于研究溯源。
+- [x] **一对象多资源**（v0.7.0 G1）：同一 `culturalObject` 下挂多份 `resources`
+  （Mesh3D / OriginalImage / Rubbing / NormalMap / LineDrawing / RTI /
+  PointCloud / Other）；ResourcesEditor UI 可管。
+- [ ] **画布资源切换 UI**：在右上角底图切换条基础上扩展为多选项，按 resource
+  加载图像 / 模型；标注 `resourceId` 绑定到具体版本。**v0.8.0 重点**。
+- [ ] **跨版本坐标变换**：`coordinateSystem.transform` 字段，所有版本最终归一
+  到一个统一坐标空间。**v0.8.0 重点**。
+- [x] **资源元数据**（v0.7.0 G1）：description / acquisition / acquiredBy /
+  acquiredAt 字段，便于研究溯源。
 
-### 3.2 导出格式扩展
+### 3.2 导出格式扩展（v0.6.0 + v0.7.0 完成 4 种）
 
-- [ ] **IIIF Web Annotation**：与外部文物平台互操作。
-- [ ] **COCO JSON**：用于目标检测模型训练。
-- [ ] **PNG + Mask**：原图 + 分割 mask，用于语义分割训练。
-- [ ] **`.hpsml` 自定义研究包**：扩展 IIML，加入拼接方案、知识图谱、术语版本快照等，作为"研究档案完整包"。
+- [x] **IIIF Web Annotation**：v0.6.0 实装。
+- [x] **COCO JSON**：v0.6.0 实装。
+- [x] **`.hpsml` 自定义研究包**：v0.7.0 G2 实装（format/iiml/context 三层）。
+- [ ] **PNG + Mask**：原图 + 分割 mask，用于语义分割训练（CV 训练流派备选）。
 
 ### 3.3 数据交换与协作
 
 - [ ] **导入 / 合并外部 IIML**：检测同 ID 标注差异，UI 展示三方合并。
+- [ ] **.hpsml 解包 / 导入**：跨机器协作时把另一台导出的 .hpsml 包导入本机。
 - [ ] **多用户多解释合并**：基于 IIML `provenance.author` 字段，多研究者数据可叠加查看。
 
 ---
