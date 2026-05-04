@@ -19,11 +19,12 @@
  * - 关系编辑器（B1）+ 空间关系自动推导（B2）只在编辑 tab 当前选中标注时显示
  */
 
-import { Check, Download, Eye, EyeOff, Group, Layers, Lock, Network, RotateCcw, Trash2, Unlock, Wand2, X } from "lucide-react";
+import { AlertTriangle, Check, CircleAlert, Download, Eye, EyeOff, Group, Layers, Lock, Network, Package, RotateCcw, Trash2, Unlock, Wand2, X } from "lucide-react";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import type {
   IimlAnnotation,
   IimlDocument,
+  IimlHanStoneCategory,
   IimlSource,
   IimlStructuralLevel,
   IimlTermRef,
@@ -41,6 +42,13 @@ import { ResourcesEditor } from "./ResourcesEditor";
 import { SourcesEditor } from "./SourcesEditor";
 import { TermPicker } from "./TermPicker";
 import { annotationPalette } from "./store";
+import {
+  allMotifSuggestions,
+  hanStoneCategoryOptions,
+  motifSuggestionsByCategory,
+  narrativeCategoriesNeedMotif
+} from "./categories";
+import { validateAnnotationForTraining } from "./training";
 import { recommendCooccurringTerms } from "./cooccurrence";
 
 type AnnotationPanelProps = {
@@ -70,6 +78,11 @@ type AnnotationPanelProps = {
   onExportIiif?: () => void;
   // G2 .hpsml 自定义研究包导出（IIML + 拼接方案 + 词表 + 关系网络快照）
   onExportHpsml?: () => void;
+  // M5 Phase 1 A2 主动学习闭环：把 data/iiml/*.iiml.json 跨石头聚合 + 校验 +
+  // 70/15/15 划分 + 写 data/datasets/wsc-han-stone-v0/ 整套目录（COCO + IIML 双轨）
+  onExportTraining?: () => void;
+  // D 阶段：上线前预检（pic 配对 / IIML 完整度 / 训练池估算 / 类别均衡）
+  onPreflight?: () => void;
   // I3 v0.8.0：.hpsml 研究包解包 / 导入（文件选择 → POST /api/hpsml/import）
   onImportHpsml?: () => void;
   // G1 多资源版本管理：增 / 删 / 改 doc.resources。v0.7.0 独立 tab，
@@ -260,6 +273,7 @@ function EditTab({
   onSelectAnnotation
 }: EditTabProps) {
   const [labelDraft, setLabelDraft] = useState("");
+  const [motifDraft, setMotifDraft] = useState("");
   const [preIconographicDraft, setPreIconographicDraft] = useState("");
   const [iconographicDraft, setIconographicDraft] = useState("");
   const [iconologicalDraft, setIconologicalDraft] = useState("");
@@ -286,6 +300,7 @@ function EditTab({
 
   useEffect(() => {
     setLabelDraft(annotation?.label ?? "");
+    setMotifDraft(annotation?.motif ?? "");
     setPreIconographicDraft(annotation?.semantics?.preIconographic ?? "");
     setIconographicDraft(annotation?.semantics?.iconographicMeaning ?? "");
     setIconologicalDraft(annotation?.semantics?.iconologicalMeaning ?? "");
@@ -333,6 +348,15 @@ function EditTab({
       onUpdateAnnotation(annotation.id, { label: labelDraft });
     }
   };
+  const commitMotif = () => {
+    const trimmed = motifDraft.trim();
+    const current = annotation.motif ?? "";
+    if (trimmed !== current) {
+      // 空字符串 → 清字段。Partial<IimlAnnotation> 不支持 undefined 区分，
+      // 这里写空字符串"等价于无 motif"；A2 训练池准入会把空当作未填。
+      onUpdateAnnotation(annotation.id, { motif: trimmed });
+    }
+  };
   const commitNotes = () => {
     if (notesDraft !== (annotation.notes ?? "")) {
       onUpdateAnnotation(annotation.id, { notes: notesDraft });
@@ -355,6 +379,12 @@ function EditTab({
 
   const handleLevelChange = (value: IimlStructuralLevel) => {
     onUpdateAnnotation(annotation.id, { structuralLevel: value });
+    markDirty();
+  };
+  const handleCategoryChange = (value: IimlHanStoneCategory | "") => {
+    // 空字符串 = 选回"未填"占位项 → 等同于清字段（写空串保留兼容，A2 跳过）
+    const next = value === "" ? undefined : value;
+    onUpdateAnnotation(annotation.id, { category: next });
     markDirty();
   };
   const handleColorChange = (color: string) => {
@@ -382,6 +412,7 @@ function EditTab({
   const isDirty =
     immediateDirty ||
     labelDraft !== (annotation.label ?? "") ||
+    motifDraft.trim() !== (annotation.motif ?? "") ||
     preIconographicDraft !== (annotation.semantics?.preIconographic ?? "") ||
     iconographicDraft !== (annotation.semantics?.iconographicMeaning ?? "") ||
     iconologicalDraft !== (annotation.semantics?.iconologicalMeaning ?? "") ||
@@ -394,6 +425,7 @@ function EditTab({
 
   const handleSave = () => {
     commitLabel();
+    commitMotif();
     commitNotes();
     commitPreIconographic();
     commitIconographic();
@@ -408,6 +440,15 @@ function EditTab({
       onConfirmDraft(annotation.id);
     }
   };
+
+  // SOP §1.6：故事类 category 缺 motif 时给出 warning（不阻塞）。
+  const motifSuggestions = annotation.category
+    ? motifSuggestionsByCategory[annotation.category]
+    : allMotifSuggestions;
+  const motifMissingWarning =
+    annotation.category &&
+    narrativeCategoriesNeedMotif.has(annotation.category) &&
+    motifDraft.trim() === "";
 
   return (
     <div className="annotation-edit">
@@ -431,6 +472,20 @@ function EditTab({
             ))}
           </select>
         </label>
+        <label className="edit-level edit-category" title="汉画像石领域类别（SOP §1，13 类 + 未识别）">
+          <span>类别</span>
+          <select
+            value={annotation.category ?? ""}
+            onChange={(event) => handleCategoryChange(event.target.value as IimlHanStoneCategory | "")}
+          >
+            <option value="">— 未填 —</option>
+            {hanStoneCategoryOptions.map((option) => (
+              <option key={option.value} value={option.value} title={option.description}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
         {isDraft ? <span className="edit-draft-tag">草稿</span> : null}
       </div>
 
@@ -446,6 +501,34 @@ function EditTab({
           }}
           onBlur={commitLabel}
         />
+      </Field>
+
+      <Field label="母题 / 格套">
+        <input
+          type="text"
+          list={`motif-options-${annotation.id}`}
+          value={motifDraft}
+          placeholder={
+            annotation.category
+              ? `${motifSuggestions.length} 项建议，可自由填写`
+              : "先选类别可获得受控建议"
+          }
+          onChange={(event) => {
+            setMotifDraft(event.target.value);
+            markDirty();
+          }}
+          onBlur={commitMotif}
+        />
+        <datalist id={`motif-options-${annotation.id}`}>
+          {motifSuggestions.map((suggestion) => (
+            <option key={suggestion} value={suggestion} />
+          ))}
+        </datalist>
+        {motifMissingWarning ? (
+          <p className="edit-hint edit-hint--warn">
+            提示：故事类标注建议填具体母题（SOP 附录 A）；空值不阻塞但 A2 导出会标记。
+          </p>
+        ) : null}
       </Field>
 
       <Field label="透明度">
@@ -646,9 +729,35 @@ function ListTab({
   onExportCoco,
   onExportIiif,
   onExportHpsml,
+  onExportTraining,
+  onPreflight,
   onImportHpsml
 }: AnnotationPanelProps) {
   const annotations = doc?.annotations ?? [];
+
+  // M5 Phase 1 A2 子任务：训练池徽标。每条 annotation 实时算 ready/warned/blocked 状态
+  // + errors / warnings 列表，让标员一眼看到这条离训练池准入还差什么。
+  const trainingResultsById = useMemo(() => {
+    const map = new Map<string, ReturnType<typeof validateAnnotationForTraining>>();
+    if (!doc) return map;
+    for (const annotation of annotations) {
+      map.set(annotation.id, validateAnnotationForTraining(annotation, doc));
+    }
+    return map;
+  }, [doc, annotations]);
+
+  // 训练池整体进度：进 / 警告 / 阻塞 三档计数，给"导出训练集"按钮做提示
+  const trainingStats = useMemo(() => {
+    let ready = 0;
+    let warned = 0;
+    let blocked = 0;
+    for (const result of trainingResultsById.values()) {
+      if (!result.ready) blocked += 1;
+      else if (result.warnings.length > 0) warned += 1;
+      else ready += 1;
+    }
+    return { ready, warned, blocked };
+  }, [trainingResultsById]);
 
   // 多选合并：与候选 tab 同形态的状态。这里合并的对象不限于 candidate；
   // 已 approved 的标注合并后跟着保持 approved（详见 merge.ts），不会被打回未审。
@@ -735,6 +844,7 @@ function ListTab({
               fallbackColor={annotationPalette[index % annotationPalette.length]}
               isSelected={annotation.id === selectedAnnotation?.id}
               isChecked={selectedIds.has(annotation.id)}
+              trainingResult={trainingResultsById.get(annotation.id)}
               key={annotation.id}
               onDelete={() => onDeleteAnnotation(annotation.id)}
               onSelect={() => onSelectAnnotation(annotation.id)}
@@ -745,6 +855,46 @@ function ListTab({
           ))}
         </ul>
       )}
+
+      {onExportTraining ? (
+        <div
+          className="training-export-bar"
+          title="A2 主动学习闭环：扫所有 IIML → SOP §11 准入校验 → 70/15/15 划分 → 写 data/datasets/wsc-han-stone-v0/"
+        >
+          <div className="training-export-info">
+            <span className="training-export-label">训练池（本石头）</span>
+            <span className="training-stat training-stat--ready" title="本石头进训练池（无错无警）">
+              <Check size={12} /> {trainingStats.ready}
+            </span>
+            <span className="training-stat training-stat--warn" title="本石头进训练池但有 warning（如故事类缺 motif）">
+              <AlertTriangle size={12} /> {trainingStats.warned}
+            </span>
+            <span className="training-stat training-stat--blocked" title="本石头不进训练池（缺字段 / 几何无效 / 未审核等）">
+              <CircleAlert size={12} /> {trainingStats.blocked}
+            </span>
+          </div>
+          <div className="training-export-actions">
+            {onPreflight ? (
+              <button
+                type="button"
+                className="secondary-action small"
+                onClick={onPreflight}
+                title="批量标注前预检：pic/ 配对 / IIML 缺字段 / 训练池估算 / 类别均衡。结果写入 status，详细 JSON 在浏览器 Console。"
+              >
+                <CircleAlert size={14} /> 预检
+              </button>
+            ) : null}
+            <button
+              type="button"
+              className="primary-action small"
+              onClick={onExportTraining}
+              title="跨所有石头导出 COCO + IIML 双轨训练集到 data/datasets/wsc-han-stone-v0/"
+            >
+              <Package size={14} /> 导出训练集
+            </button>
+          </div>
+        </div>
+      ) : null}
 
       <div className="annotation-downloads">
         <span className="annotation-downloads-label">下载</span>
@@ -773,7 +923,7 @@ function ListTab({
               className="secondary-action small"
               onClick={onExportCoco}
               disabled={!doc || annotations.length === 0}
-              title="导出 COCO JSON：用于 YOLO / Detectron2 等开源模型训练"
+              title="导出 COCO JSON（单石头浏览器下载，含 structuralLevel 当 category；正式训练集请用上方「导出训练集」按钮）"
             >
               <Download size={14} /> COCO
             </button>
@@ -821,6 +971,7 @@ function AnnotationRow({
   fallbackColor,
   isSelected,
   isChecked,
+  trainingResult,
   onDelete,
   onSelect,
   onToggleChecked,
@@ -832,6 +983,9 @@ function AnnotationRow({
   isSelected: boolean;
   // 是否被勾选用于"合并"。与 isSelected（编辑选中态）独立。
   isChecked: boolean;
+  // M5 Phase 1 A2：本条标注的训练池准入校验结果（SOP §11）。
+  // ready=true 且 warnings=[] → ✓；ready=true 但 warnings>0 → ⚠；ready=false → ✗
+  trainingResult?: ReturnType<typeof validateAnnotationForTraining>;
   onDelete: () => void;
   onSelect: () => void;
   onToggleChecked: () => void;
@@ -862,6 +1016,7 @@ function AnnotationRow({
           aria-label="选择此标注用于合并"
         />
       </label>
+      <TrainingBadge result={trainingResult} />
       <span
         className="annotation-color-dot annotation-color-dot--static"
         style={{ background: color }}
@@ -887,6 +1042,71 @@ function AnnotationRow({
         <Trash2 size={14} />
       </button>
     </li>
+  );
+}
+
+// M5 Phase 1 A2 子任务：训练池徽标。把 SOP §11 校验结果可视化为 ✓/⚠/✗ 三档图标。
+// hover title 列出全部 errors / warnings 原因码，标员一眼看到这条离 ready 还差什么。
+const TRAINING_REASON_LABELS: Record<string, string> = {
+  "geometry-missing": "几何为空",
+  "geometry-no-type": "几何缺 type",
+  "geometry-point-invalid": "Point 几何不合法",
+  "geometry-point-nan": "Point 坐标含 NaN",
+  "geometry-linestring-too-few-points": "LineString 顶点 < 2",
+  "geometry-polygon-no-ring": "Polygon 缺外环",
+  "geometry-polygon-too-few-vertices": "Polygon 顶点 < 6（SOP §3.2）",
+  "geometry-polygon-too-many-vertices": "Polygon 顶点 > 200（SOP §3.2，建议拆条）",
+  "geometry-multipolygon-empty": "MultiPolygon 为空",
+  "geometry-bbox-invalid": "BBox 不是 4 元组",
+  "geometry-bbox-nan": "BBox 坐标含 NaN",
+  "geometry-bbox-zero": "BBox 宽或高 ≤ 0",
+  "geometry-bbox-too-small": "BBox 面积 < 64 px²（SOP §11.11）",
+  "geometry-polygon-too-small": "Polygon 面积 < 64 px²（SOP §11.11）",
+  "geometry-multipolygon-too-small": "MultiPolygon 总面积 < 64 px²",
+  "geometry-unknown-type": "几何 type 不在受控集",
+  "bad-structural-level": "structuralLevel 不在 8 档",
+  "bad-category": "category 缺失或不在 13 + unknown（SOP §1）",
+  "motif-too-long": "motif 超过 200 字符上限",
+  "no-terms": "至少 1 个受控术语（terms[]）",
+  "no-sources": "至少 1 条 sources",
+  "no-evidence-source": "需要 ≥ 1 条 metadata / reference 来源",
+  "pre-iconographic-too-short": "preIconographic < 10 字（SOP §4.4）",
+  "iconographic-too-short": "iconographicMeaning < 10 字（SOP §4.4）",
+  "review-status-candidate": "未审核（reviewStatus=candidate）",
+  "review-status-reviewed": "需二次审核才能进训练池",
+  "review-status-rejected": "已被拒（reviewStatus=rejected）",
+  "inscription-no-transcription": "inscription 类必须有题刻 transcription",
+  "missing-motif-for-narrative": "故事类建议填 motif（SOP §11.12 warning）"
+};
+
+function describeTrainingReasons(codes: string[]): string {
+  return codes.map((code) => `${code}: ${TRAINING_REASON_LABELS[code] ?? code}`).join("\n");
+}
+
+function TrainingBadge({ result }: { result?: ReturnType<typeof validateAnnotationForTraining> }) {
+  if (!result) {
+    return <span className="training-badge training-badge--unknown" title="未计算" aria-hidden>·</span>;
+  }
+  if (!result.ready) {
+    const tooltip = `不进训练池（${result.errors.length} 项未通过）：\n${describeTrainingReasons(result.errors)}`;
+    return (
+      <span className="training-badge training-badge--blocked" title={tooltip} aria-label="不进训练池">
+        <CircleAlert size={13} />
+      </span>
+    );
+  }
+  if (result.warnings.length > 0) {
+    const tooltip = `进训练池但有警告：\n${describeTrainingReasons(result.warnings)}`;
+    return (
+      <span className="training-badge training-badge--warn" title={tooltip} aria-label="进训练池（有警告）">
+        <AlertTriangle size={13} />
+      </span>
+    );
+  }
+  return (
+    <span className="training-badge training-badge--ready" title="进训练池（SOP §11 全部通过）" aria-label="进训练池">
+      <Check size={13} />
+    </span>
   );
 }
 

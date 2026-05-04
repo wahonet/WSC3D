@@ -92,6 +92,27 @@ export type IimlGeometry =
 export type IimlStructuralLevel = "whole" | "scene" | "figure" | "component" | "trace" | "inscription" | "damage" | "unknown";
 export type IimlReviewStatus = "candidate" | "reviewed" | "approved" | "rejected";
 
+// 汉画像石领域类别（13 类 + unknown）；与 structuralLevel 正交。
+// 详见 docs/han-stone-annotation-SOP.md §1。category 用于 YOLO/SAM 训练，
+// motif 用于具体故事 / 视觉格套（见 SOP §1.6 + 附录 A）。
+// 历史标注无该字段时视为 undefined，A2 训练池准入会跳过（categories 不全 → bad-category）。
+export type IimlHanStoneCategory =
+  | "figure-deity"
+  | "figure-immortal"
+  | "figure-mythic-ruler"
+  | "figure-loyal-assassin"
+  | "figure-filial-son"
+  | "figure-virtuous-woman"
+  | "figure-music-dance"
+  | "chariot-procession"
+  | "mythic-creature"
+  | "celestial"
+  | "daily-life-scene"
+  | "architecture"
+  | "inscription"
+  | "pattern-border"
+  | "unknown";
+
 // 标注所处坐标系：3D 模型 modelBox UV 或高清图自身归一化坐标。
 // 历史标注无该字段时默认按 "model" 处理（向后兼容）。
 export type IimlAnnotationFrame = "image" | "model";
@@ -203,6 +224,12 @@ export type IimlAnnotation = {
   // 标注几何坐标所在的参考系。缺省视作 "model"，与历史数据兼容。
   frame?: IimlAnnotationFrame;
   structuralLevel: IimlStructuralLevel;
+  // 汉画像石领域类别（13 类 + unknown）。SOP v0.3 §1 引入；与 structuralLevel 正交。
+  // 历史标注可能无此字段，前端 dropdown 显示空值，A2 导出时跳过该 annotation。
+  category?: IimlHanStoneCategory;
+  // 二层母题：具体故事 / 视觉格套（SOP §1.6 + 附录 A 受控词表 130+ 项）。
+  // 自由字符串以容纳学界新格套；建议从 categories.ts motifSuggestionsByCategory 选。
+  motif?: string;
   label?: string;
   color?: string;
   // 标注填充区域的透明度 0..1；描边始终用 color 不透明。默认 0.15。
@@ -453,6 +480,87 @@ export async function fetchTerms(): Promise<{ categories: VocabularyCategory[]; 
   const response = await fetch("/api/terms");
   if (!response.ok) {
     throw new Error(`读取术语库失败：${response.status}`);
+  }
+  return response.json();
+}
+
+// M5 Phase 1 A2 主动学习闭环：训练池导出。
+// 后端扫 data/iiml/*.iiml.json → 跑 SOP §11 准入校验 → 按 stoneId 70/15/15
+// 划分 → 写 data/datasets/wsc-han-stone-v0/。返回汇总统计。
+export type TrainingExportSummary = {
+  exportedAt: string;
+  /** 相对项目根的目录路径，比如 "data/datasets/wsc-han-stone-v0" */
+  datasetDir: string;
+  totalAnnotations: number;
+  acceptedAnnotations: number;
+  skippedAnnotations: number;
+  totalStones: number;
+  acceptedStones: number;
+  splits: { train: number; val: number; test: number };
+  categoryDistribution: Record<string, number>;
+  motifDistribution: Record<string, number>;
+  warningCounts: Record<string, number>;
+  reportFileName: string;
+};
+
+export async function exportTrainingDataset(): Promise<TrainingExportSummary> {
+  const response = await fetch("/api/training/export", { method: "POST" });
+  if (!response.ok) {
+    const text = await response.text().catch(() => "");
+    throw new Error(`训练池导出失败 ${response.status}：${text || response.statusText}`);
+  }
+  return response.json();
+}
+
+// ----- D 阶段：标注上线前预检 -----
+
+export type PreflightReport = {
+  generatedAt: string;
+  catalog: {
+    overrideSourcePath?: string;
+    totalStones: number;
+    stonesWithModel: number;
+    stonesWithMetadata: number;
+    orphanModelCount: number;
+    unmatchedMetadataCount: number;
+    numericKeyConflictCount: number;
+    unrecognizedRuleCount: number;
+    numericKeyConflicts: Array<{ key: string; stoneIds: string[] }>;
+    orphanModels: Array<{ fallbackId: string; modelFileName: string }>;
+    unmatchedMetadata: Array<{ stoneId: string; sourceFile: string; displayName: string }>;
+  };
+  pic: {
+    picDir: string;
+    exists: boolean;
+    totalFiles: number;
+    matchedCount: number;
+    matched: Array<{ stoneId: string; fileName: string }>;
+    unmatchedStones: string[];
+    duplicateKeys: Array<{ key: string; fileNames: string[] }>;
+    unrecognizedFiles: string[];
+  };
+  iiml: {
+    totalDocs: number;
+    annotationsTotal: number;
+    missingCategoryCount: number;
+    missingMotifInNarrativeCount: number;
+    frameModelNoAlignmentCount: number;
+    reviewStatusBreakdown: Record<string, number>;
+  };
+  trainingReadiness: {
+    estimatedAccepted: number;
+    estimatedSkipped: number;
+    skipReasonTop: Array<{ reason: string; count: number }>;
+    categoryDistribution: Record<string, number>;
+    underrepresentedCategories: string[];
+  };
+};
+
+export async function fetchPreflight(): Promise<PreflightReport> {
+  const response = await fetch("/api/preflight");
+  if (!response.ok) {
+    const text = await response.text().catch(() => "");
+    throw new Error(`预检失败 ${response.status}：${text || response.statusText}`);
   }
   return response.json();
 }

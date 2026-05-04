@@ -242,7 +242,19 @@ export function AnnotationWorkspace({
   const effectiveSourceMode: AnnotationSourceMode =
     sourceMode === "image" && activeResourceEquivalentToModel ? "model" : sourceMode;
 
-  const resourceId = activeImageResourceId ?? doc?.resources[0]?.id ?? `${stone.id}:model`;
+  // 高清图模式没有显式选资源时，自动落到 OriginalImage（pic/ 高清图）资源 id，
+  // 让 annotation.resourceId 与实际坐标系名实相符（避免历史 "${stoneId}:model" 误导）。
+  // model 模式仍走 :model；image 模式但没有 OriginalImage（如老 doc 未迁移）则
+  // 兜底到第 0 个 image-like 资源；都没有再退回 :model。
+  const defaultImageResource = useMemo(
+    () => imageLikeResources.find((r) => r.type === "OriginalImage") ?? imageLikeResources[0],
+    [imageLikeResources]
+  );
+  const resourceId =
+    activeImageResourceId ??
+    (sourceMode === "image" ? defaultImageResource?.id : undefined) ??
+    doc?.resources[0]?.id ??
+    `${stone.id}:model`;
   const alignment = getAlignment(doc);
 
   // 把"当前底图资源"告诉父级（App.tsx），让 YOLO 批量扫描 / SAM 精修能自动
@@ -458,6 +470,7 @@ export function AnnotationWorkspace({
         projection={projection}
         relations={relations}
         resourceId={resourceId}
+        stoneId={stone.id}
         selectedAnnotationId={selectedAnnotationId}
         sourceMode={effectiveSourceMode}
         onCalibrationPoint={handleAddCalibrationPoint}

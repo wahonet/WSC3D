@@ -23,6 +23,7 @@
     "cors": "^2.8.5",
     "cytoscape": "^3.33.3",
     "express": "^5.2.1",
+    "image-size": "^2.0.2",
     "konva": "^10.3.0",
     "lucide-react": "^0.555.0",
     "morgan": "^1.10.1",

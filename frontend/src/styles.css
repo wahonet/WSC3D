@@ -3678,17 +3678,31 @@ button {
 .edit-head {
   display: flex;
   align-items: center;
-  gap: 12px;
+  flex-wrap: wrap;
+  gap: 10px 12px;
   padding-bottom: 12px;
   border-bottom: 1px solid #2c2824;
 }
 
 .edit-level {
-  flex: 1 1 auto;
+  flex: 1 1 140px;
+  min-width: 140px;
   display: grid;
   grid-template-columns: auto 1fr;
   align-items: center;
   gap: 8px;
+}
+
+/* category dropdown 与 structuralLevel dropdown 同样宽度但视觉上稍突出，
+ * 因为 SOP v0.3 §1 把 category 提为训练池准入硬约束（缺则 bad-category）。 */
+.edit-level.edit-category {
+  flex: 1 1 180px;
+  min-width: 180px;
+}
+
+.edit-level.edit-category select {
+  border-color: #4a3e2e;
+  background: #1f1b18;
 }
 
 .edit-level > span {
@@ -3716,6 +3730,19 @@ button {
   font-size: 11px;
   font-weight: 500;
   letter-spacing: 0.3px;
+}
+
+/* SOP §1.6 故事类 motif 缺失提示。warn 用琥珀色调，与 edit-draft-tag 共用色板。 */
+.edit-hint {
+  margin: 4px 0 0;
+  padding: 0;
+  color: #8f857a;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.edit-hint--warn {
+  color: #d49b35;
 }
 
 .edit-field {
@@ -3909,6 +3936,118 @@ button {
   padding: 0 14px;
   min-height: 30px;
   font-size: 12px;
+}
+
+/* M5 Phase 1 A2 主动学习闭环：训练池导出条 + 徽标。
+ * 导出条放在标注列表与 .annotation-downloads 之间，比普通"下载"按钮更醒目，
+ * 用 SOP §11 ready/warn/blocked 三档颜色给予一眼可读的当前石头训练池命中率。 */
+.training-export-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  background: rgba(60, 75, 50, 0.18);
+  border: 1px solid #3b4732;
+  border-radius: 6px;
+}
+
+.training-export-info {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+}
+
+.training-export-label {
+  color: #b6cda4;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.2px;
+}
+
+.training-stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  border: 1px solid transparent;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.training-stat--ready {
+  color: #9ec380;
+  border-color: rgba(158, 195, 128, 0.35);
+  background: rgba(158, 195, 128, 0.08);
+}
+
+.training-stat--warn {
+  color: #d49b35;
+  border-color: rgba(212, 155, 53, 0.35);
+  background: rgba(212, 155, 53, 0.08);
+}
+
+.training-stat--blocked {
+  color: #c97d6e;
+  border-color: rgba(201, 125, 110, 0.35);
+  background: rgba(201, 125, 110, 0.08);
+}
+
+.training-export-bar .primary-action.small {
+  padding: 0 14px;
+  min-height: 30px;
+  font-size: 12px;
+}
+
+/* D：预检 + 导出按钮一组放右侧，预检走 secondary 配色 */
+.training-export-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.training-export-actions .secondary-action.small {
+  padding: 0 10px;
+  min-height: 30px;
+  font-size: 12px;
+}
+
+/* 列表行的 SOP §11 训练池徽标。三档颜色与 .training-stat 相同，但是图标形态。 */
+.training-badge {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  cursor: help;
+}
+
+.training-badge--ready {
+  color: #9ec380;
+  background: rgba(158, 195, 128, 0.10);
+}
+
+.training-badge--warn {
+  color: #d49b35;
+  background: rgba(212, 155, 53, 0.12);
+}
+
+.training-badge--blocked {
+  color: #c97d6e;
+  background: rgba(201, 125, 110, 0.12);
+}
+
+.training-badge--unknown {
+  color: #6f6659;
+  font-size: 14px;
+  line-height: 1;
 }
 
 /* === 色板 popover === */

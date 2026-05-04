@@ -177,6 +177,75 @@ def source_image(stone_id: str, max_edge: int = 4096):
     )
 
 
+@app.get("/ai/quality/{stone_id}")
+def image_quality(stone_id: str, max_edge: int = 4096):
+    """
+    图像质量自动校验（SOP §3.5）。返回长边 / 过曝 / 欠曝 / 聚焦清晰度的启发式
+    指标，B/D 阶段的 preflight UI 据此提示标员"哪些石头不适合训练"。
+
+    指标说明：
+      - longEdge：原始 tif 解码后长边像素，门槛 ≥ 1500
+      - overexposedRatio：灰度 > 245 像素占比，门槛 < 0.30
+      - underexposedRatio：灰度 < 10 像素占比，门槛 < 0.30
+      - laplacianVariance：拉普拉斯方差（越大越锐），门槛 ≥ 50
+        汉画像石浅浮雕的拉普拉斯方差经验值 50-300，整体偏低；< 50 通常说明
+        整体糊或拍摄距离太远
+
+    所有指标都基于转码后的 PNG（≤ max_edge 长边）；原 tif 解码 + 缩放都已在
+    get_source_image_png 缓存，重复调不增加 IO。
+    """
+    import cv2
+    import numpy as np
+
+    cache_path = get_source_image_png(stone_id, max_edge=max_edge)
+    if cache_path is None:
+        return JSONResponse(
+            status_code=404,
+            content={"error": "source-image-not-found", "stoneId": stone_id},
+        )
+    bgr = cv2.imread(str(cache_path), cv2.IMREAD_COLOR)
+    if bgr is None:
+        return JSONResponse(
+            status_code=500,
+            content={"error": "decode-failed", "stoneId": stone_id, "cachePath": str(cache_path)},
+        )
+    height, width = bgr.shape[:2]
+    long_edge = max(width, height)
+    gray = cv2.cvtColor(bgr, cv2.COLOR_BGR2GRAY)
+    total_px = float(gray.size)
+    over_ratio = float(np.count_nonzero(gray > 245)) / total_px
+    under_ratio = float(np.count_nonzero(gray < 10)) / total_px
+    # 拉普拉斯方差：经典聚焦评价指标
+    lap_var = float(cv2.Laplacian(gray, cv2.CV_64F).var())
+
+    warnings = []
+    if long_edge < 1500:
+        warnings.append("low-resolution")
+    if over_ratio > 0.3:
+        warnings.append("overexposed")
+    if under_ratio > 0.3:
+        warnings.append("underexposed")
+    if lap_var < 50:
+        warnings.append("blurry")
+
+    return ok_response(
+        {
+            "stoneId": stone_id,
+            "fileName": cache_path.name,
+            "width": width,
+            "height": height,
+            "longEdge": long_edge,
+            "isLongEdgeOk": long_edge >= 1500,
+            "overexposedRatio": round(over_ratio, 4),
+            "underexposedRatio": round(under_ratio, 4),
+            "isExposureOk": over_ratio < 0.3 and under_ratio < 0.3,
+            "laplacianVariance": round(lap_var, 2),
+            "isFocusOk": lap_var >= 50,
+            "warnings": warnings,
+        }
+    )
+
+
 @app.get("/ai/lineart/methods")
 def lineart_methods():
     """前端 UI 拉支持的线图方法列表，避免硬编码。"""

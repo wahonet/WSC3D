@@ -26,6 +26,8 @@ import type { AnySchema } from "ajv";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { CatalogConfig, getCatalog } from "./catalog.js";
+import type { StoneRecord } from "../types.js";
+import { findPicForStone, getPicDir } from "./pic.js";
 
 type CatalogLoader = typeof getCatalog;
 
@@ -76,6 +78,26 @@ export type IimlAnnotation = {
   target: IimlGeometry;
   frame?: IimlAnnotationFrame;
   structuralLevel: "whole" | "scene" | "figure" | "component" | "trace" | "inscription" | "damage" | "unknown";
+  // SOP v0.3 §1 引入：汉画像石领域类别（13 类 + unknown）。可选 —— 历史标注无此字段，
+  // A2 训练池准入会跳过 missing-category；UI 鼓励填。
+  category?:
+    | "figure-deity"
+    | "figure-immortal"
+    | "figure-mythic-ruler"
+    | "figure-loyal-assassin"
+    | "figure-filial-son"
+    | "figure-virtuous-woman"
+    | "figure-music-dance"
+    | "chariot-procession"
+    | "mythic-creature"
+    | "celestial"
+    | "daily-life-scene"
+    | "architecture"
+    | "inscription"
+    | "pattern-border"
+    | "unknown";
+  // SOP §1.6 二层母题：具体故事 / 视觉格套，自由字符串。
+  motif?: string;
   label?: string;
   color?: string;
   // 标注填充区域的透明度 0..1；描边不透明。默认 0.15。
@@ -157,6 +179,26 @@ const iimlContext = {
 
 const structuralLevels = new Set(["whole", "scene", "figure", "component", "trace", "inscription", "damage", "unknown"]);
 
+// SOP v0.3 §1.1 类别表 —— 13 类 + unknown。schema 仅作为 enum 校验；
+// 字段本身可选，所以历史 annotation（无 category 字段）仍能通过。
+const hanStoneCategories = [
+  "figure-deity",
+  "figure-immortal",
+  "figure-mythic-ruler",
+  "figure-loyal-assassin",
+  "figure-filial-son",
+  "figure-virtuous-woman",
+  "figure-music-dance",
+  "chariot-procession",
+  "mythic-creature",
+  "celestial",
+  "daily-life-scene",
+  "architecture",
+  "inscription",
+  "pattern-border",
+  "unknown"
+] as const;
+
 const iimlSchema: AnySchema = {
   type: "object",
   additionalProperties: true,
@@ -194,7 +236,12 @@ const iimlSchema: AnySchema = {
           id: { type: "string", minLength: 1 },
           resourceId: { type: "string", minLength: 1 },
           target: { type: "object", additionalProperties: true, required: ["type", "coordinates"] },
-          structuralLevel: { type: "string" }
+          structuralLevel: { type: "string" },
+          // SOP v0.3 §1：领域类别。可选；非空时必须 ∈ 13 + unknown。
+          category: { type: "string", nullable: true, enum: [...hanStoneCategories, null] },
+          // SOP v0.3 §1.6：自由字符串 motif，建议来自附录 A 速查表。长度上限 200
+          // 防止误把整段叙述塞进来。
+          motif: { type: "string", nullable: true, maxLength: 200 }
         }
       }
     },
@@ -223,7 +270,10 @@ export async function loadIimlDoc(projectRoot: string, catalogConfig: CatalogCon
     const raw = await readFile(filePath, "utf8");
     const doc = JSON.parse(raw) as IimlDocument;
     validateIimlDoc(doc);
-    return doc;
+    // 老 doc 没注册 OriginalImage（v0.8.x 之前默认只有 :model）时，若 pic/ 命中
+    // 则在内存里补一条；不写盘，等用户首次保存时自然落地。幂等：再次加载已有
+    // OriginalImage 不重复添加。
+    return await ensureOriginalImageResource(projectRoot, id, doc);
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
       throw error;
@@ -232,13 +282,97 @@ export async function loadIimlDoc(projectRoot: string, catalogConfig: CatalogCon
   }
 }
 
+/**
+ * 透明迁移老 IIML 文档：若 doc.resources 里没有任何 `OriginalImage` 类型资源，
+ * 且 pic/ 能配上 stoneId，则追加一条 `:original` 资源。
+ *
+ * 设计：
+ *  - 不修改磁盘文件；用户保存时自然落地
+ *  - 已有任何 OriginalImage（即便用户手动改过）→ 不动，尊重用户意图
+ *  - pic 扫描失败 → 静默跳过，不阻塞 IIML 加载
+ */
+async function ensureOriginalImageResource(
+  projectRoot: string,
+  stoneId: string,
+  doc: IimlDocument
+): Promise<IimlDocument> {
+  const resources = doc.resources ?? [];
+  const hasOriginal = resources.some(
+    (r) => (r as Record<string, unknown>).type === "OriginalImage"
+  );
+  if (hasOriginal) return doc;
+  try {
+    const pic = await findPicForStone(getPicDir(projectRoot), stoneId);
+    if (!pic) return doc;
+    return {
+      ...doc,
+      resources: [
+        ...resources,
+        {
+          id: `${stoneId}:original`,
+          type: "OriginalImage",
+          uri: `/ai/source-image/${encodeURIComponent(stoneId)}?max_edge=4096`,
+          name: `高清原图（${pic.fileName}）`,
+          originalFileName: pic.fileName,
+          acquisition: "high-res-photo",
+          coordinateSystem: { type: "image2d", unit: "uv" }
+        }
+      ]
+    };
+  } catch {
+    return doc;
+  }
+}
+
 export async function saveIimlDoc(projectRoot: string, stoneId: string, doc: IimlDocument): Promise<IimlDocument> {
   const id = sanitizeIimlId(stoneId);
   const normalized = normalizeIimlDoc(id, doc);
   validateIimlDoc(normalized);
-  await mkdir(path.dirname(iimlFilePath(projectRoot, id)), { recursive: true });
-  await writeFile(iimlFilePath(projectRoot, id), `${JSON.stringify(normalized, null, 2)}\n`, "utf8");
+  const targetPath = iimlFilePath(projectRoot, id);
+  await mkdir(path.dirname(targetPath), { recursive: true });
+  // B5：保存前先把现有文件备份到 .history/{id}/{ISO_TS}.iiml.json，保留最近 N 份。
+  // 用户误操作 / schema 错误覆盖时可手动找回，比 git 更细粒度（git 只在 commit
+  // 时打点）。备份失败不阻塞保存，只记 warning。
+  await backupExistingIimlDoc(projectRoot, id, targetPath).catch((err) => {
+    // eslint-disable-next-line no-console
+    console.warn(`[iiml] backup failed for ${id}: ${(err as Error).message}`);
+  });
+  await writeFile(targetPath, `${JSON.stringify(normalized, null, 2)}\n`, "utf8");
   return normalized;
+}
+
+// 保留多少份历史；标员高频保存时也只占几 MB（一份 IIML ~ 100 KB）。
+const IIML_HISTORY_LIMIT = 50;
+
+async function backupExistingIimlDoc(
+  projectRoot: string,
+  stoneId: string,
+  targetPath: string
+): Promise<void> {
+  let exists = false;
+  try {
+    await readFile(targetPath);
+    exists = true;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return;
+    throw error;
+  }
+  if (!exists) return;
+
+  const historyDir = path.join(projectRoot, "data", "iiml", ".history", stoneId);
+  await mkdir(historyDir, { recursive: true });
+  const ts = new Date().toISOString().replace(/[:.]/g, "-");
+  const backupPath = path.join(historyDir, `${ts}.iiml.json`);
+  const raw = await readFile(targetPath, "utf8");
+  await writeFile(backupPath, raw, "utf8");
+
+  // 修剪：超过 IIML_HISTORY_LIMIT 时按字典序（== 时间序）删最旧
+  const { readdir: readdirFs, unlink } = await import("node:fs/promises");
+  const entries = (await readdirFs(historyDir)).filter((n) => n.endsWith(".iiml.json")).sort();
+  if (entries.length > IIML_HISTORY_LIMIT) {
+    const toDelete = entries.slice(0, entries.length - IIML_HISTORY_LIMIT);
+    await Promise.all(toDelete.map((name) => unlink(path.join(historyDir, name))));
+  }
 }
 
 export async function importMarkdownIntoIiml(
@@ -402,16 +536,7 @@ async function createDefaultIimlDoc(
           }
         : undefined
     },
-    resources: [
-      {
-        id: `${stoneId}:model`,
-        type: "Mesh3D",
-        uri: stone.modelUrl ?? `/api/stones/${encodeURIComponent(stoneId)}/model`,
-        name: stone.displayName,
-        format: stone.model?.extension === ".glb" ? "model/gltf-binary" : "model/gltf+json",
-        coordinateSystem: { type: "world3d", origin: "model-center", unit: "model" }
-      }
-    ],
+    resources: await buildDefaultResources(projectRoot, stone, stoneId),
     annotations: [],
     relations: [],
     vocabularies: (await loadVocabulary(projectRoot)).terms,
@@ -423,6 +548,59 @@ async function createDefaultIimlDoc(
       updatedAt: now
     }
   };
+}
+
+/**
+ * 默认 resources 列表：
+ *  - `{stoneId}:model`：3D 模型（始终生成，UI 容错：即使没有 .glb 也保留 entry）
+ *  - `{stoneId}:original`：高清原图（pic/ 命中才生成）
+ *
+ * pic 命中规则与 ai-service `_find_source_image` 算法对齐 —— 文件名前缀数字
+ * 去前导 0 与 stoneId 数字 key 比较。同 numericKey 多文件取字典序首个，与 preflight
+ * 报告的"重复 key"列表一致；用户在批量标注前可通过 `GET /api/pic/health` 看到冲突。
+ *
+ * URI 设计：
+ *  - 模型：走 `/assets/models/...` 静态目录
+ *  - 高清图：走 `/ai/source-image/{stoneId}?max_edge=4096`，前端 `<img>` 直接渲染
+ *    （tif 浏览器原生不可读，需要 ai-service 转码缓存为 PNG）
+ *  - `originalFileName`：保留 pic/ 真实文件名，A2 训练集导出时复制图像用得到
+ */
+async function buildDefaultResources(
+  projectRoot: string,
+  stone: StoneRecord,
+  stoneId: string
+): Promise<IimlDocument["resources"]> {
+  const resources: IimlDocument["resources"] = [
+    {
+      id: `${stoneId}:model`,
+      type: "Mesh3D",
+      uri: stone.modelUrl ?? `/api/stones/${encodeURIComponent(stoneId)}/model`,
+      name: stone.displayName,
+      format: stone.model?.extension === ".glb" ? "model/gltf-binary" : "model/gltf+json",
+      coordinateSystem: { type: "world3d", origin: "model-center", unit: "model" }
+    }
+  ];
+
+  try {
+    const pic = await findPicForStone(getPicDir(projectRoot), stoneId);
+    if (pic) {
+      resources.push({
+        id: `${stoneId}:original`,
+        type: "OriginalImage",
+        uri: `/ai/source-image/${encodeURIComponent(stoneId)}?max_edge=4096`,
+        name: `${stone.displayName} 高清原图`,
+        // 真实磁盘文件名，A2 导出 / SOURCES.csv 用
+        originalFileName: pic.fileName,
+        // 与拓片 / 法线图区分：标员后续可在 UI 改 acquisition 字段
+        acquisition: "high-res-photo",
+        coordinateSystem: { type: "image2d", unit: "uv" }
+      });
+    }
+  } catch {
+    // pic 扫描失败不阻塞 IIML 创建——只是少一条 resource，标员仍可在 model 上标
+  }
+
+  return resources;
 }
 
 function normalizeIimlDoc(stoneId: string, doc: IimlDocument): IimlDocument {

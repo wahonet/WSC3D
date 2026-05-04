@@ -32,6 +32,8 @@ import {
   fetchStoneMetadata,
   fetchStones,
   fetchTerms,
+  exportTrainingDataset,
+  fetchPreflight,
   importHpsmlPackage,
   runYoloDetection,
   saveAssemblyPlan,
@@ -794,6 +796,67 @@ export function App() {
     vocabularyTerms
   ]);
 
+  // M5 Phase 1 A2 主动学习闭环：把 data/iiml/*.iiml.json 跨石头聚合 + SOP §11
+  // 准入校验 + 70/15/15 划分 + 写 data/datasets/wsc-han-stone-v0/ 整套目录。
+  // 成功后 status 显示三段：accepted / skipped / 报告路径，方便点开看 reports/。
+  const handleExportTraining = useCallback(async () => {
+    dispatchAnnotation({ type: "set-status", status: "训练池导出中（扫所有 IIML + 校验 + 写盘）…" });
+    try {
+      const summary = await exportTrainingDataset();
+      const top3Categories = Object.entries(summary.categoryDistribution)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 3)
+        .map(([k, v]) => `${k}=${v}`)
+        .join(" / ");
+      const warnLine = Object.entries(summary.warningCounts).length === 0
+        ? ""
+        : ` · 警告 ${Object.values(summary.warningCounts).reduce((a, b) => a + b, 0)}`;
+      dispatchAnnotation({
+        type: "set-status",
+        status: `已导出训练集 → ${summary.datasetDir}（${summary.acceptedAnnotations}/${summary.acceptedAnnotations + summary.skippedAnnotations} 进池，train ${summary.splits.train} / val ${summary.splits.val} / test ${summary.splits.test}${warnLine}；Top: ${top3Categories || "（暂无）"}；报告 reports/${summary.reportFileName}）`
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      dispatchAnnotation({ type: "set-status", status: `训练池导出失败：${message}` });
+    }
+  }, []);
+
+  // D 阶段：标注上线前预检。一次接口跑全（pic 配对 / IIML 完整度 / 训练池估算 /
+  // 类别均衡），把简化的 status 串拼出来；想看详细可以直接打 /api/preflight 取 JSON。
+  const handlePreflight = useCallback(async () => {
+    dispatchAnnotation({ type: "set-status", status: "正在预检（pic + IIML + 训练池）…" });
+    try {
+      const r = await fetchPreflight();
+      const catalogLine = (() => {
+        const issues: string[] = [];
+        if (r.catalog.numericKeyConflictCount > 0) issues.push(`ID 冲突 ${r.catalog.numericKeyConflictCount}`);
+        if (r.catalog.orphanModelCount > 0) issues.push(`孤儿模型 ${r.catalog.orphanModelCount}`);
+        if (r.catalog.unmatchedMetadataCount > 0) issues.push(`无模型档案 ${r.catalog.unmatchedMetadataCount}`);
+        if (r.catalog.unrecognizedRuleCount > 0) issues.push(`override 失效 ${r.catalog.unrecognizedRuleCount}`);
+        const overrideTag = r.catalog.overrideSourcePath ? "已启用 override" : "未启用 override";
+        return `catalog ${r.catalog.totalStones} 块（${overrideTag}${issues.length ? "；" + issues.join(" / ") : "；干净"}）`;
+      })();
+      const picLine = r.pic.exists
+        ? `pic ${r.pic.matchedCount}/${r.pic.matchedCount + r.pic.unmatchedStones.length} 配对${r.pic.duplicateKeys.length ? ` · ${r.pic.duplicateKeys.length} 冲突` : ""}`
+        : `pic 目录不存在 (${r.pic.picDir})`;
+      const iimlLine = `IIML ${r.iiml.totalDocs} 份 / ${r.iiml.annotationsTotal} 条；缺 category ${r.iiml.missingCategoryCount}，缺 motif ${r.iiml.missingMotifInNarrativeCount}，frame=model 未对齐 ${r.iiml.frameModelNoAlignmentCount}`;
+      const trainLine = `训练池估算：进池 ${r.trainingReadiness.estimatedAccepted} / 跳过 ${r.trainingReadiness.estimatedSkipped}；样本不足类 ${r.trainingReadiness.underrepresentedCategories.length}`;
+      const skipTop = r.trainingReadiness.skipReasonTop
+        .slice(0, 3)
+        .map((s) => `${s.reason}=${s.count}`)
+        .join(" / ");
+      dispatchAnnotation({
+        type: "set-status",
+        status: `预检 · ${catalogLine}；${picLine}；${iimlLine}；${trainLine}${skipTop ? `；Top 阻塞: ${skipTop}` : ""}`
+      });
+      // eslint-disable-next-line no-console
+      console.log("[preflight] full report:", r);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      dispatchAnnotation({ type: "set-status", status: `预检失败：${message}` });
+    }
+  }, []);
+
   // SAM 候选审核：接受 = 标记 approved；拒绝 = 直接删除；重试 = 删除后切回 SAM 工具让用户重点。
   const handleAcceptCandidate = useCallback((id: string) => {
     dispatchAnnotation({ type: "update-annotation", id, patch: { reviewStatus: "approved" } });
@@ -1363,6 +1426,8 @@ export function App() {
                 onExportCoco={handleExportCoco}
                 onExportIiif={handleExportIiif}
                 onExportHpsml={handleExportHpsml}
+                onExportTraining={handleExportTraining}
+                onPreflight={handlePreflight}
                 onImportHpsml={handleImportHpsml}
                 onAddResource={(resource) => dispatchAnnotation({ type: "add-resource", resource })}
                 onUpdateResource={(id, patch) => dispatchAnnotation({ type: "update-resource", id, patch })}

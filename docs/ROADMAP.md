@@ -4,6 +4,11 @@
 > ① 图谱 UI 修缮（chip 行 4 → 2；PageRank 中文化"权威度"；排行榜从侧栏挪到 canvas 下方横向滚动）；
 > ② "资源"独立 tab + 从三维模型一键生成正射图（offscreen Three.js 渲染 + 后端落盘 + 自动关联 IIML resources）；
 > ③ M4 多资源架构落地（多资源画布切换 SourceImageView `imageUrl?` / 跨资源坐标变换数据模型 `IimlResourceTransform` / .hpsml 解包导入 backend services）。
+>
+> **下一阶段：M5（v0.9 / v0.10 / v0.11 / v1.0，12 个月）—— 领域数据集 + RTI 完整管线 +
+> 跨石头知识库 → 公开数据集 release**。详细论证见 [`THINKING_m5.md`](THINKING_m5.md)，
+> 战略章节见下文 §3.5。
+>
 > 本文档按"近期 → 中期 → 远期"列出下一步要做的工作。
 
 ---
@@ -343,6 +348,135 @@
 
 ---
 
+## 3.5 M5 — 领域数据集 + RTI 完整管线 + 跨石头知识库 → v1.0（v0.9 / v0.10 / v0.11 / v1.0）
+
+> 目标：把 WSC3D 从"工程基础设施"升级为"汉画像石数字研究开放平台"。
+> 详细论证见 [`THINKING_m5.md`](THINKING_m5.md)。
+>
+> 用户拍板（2026-05-05）：**数据优先** + **RTI 完整管线（不缩水）** +
+> **数据集先内部成熟** + **v1.0 release 含公开数据集**。
+>
+> 4 阶段 12 个月节奏：
+
+| 阶段 | 时间 | 主轨道 | 阶段产物 |
+| --- | --- | --- | --- |
+| Phase 1 | Q1 / 月 1-3 | 🅰 数据建设 + 主动学习 | `v0.9.0` — wsc-han-stone-v0（50 stones / 1000 instances）+ YOLOv8 han-v0 微调 |
+| Phase 2 | Q2 / 月 4-6 | 🅱 RTI / 拓片 / 高度图完整管线 | `v0.10.0` — 拓片 → 高度图 → 法线 → 重打光全链；.ptm/.rti viewer；AI 摹本 v1 |
+| Phase 3 | Q3 / 月 7-9 | 🅲 跨石头知识库 + 检索 | `v0.11.0` — 跨石头图谱 + CLIP 检索 + 文献库 + 词表本土化 |
+| Phase 4 | Q4 / 月 10-12 | 🅳 协同治理 + v1.0 收口 | **`v1.0.0`** — 数据集扩到 200 / 5000+，公开 release |
+
+### 3.5.1 🅰 轨道 A：领域数据集 + 领域微调（Phase 1 主线）
+
+> 对标论文 24 + 殷契文渊核心。这是其它一切的"米"，第一优先。
+
+- [ ] **A1 标注 SOP**：13 类高价值汉画像石类（创世主神 / 仙人异士 / 神话帝王圣贤 /
+  忠臣义士刺客 / 孝子 / 烈女 / 乐舞百戏 / 车马出行 / 神兽祥瑞 / 天象日月 /
+  现实生活场景 / 建筑 / 题刻 / 纹饰边框）+ unknown 兜底；**新增 `motif` 二层
+  字段**承载具体故事 / 视觉格套（董永侍父 / 荆轲刺秦王 / 楚昭贞姜 / 二桃杀三士
+  ……）
+  - [x] **A1.1 SOP v0.3 落盘**：[`docs/han-stone-annotation-SOP.md`](han-stone-annotation-SOP.md)
+    （v0.1 9 类 → v0.2 13 类 + motif 二层 + 130+ 受控母题速查 + 5 大产区风格 +
+    学术参考文献 → v0.3 30 秒决策树 + 6 大边界判决 + frame/质量门槛 + P0/P1/P2 优先级
+    + COCO 导出契约 + 流程图 + FAQ。基础：信立祥 / 巫鸿 / 黑田彰 / 朱浒 / 陈长虹 / 邢义田 / 姜生研究）
+  - [x] **A1.2 `annotation.category` + `annotation.motif` 字段实装**：
+    `frontend/src/api/client.ts` 加 `IimlHanStoneCategory` 联合类型 13 + 1 个值 +
+    `IimlAnnotation.category?` / `motif?` 字段；`backend/src/services/iiml.ts`
+    类型 + JSON Schema 同步；新建 `frontend/src/modules/annotation/categories.ts`
+    作为 SOP ↔ 代码单一事实源（13 类 + 130+ motif 受控建议）；`AnnotationPanel`
+    edit-head 加 category dropdown + 单独 Field 加 motif datalist autocomplete +
+    故事类缺 motif 时琥珀色提示；新建 `training.ts` 实现 SOP §11
+    `validateAnnotationForTraining` 11 项硬约束 + 1 项 warning，A2 导出按钮直接调用
+  - [ ] **A1.3 SOP v0.4 迭代**：标完 P0 6 块武梁祠系列（约 180 个 annotation）
+    后回看，类别分布 < 30 实例的类别考虑合并 / 调整；motif 出现频次给 A2 训练池
+    导出按钮做置信度；§1.8 边界判决命中率统计
+- [x] **A2 主动学习闭环 + 导出按钮**：YOLO 候选 → SAM 精修 → 人工审核 → IIML
+  `reviewStatus = approved` 进入"训练池"；`AnnotationPanel` ListTab 头部加
+  "导出训练集"按钮 + 本石头训练池命中徽标（✓/⚠/✗ 三档）。后端
+  `backend/src/services/training-export.ts` 跨 stoneId 聚合 IIML →
+  `validateAnnotationForTraining` 过滤 → 按 stoneId 70/15/15
+  确定性划分（djb2 哈希）→ 写 SOP §14 完整目录结构到
+  `data/datasets/wsc-han-stone-v0/`；路由 `POST /api/training/export`
+- [x] **A3 `wsc-han-stone-v0` 内部数据集结构**：A2 导出契约已落地，目录
+  完全符合 SOP §14：
+  - `annotations/coco_train.json` / `coco_val.json` / `coco_test.json`（13 类 + IIML extension 字段）
+  - `annotations/coco_categories.json`（id 1-14 固定）
+  - `annotations/motifs.json`（频次表 + 按 category 拆分）
+  - `annotations/splits/stone_split.json`（stoneId → split 完整映射）
+  - `iiml/{stoneId}.iiml.json`（完整 IIML 备份）
+  - `relations/relations_all.jsonl`（图谱训练用）
+  - `SOURCES.csv`（每个 resource 的来源 / 摄影者 / 拓制者 / 授权）
+  - `stats.json` + `reports/export_*.csv` + `reports/quality_warnings.csv`
+  - `images/original/{stoneId}/`（目录占位，训练时按 SOURCES.csv 链接图像）
+  - 当前实测：16 块石头扫描 → 10 标注（多为历史 markdown 导入 / SAM 候选）→
+    全部 skipped（`bad-category` / `pre-iconographic-too-short` / `review-status-candidate`），
+    符合预期：A1.2 之前的标注无 category 字段不进训练池。第一阶段目标
+    50 块石头 / 1000 实例的"实"由 P0 武梁祠系列标完后实现
+- [ ] **A4 YOLOv8 / YOLO11 微调**：在 A3 基础上跑微调，权重落
+  `ai-service/weights/yolo-han-v1.pt`；AI 服务支持 `/ai/yolo?model=generic|han-v1`
+  模型切换；YoloScanDialog 加模型选择 chip
+- [ ] **A5 SAM-LoRA 微调**（GPU 资源到位再做，Q4）：让 SAM mask 边缘对石材纹理
+  更稳；权重 `ai-service/weights/sam-lora-han.pt`
+
+### 3.5.2 🅱 轨道 B：RTI / 拓片 / 高度图完整管线（Phase 2 主线）
+
+> 对标论文 12 + 25 + 26 + RTI-Learning 半年阅读积累。**用户选择"完整管线"，不缩水**。
+
+- [ ] **B1 拓片 → 高度图**（论文 12 复现）：`/ai/rubbing-to-heightmap?stoneId=...&resourceId=...`，
+  灰度 → 梯度场 → Frankot–Chellappa Poisson 积分；输出新 resource type `HeightMap`
+- [ ] **B2 高度图 → 法线图 → WebGL 重打光**：高度图梯度 + 光度立体公式 →
+  `NormalMap` 资源；前端 `SourceImageView` 多资源切换里加"光照交互"模式
+  （鼠标位置 = 光源方向）
+- [ ] **B3 RTI 文件 viewer**：直接读 `.ptm` / `.rti` / `.hsh` 系数文件；
+  前端 WebGL shader 重打光；这是 RTI-Learning 该交付但 v0.x 没出现的核心
+- [ ] **B4 AI 摹本（数字拓片）**：照片 + 法线图 → 二值线图：
+  - 第一阶段：HED + 形态学骨架 + 半监督 refine
+  - 第二阶段：论文 25 Relic2Contour-style 半监督 GAN（CGF + AGF + CAT + Bi-GTF）
+  - 输出 resource type `LineDrawing` 候选
+- [ ] **B5 微痕增强**：specular enhancement / Unsharp Normal / curvature 三种通道；
+  对照殷契文渊"微痕增强"，作为 IIML 新 resource type `MicroTraceEnhanced`
+- [ ] **B6 RTI 采集 SOP**：`docs/rti-capture-SOP.md`，对照论文 31 武梁祠工作流
+
+### 3.5.3 🅲 轨道 C：跨石头知识库 + 图像学检索（Phase 3 主线）
+
+> 对标殷契文渊"图像 + 字形 + 论著"三位一体。让 WSC3D 从"单石标注工具"升级为"全库研究平台"。
+
+- [ ] **C1 跨石头知识图谱**：现在 Cytoscape 只看单 stoneId，扩成
+  `data/iiml/*.iiml.json` 全库联合图；`KnowledgeGraphView` 加"全库 / 单石"开关
+- [ ] **C2 CLIP / DINOv2 图像志检索**：给一张图（或一条 IIML annotation 的 polygon
+  crop）→ 跑 embedding → 全库相似度排序 → 作为"图像志候选释读"推荐
+- [ ] **C3 文献库**：仿殷契文渊"3.5 万种论著"，新建 `data/literature/`
+  （题录 JSON + DOI + 关联 stoneId / 主题），IIML `evidence.reference` 直接挂这里
+- [ ] **C4 受控词汇本土化**：terms.json 升级为 *汉画像石专用* 词表，
+  scheme 字段映射 Iconclass / Wikidata / Getty AAT
+- [ ] **C5 AI 查重**：同主题母题在不同石头上的复刻自动聚类（C2 embedding +
+  几何相似度）
+
+### 3.5.4 🅳 轨道 D：协同治理 + v1.0 收口（Phase 4 主线）
+
+- [ ] **D1 .hpsml 三方合并 UI**（与 §3.3 衔接）
+- [ ] **D2 多用户 provenance**：登录态 + IIML `provenance.author` 完整化
+- [ ] **D3 标注质量评估**：双标员一致性 (Cohen's κ) + 标注审定流程
+- [ ] **D4 v1.0 公开数据集 release**：
+  - 数据集扩到 200 块石头 / 5000+ 实例
+  - 授权过滤（`SOURCES.csv` 中 `授权状态 != 已确认` 不进公开版）
+  - Croissant 元数据（ML Commons 标准）
+  - 上 Hugging Face / Zenodo
+  - 按 CC-BY-NC 释出 `wsc-han-stone-v1` COCO + IIML 双格式
+  - 直接对标殷契文渊三个开放数据集
+
+### 3.5.5 衡量指标（v1.0 vs v0.8.0）
+
+| 指标 | v0.8.0 baseline | v1.0 目标 |
+| --- | --- | --- |
+| stoneId 数 / 标注实例数 | < 10 / < 200 | 200 / 5000+ |
+| YOLO 5 类 mAP@0.5 | 通用 COCO ~0.10 | han-v1 ≥ 0.55 |
+| SAM mask IoU vs 人工 | 通用 ~0.78 | LoRA 微调 ≥ 0.85 |
+| RTI 通路（资源类型 / 算法） | 8 占位 / 0 | 8 全可用 / 5+ 算法 |
+| 跨石头检索 top-5 正确率 | 无 | ≥ 0.70 |
+| 用户数 / 标注一致性 κ | 1 / N/A | 3+ / κ ≥ 0.65 |
+
+---
+
 ## 4. 已知问题与技术债
 
 ### 设计取舍（不算 bug）
@@ -383,12 +517,27 @@
 
 | 来源 | 提示 | 对应工作 | 状态 |
 | --- | --- | --- | --- |
-| 论文 35 ICON Ontology | 三层解释 + 多解释并存 + 证据资源 | M2-1.1 H/B/C；多解释 M3-2.5 | 三层 ✓；多解释待做 |
-| 论文 24 YOLO | 仅作 candidate，类别先聚焦高价值 5-6 个 | M3-2.3 | 待做 |
-| 论文 25 Relic2Contour | AI 线图区分候选 / 确认 / 废弃 | M3-2.4 | 待做 |
-| 论文 26 点云线图 | 几何线图与图像边缘线图互补 | M3-2.4 + M4 资源版本 | 待做 |
-| 论文 34 扩散 LoRA 线图 | 风格化线图严格人工审核 | M3-2.4 | 待做 |
-| IIML schema | resource / annotation / relation / processingRun | M2 + M3 全程 | annotation ✓；relation / processingRun 待做 |
-| 知识库 §三元数据架构 | resource / annotation / script 三层分离 | M2 起始落地 | annotation ✓ |
-| **新**：论文 / 规范以外的工程产物 | 4 点单应性对齐 | M3-2.2 | ✓（v0.3.0） |
+| 论文 35 ICON Ontology | 三层解释 + 多解释并存 + 证据资源 | M2-1.1 H/B/C；多解释 M3-2.5 | ✓（v0.7.0 多解释 UI） |
+| 论文 24 YOLO（汉画像石增强 YOLOv5） | 类别先聚焦高价值 5-6 个 + 领域微调 | **M5-A1 + M5-A4**（Phase 1） | M5 |
+| 论文 25 Relic2Contour | AI 线图区分候选 / 确认 / 废弃 + 半监督 GAN | **M5-B4 第二阶段**（Phase 2） | M5 |
+| 论文 26 点云线图 | 几何线图与图像边缘线图互补 | **M5-B2 + M5-B5**（Phase 2） | M5 |
+| 论文 34 扩散 LoRA 线图 | 风格化线图严格人工审核 + 小样本 LoRA | M5-B4 远期延伸 | v1.x 后 |
+| 论文 12 拓片 → 高度图 | 灰度 → 梯度积分恢复浅浮雕 | **M5-B1**（Phase 2） | M5 |
+| 论文 31 武梁祠 3D 数字保护 | 3D + RTI + 图像 + 标注 + 知识图谱 整体工作流 | 全 M5 验证架构 | 持续 ✓ |
+| 论文 39 多视图 SIFT + 极线几何 | SfM / MVS 多视图重建 | M5-B3 衍生 | v1.x 后 |
+| 论文 40 高精度 3D（明代石碑） | 整体几何 + 真实纹理映射 + 精度元数据 | resource.precision 字段（M5 Phase 1） | M5 |
+| 殷契文渊 24 万图像库 | 大规模领域图像库 | **M5-A3 + M5-D4** | M5 |
+| 殷契文渊 字形 / 字检测 | 微调专用模型 | **M5-A4** | M5 |
+| 殷契文渊 AI 摹本 | 拓片 → 清晰摹本 | **M5-B4** | M5 |
+| 殷契文渊 微痕增强 | RTI 类增强 | **M5-B5** | M5 |
+| 殷契文渊 协同标注 | 多人协作 + 三方合并 | **M5-D1 + M5-D2** | M5 |
+| 殷契文渊 3 个开放数据集 | 公开下载 | **M5-D4 → v1.0** | M5 |
+| IIML schema | resource / annotation / relation / processingRun | M2 + M3 全程 | ✓（v0.5.0 / v0.6.0） |
+| 知识库 §三元数据架构 | resource / annotation / script 三层分离 | M2 起始落地 | ✓ |
+| **新**：4 点单应性对齐 | 跨 frame 投影 | M3-2.2 | ✓（v0.3.0） |
 | **新**：候选合并 | polygon-clipping union | M3-2.1 | ✓（v0.3.0） |
+| **新**：从 3D 模型生成正射图 | offscreen Three.js + 1:1 对齐 | M4 | ✓（v0.8.0） |
+| **新**：跨石头知识图谱 | 全库联合图 | **M5-C1**（Phase 3） | M5 |
+| **新**：CLIP / DINOv2 图像志检索 | 全库视觉相似检索 | **M5-C2**（Phase 3） | M5 |
+| **新**：文献库 + DOI 关联 | 论著挂 IIML evidence | **M5-C3**（Phase 3） | M5 |
+| **新**：AI 查重 / 母题聚类 | 同主题在不同石头上的复刻 | **M5-C5**（Phase 3） | M5 |

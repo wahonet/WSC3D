@@ -69,6 +69,9 @@ export type CalibrationDraftView = {
 
 type AnnotationCanvasProps = {
   resourceId: string;
+  // 当前画像石 id；SAM 高清图路径用它去 pic/ 找原图。从 resourceId.split(":") 反推
+  // 在自定义 resource id（如 `resource-ortho-front-xxx`）下会失效，所以显式传。
+  stoneId: string;
   annotations: IimlAnnotation[];
   // B1 引入：显式传 doc.relations，让画布在选中标注时画关联连线。
   // 缺省 [] 等同于无关系，不破坏向后兼容。
@@ -168,6 +171,7 @@ function findStoneCanvas(host: HTMLElement | null): HTMLCanvasElement | null {
 
 export function AnnotationCanvas({
   resourceId,
+  stoneId,
   annotations,
   relations = [],
   selectedAnnotationId,
@@ -394,7 +398,8 @@ export function AnnotationCanvas({
       return;
     }
     setIsSamPending(true);
-    const stoneId = resourceId.split(":")[0] ?? resourceId;
+    // C2：用显式 prop 而非 resourceId.split(":")[0]——后者在自定义资源 id
+    // （如 `resource-ortho-front-xxx`）下抽到错误的 stoneId。
     const baseColor = newColor();
     const startedAt = new Date().toISOString();
 

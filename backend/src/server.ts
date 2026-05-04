@@ -34,6 +34,9 @@ import { fileURLToPath } from "node:url";
 import { getCatalog, type CatalogConfig } from "./services/catalog.js";
 import { importHpsmlPackage } from "./services/hpsml.js";
 import { getIimlContext, importMarkdownIntoIiml, listAlignments, loadIimlDoc, loadVocabulary, saveIimlDoc } from "./services/iiml.js";
+import { getPicDir, scanPicDir } from "./services/pic.js";
+import { runPreflight } from "./services/preflight.js";
+import { exportTrainingDataset } from "./services/training-export.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = process.env.WSC3D_ROOT
@@ -395,6 +398,105 @@ app.post("/api/hpsml/import", async (req, res, next) => {
       conflictStrategy: conflict
     });
     res.json(summary);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// M5 Phase 1 A2 主动学习闭环：训练池导出。
+// 扫 data/iiml/*.iiml.json → SOP §11 validateAnnotationForTraining 过滤 →
+// 按 stoneId 70/15/15 划分 → 写 SOP §14 完整目录结构到
+// data/datasets/wsc-han-stone-v0/。返回汇总统计供前端 dialog 显示。
+//
+// 进程内互斥：连点两次按钮 / 高频脚本调用时，第二个请求收到 409 直接拒绝，
+// 防止 .tmp 目录半成品互相覆盖。
+let exportInFlight = false;
+app.post("/api/training/export", async (_req, res, next) => {
+  if (exportInFlight) {
+    res.status(409).json({ error: "export-in-progress", detail: "上一次导出还在进行，请稍候" });
+    return;
+  }
+  exportInFlight = true;
+  try {
+    const summary = await exportTrainingDataset(projectRoot);
+    res.json(summary);
+  } catch (error) {
+    next(error);
+  } finally {
+    exportInFlight = false;
+  }
+});
+
+// D v0.8.x：标注上线前预检。一次接口跑全：pic 配对 / IIML 完整度 / 训练池估算
+// /类别均衡。前端"预检"按钮会展示这份报告。
+app.get("/api/preflight", async (_req, res, next) => {
+  try {
+    const report = await runPreflight(projectRoot, config, getCatalog);
+    res.json(report);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// v0.8.x：catalog 配对健康检查。批量标注前用户先打这条接口看：
+//  - 哪些 metadata 没匹配到模型（unmatchedMetadata）
+//  - 哪些模型没匹配到 metadata（orphanModels，会以 asset-XX 出现在 stone 列表）
+//  - 同一数字 key 多 stone 冲突（asset-32 + 32 这类）
+//  - 当前 catalog.override.json 命中 / 未命中的规则
+// 预期工作流：用户看 health → 编辑 data/catalog.override.json → 重启 / 强制
+//   getCatalog(config, true) 重扫 → health 干净 → 进入批量标注。
+app.get("/api/catalog/health", async (_req, res, next) => {
+  try {
+    const catalog = await getCatalog(config);
+    res.json({
+      overrideSourcePath: catalog.health.overrideSourcePath,
+      summary: {
+        totalStones: catalog.stones.length,
+        stonesWithModel: catalog.stones.filter((s) => s.hasModel).length,
+        stonesWithMetadata: catalog.stones.filter((s) => s.hasMetadata).length,
+        orphanModels: catalog.health.orphanModels.length,
+        unmatchedMetadata: catalog.health.unmatchedMetadata.length,
+        numericKeyConflicts: catalog.health.numericKeyConflicts.length,
+        unrecognizedRules: catalog.health.unrecognizedRules.length
+      },
+      ...catalog.health
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// B1 v0.8.x：pic/ 高清图健康检查。批量标注前用户先打这条接口看：
+//  - pic/ 是否存在、文件总数
+//  - 哪些 stoneId 已配上图（按 catalog 交叉）
+//  - 同 numericKey 多文件冲突列表
+//  - 不以数字开头的"孤儿"文件
+app.get("/api/pic/health", async (_req, res, next) => {
+  try {
+    const [picHealth, catalog] = await Promise.all([
+      scanPicDir(getPicDir(projectRoot)),
+      getCatalog(config)
+    ]);
+    const matched: Array<{ stoneId: string; fileName: string }> = [];
+    const unmatchedStones: string[] = [];
+    for (const stone of catalog.stones) {
+      const numeric = stone.id.match(/(\d+)/)?.[1].replace(/^0+/, "") || undefined;
+      if (numeric && picHealth.byNumericKey[numeric]?.length) {
+        matched.push({ stoneId: stone.id, fileName: picHealth.byNumericKey[numeric][0].fileName });
+      } else {
+        unmatchedStones.push(stone.id);
+      }
+    }
+    res.json({
+      picDir: picHealth.picDir,
+      exists: picHealth.exists,
+      totalFiles: picHealth.totalFiles,
+      matchedCount: matched.length,
+      matched,
+      unmatchedStones,
+      duplicateKeys: picHealth.duplicateKeys,
+      unrecognizedFiles: picHealth.unrecognizedFiles
+    });
   } catch (error) {
     next(error);
   }
