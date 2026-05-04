@@ -10,6 +10,7 @@ import {
   fetchStoneMetadata,
   fetchStones,
   fetchTerms,
+  importHpsmlPackage,
   runYoloDetection,
   saveAssemblyPlan,
   saveIimlDocument,
@@ -688,6 +689,52 @@ export function App() {
     });
   }, [annotationState.doc, selectedId, selectedStone]);
 
+  // I3 v0.8.0：.hpsml 研究包导入。用隐藏 file input 触发文件选择，解析 JSON
+  // 后 POST 到 /api/hpsml/import；成功后若导入的是当前 stoneId，重新拉 IIML
+  // 让画布刷新；否则只显示 status。
+  const handleImportHpsml = useCallback(() => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = ".json,.hpsml";
+    input.onchange = async () => {
+      const file = input.files?.[0];
+      if (!file) return;
+      dispatchAnnotation({
+        type: "set-status",
+        status: `正在解包 ${file.name}…`
+      });
+      try {
+        const text = await file.text();
+        const payload = JSON.parse(text) as unknown;
+        const summary = await importHpsmlPackage(payload);
+        const reload = summary.stoneId === selectedId;
+        dispatchAnnotation({
+          type: "set-status",
+          status: `已导入 .hpsml（stoneId=${summary.stoneId}）：IIML ${summary.imported.iiml ? "写入" : summary.skipped.iiml ? "跳过" : "未写入"}、标注 ${summary.imported.annotations} / 关系 ${summary.imported.relations} / 拼接方案 ${summary.imported.assemblyPlans}${reload ? "，当前画像石将刷新" : ""}`
+        });
+        if (reload) {
+          try {
+            const doc = await fetchIimlDocument(summary.stoneId);
+            dispatchAnnotation({ type: "set-doc", doc });
+          } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            dispatchAnnotation({
+              type: "set-status",
+              status: `已导入但刷新画布失败：${message}`
+            });
+          }
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        dispatchAnnotation({
+          type: "set-status",
+          status: `导入 .hpsml 失败：${message}`
+        });
+      }
+    };
+    input.click();
+  }, [selectedId]);
+
   // G2 .hpsml 自定义研究包导出：把 IIML + 拼接方案 + 词表 + 元数据 + 关系网络
   // 打成一个 JSON 包。这是项目自有的研究档案完整格式，便于多机协作 / 长期归档。
   const handleExportHpsml = useCallback(() => {
@@ -1255,6 +1302,7 @@ export function App() {
                 onExportCoco={handleExportCoco}
                 onExportIiif={handleExportIiif}
                 onExportHpsml={handleExportHpsml}
+                onImportHpsml={handleImportHpsml}
                 onAddResource={(resource) => dispatchAnnotation({ type: "add-resource", resource })}
                 onUpdateResource={(id, patch) => dispatchAnnotation({ type: "update-resource", id, patch })}
                 onDeleteResource={(id) => dispatchAnnotation({ type: "delete-resource", id })}

@@ -1246,10 +1246,10 @@ button {
   background: #f3a712;
 }
 
-/* 高清图模式下右上角再叠一个图层切换：原图 / +线图。位置在 source-switch 下方。 */
+/* 高清图模式下右上角再叠一个图层切换：原图 / +线图。位置下移避免与资源切换重叠。 */
 .annotation-layer-switch {
   position: absolute;
-  top: 56px;
+  top: 96px;
   right: 14px;
   z-index: 25;
   display: inline-flex;
@@ -1259,6 +1259,55 @@ button {
   background: rgba(29, 26, 24, 0.78);
   border: 1px solid rgba(255, 255, 255, 0.12);
   backdrop-filter: blur(10px);
+}
+
+/* I1 v0.8.0：多资源画布切换。高清图模式下显示在 source-switch 与 layer-switch 之间。
+   原图 / 生成的正射图 / 拓片 / 法线图之间切换 */
+.annotation-resource-switch {
+  position: absolute;
+  top: 56px;
+  right: 14px;
+  z-index: 25;
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 4px 2px 8px;
+  gap: 3px;
+  max-width: calc(100% - 28px);
+  border-radius: 8px;
+  background: rgba(29, 26, 24, 0.78);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(10px);
+  overflow-x: auto;
+}
+
+.annotation-resource-switch-label {
+  font-size: 10.5px;
+  color: #8f857a;
+  margin-right: 4px;
+  flex: 0 0 auto;
+}
+
+.annotation-resource-switch button {
+  flex: 0 0 auto;
+  padding: 3px 9px;
+  font-size: 11px;
+  color: #cfc7bd;
+  background: transparent;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+  white-space: nowrap;
+}
+
+.annotation-resource-switch button:hover {
+  color: #f4ece0;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.annotation-resource-switch button.active {
+  color: #11100f;
+  background: #2ec4b6;
 }
 
 .annotation-layer-switch button {
@@ -1285,7 +1334,7 @@ button {
 /* F2 阶段：线图算法 + 阈值调节面板，仅 layer === "canny" 时显示，位置在 layer-switch 下方 */
 .annotation-lineart-panel {
   position: absolute;
-  top: 92px;
+  top: 132px;
   right: 14px;
   z-index: 25;
   width: 230px;
@@ -1548,6 +1597,20 @@ button {
   font-size: 10.5px;
   color: #8f857a;
   line-height: 1.45;
+}
+
+.resources-item-transform {
+  font-size: 10.5px;
+  color: #2ec4b6;
+  line-height: 1.45;
+  padding: 3px 5px;
+  background: rgba(46, 196, 182, 0.08);
+  border-radius: 3px;
+  border-left: 2px solid #2ec4b6;
+}
+
+.resources-item-transform strong {
+  color: #f4ece0;
 }
 
 .resources-form {

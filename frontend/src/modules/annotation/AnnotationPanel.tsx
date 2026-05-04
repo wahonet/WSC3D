@@ -49,6 +49,8 @@ type AnnotationPanelProps = {
   onExportIiif?: () => void;
   // G2 .hpsml 自定义研究包导出（IIML + 拼接方案 + 词表 + 关系网络快照）
   onExportHpsml?: () => void;
+  // I3 v0.8.0：.hpsml 研究包解包 / 导入（文件选择 → POST /api/hpsml/import）
+  onImportHpsml?: () => void;
   // G1 多资源版本管理：增 / 删 / 改 doc.resources。v0.7.0 独立 tab，
   // 可从三维模型生成正射图自动落盘 + 关联到 IIML。
   onAddResource?: (resource: import("./types").IimlResourceEntry) => void;
@@ -622,7 +624,8 @@ function ListTab({
   onExportCsv,
   onExportCoco,
   onExportIiif,
-  onExportHpsml
+  onExportHpsml,
+  onImportHpsml
 }: AnnotationPanelProps) {
   const annotations = doc?.annotations ?? [];
 
@@ -774,6 +777,16 @@ function ListTab({
               title=".hpsml 研究包：IIML + 拼接方案 + 词表 + 关系网络快照（项目自有完整档案格式）"
             >
               <Download size={14} /> .hpsml
+            </button>
+          ) : null}
+          {onImportHpsml ? (
+            <button
+              type="button"
+              className="secondary-action small"
+              onClick={onImportHpsml}
+              title="导入 .hpsml 研究包：解包后写入 data/iiml/ 与 data/assembly-plans/"
+            >
+              <Wand2 size={14} /> 导入 .hpsml
             </button>
           ) : null}
         </div>

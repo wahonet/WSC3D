@@ -5,6 +5,7 @@ import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { getCatalog, type CatalogConfig } from "./services/catalog.js";
+import { importHpsmlPackage } from "./services/hpsml.js";
 import { getIimlContext, importMarkdownIntoIiml, listAlignments, loadIimlDoc, loadVocabulary, saveIimlDoc } from "./services/iiml.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -313,6 +314,24 @@ app.get("/api/iiml/:stoneId", async (req, res, next) => {
 app.put("/api/iiml/:stoneId", async (req, res, next) => {
   try {
     res.json(await saveIimlDoc(projectRoot, req.params.stoneId, req.body));
+  } catch (error) {
+    next(error);
+  }
+});
+
+// I3 v0.8.0：.hpsml 研究包解包 / 导入。body 是前端 exportToHpsml 导出的完整
+// 包（含 iiml / context.relatedAssemblyPlans / context.vocabulary / ...）。
+// 可选 query：?stoneId=xxx 强制指定 stoneId；?conflict=skip 避免覆盖已有 IIML
+app.post("/api/hpsml/import", async (req, res, next) => {
+  try {
+    const stoneId = typeof req.query.stoneId === "string" ? req.query.stoneId : undefined;
+    const conflictRaw = typeof req.query.conflict === "string" ? req.query.conflict : undefined;
+    const conflict = conflictRaw === "skip" ? "skip" : "overwrite";
+    const summary = await importHpsmlPackage(projectRoot, config, getCatalog, req.body, {
+      stoneId,
+      conflictStrategy: conflict
+    });
+    res.json(summary);
   } catch (error) {
     next(error);
   }

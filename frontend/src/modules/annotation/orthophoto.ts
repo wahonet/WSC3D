@@ -38,6 +38,11 @@ export type OrthoImageResult = {
   height: number;
   // 模型在 3D 空间的 AABB 尺寸（单位：模型单位），便于外部把像素 ↔ 真实 cm 换算
   modelSize: { width: number; height: number; depth: number };
+  // I2 v0.8.0：生成时的相机 frustum 缩放系数（与 AABB 的比例）。
+  // 默认 1.05 = 在模型 AABB 之外留 5% 白边。反推 modelBox UV ↔ 正射图 UV：
+  //   out_u = model_u * (1 / frustumScale) + (1 - 1/frustumScale) / 2
+  frustumScale: number;
+  view: "front" | "back" | "top" | "bottom";
 };
 
 const backgroundColors: Record<NonNullable<OrthoImageOptions["background"]>, number | null> = {
@@ -132,9 +137,10 @@ export async function generateOrthoImage(
   const scene = new THREE.Scene();
   scene.add(model);
 
-  // 补 5% 留白防止模型边缘贴到画面边
-  const frustumHalfW = (planeWidth / 2) * 1.05;
-  const frustumHalfH = (planeHeight / 2) * 1.05;
+  // 补 5% 留白防止模型边缘贴到画面边；frustumScale 对外暴露用于跨资源坐标变换
+  const frustumScale = 1.05;
+  const frustumHalfW = (planeWidth / 2) * frustumScale;
+  const frustumHalfH = (planeHeight / 2) * frustumScale;
   const maxDim = Math.max(size.x, size.y, size.z);
   const cameraDistance = Math.max(maxDim * 3, 100);
   const camera = new THREE.OrthographicCamera(
@@ -185,7 +191,9 @@ export async function generateOrthoImage(
       blob,
       width: outWidth,
       height: outHeight,
-      modelSize: { width: size.x, height: size.y, depth: size.z }
+      modelSize: { width: size.x, height: size.y, depth: size.z },
+      frustumScale,
+      view
     };
   } finally {
     // 销毁顺序：先移除模型、释放资源，再 dispose renderer

@@ -38,6 +38,37 @@ export type AnnotationState = {
   redoStack: IimlDocument[];
 };
 
+// I2 v0.8.0：跨资源坐标变换。描述一个资源相对"基准资源"的变换；当前基准是
+// 3D 模型（modelBox UV）。v0.9.0 会在画布上实装跨资源投影；v0.8.0 先把数据
+// 模型铺好 + 正射图生成时自动填入，为将来的跨资源标注显示做准备。
+export type IimlResourceTransform =
+  | {
+      // 正射图由 3D 模型按固定方向 + OrthographicCamera 生成；变换是纯线性
+      // 仿射（modelBox UV ↔ 正射图 UV）。frustumScale = 生成时 frustum /
+      // modelAABB 比例（默认 1.05 留白）；offset = (1 - 1/frustumScale) / 2
+      kind: "orthographic-from-model";
+      view: "front" | "back" | "top" | "bottom";
+      modelAABB: { width: number; height: number; depth: number };
+      pixelSize: { width: number; height: number };
+      frustumScale: number;
+      // 生成时附带的相机参数，便于未来反推与导出完整变换矩阵
+      generatedAt?: string;
+    }
+  | {
+      // 4 点单应性：与 culturalObject.alignment 同型，但绑定到"这个资源"而非
+      // 绑到整个 culturalObject，便于同一块石头挂多个拓片 / 正射
+      kind: "homography-4pt";
+      controlPoints: Array<{ model: [number, number]; image: [number, number] }>;
+      // 基准资源 id；默认 pic/ 原图
+      referenceResourceId?: string;
+    }
+  | {
+      // 显式 3x3 仿射矩阵（直接给；外部工具导入时常见）
+      kind: "affine-matrix";
+      matrix: number[]; // row-major 3x3
+      referenceResourceId?: string;
+    };
+
 export type IimlResourceEntry = {
   id: string;
   type: string;
@@ -47,6 +78,8 @@ export type IimlResourceEntry = {
   acquisition?: string;
   acquiredBy?: string;
   acquiredAt?: string;
+  // I2 v0.8.0：资源相对基准资源（默认 3D 模型）的坐标变换
+  transform?: IimlResourceTransform;
   // 派生标记：UI 不参与持久化，标识"哪个资源是当前 UI 默认对应的"
   // 真正持久化只看 doc.resources[]；activeResourceId 是 UI state
   [key: string]: unknown;

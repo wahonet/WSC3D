@@ -58,6 +58,29 @@ type CalibrationDraft = {
 
 const emptyDraft: CalibrationDraft = { modelPoints: [], imagePoints: [], phase: "collect" };
 
+// 给"资源切换"chip 生成简短 label（优先用 resource.description 前缀，退化到 type）
+function buildResourceLabel(resource: Record<string, unknown>): string {
+  const type = String(resource.type ?? "资源");
+  const typeLabels: Record<string, string> = {
+    Orthophoto: "正射",
+    Rubbing: "拓片",
+    NormalMap: "法线",
+    LineDrawing: "线图",
+    OriginalImage: "原图",
+    RTI: "RTI",
+    Other: "其他"
+  };
+  const typeLabel = typeLabels[type] ?? type;
+  const id = String(resource.id ?? "");
+  // id 里若含方向信息（如 resource-ortho-front-xxx）提取成后缀
+  const directionMatch = id.match(/ortho-(front|back|top|bottom)/);
+  if (directionMatch) {
+    const dir = { front: "正", back: "背", top: "顶", bottom: "底" }[directionMatch[1] as "front" | "back" | "top" | "bottom"];
+    return `${typeLabel}·${dir}`;
+  }
+  return typeLabel;
+}
+
 export function AnnotationWorkspace({
   active = true,
   stone,
@@ -95,7 +118,57 @@ export function AnnotationWorkspace({
     () => ({ method: lineartMethod, low: lineartLow, high: lineartHigh, opacity: lineartOpacity }),
     [lineartMethod, lineartLow, lineartHigh, lineartOpacity]
   );
-  const resourceId = doc?.resources[0]?.id ?? `${stone.id}:model`;
+
+  // I1 v0.8.0 多资源画布切换：高清图模式下选哪张图作为底图。
+  // - undefined（默认）= pic/ 原图（走 /ai/source-image/{stoneId}）
+  // - resource.id = doc.resources 里的 image 类资源（如生成的正射图 / 拓片）
+  // 切换资源时 SourceImageView 会重置 fit；Canny 线图只能叠加在 pic/ 原图上
+  // （后端 canny 管线只处理 pic/ 原图），所以切到非默认资源时强制关掉线图。
+  const [activeImageResourceId, setActiveImageResourceId] = useState<string | undefined>(undefined);
+  // doc.resources 里可以作为底图的 image 类资源（有 URI 的 Orthophoto / Rubbing /
+  // NormalMap / LineDrawing / OriginalImage / RTI）
+  const imageLikeResources = useMemo(() => {
+    if (!doc?.resources) return [] as Array<{ id: string; label: string; uri: string; type: string }>;
+    const imageTypes = new Set([
+      "Orthophoto",
+      "Rubbing",
+      "NormalMap",
+      "LineDrawing",
+      "OriginalImage",
+      "RTI",
+      "Other"
+    ]);
+    return (doc.resources as Array<Record<string, unknown>>)
+      .filter((r) => typeof r.uri === "string" && (typeof r.type !== "string" || imageTypes.has(r.type as string)))
+      .map((r, idx) => ({
+        id: String(r.id ?? `resource-${idx}`),
+        type: String(r.type ?? "Other"),
+        uri: String(r.uri),
+        label: buildResourceLabel(r)
+      }));
+  }, [doc?.resources]);
+
+  // 切换 stone 或资源列表变动时，清掉无效的 activeImageResourceId
+  useEffect(() => {
+    if (!activeImageResourceId) return;
+    if (!imageLikeResources.some((r) => r.id === activeImageResourceId)) {
+      setActiveImageResourceId(undefined);
+    }
+  }, [imageLikeResources, activeImageResourceId]);
+
+  // 若切到非 pic/ 资源，强制关掉 Canny 叠加避免错位
+  useEffect(() => {
+    if (activeImageResourceId && imageLayer === "canny") {
+      setImageLayer("source");
+    }
+  }, [activeImageResourceId, imageLayer]);
+
+  const activeImageUrl = useMemo(() => {
+    if (!activeImageResourceId) return undefined;
+    return imageLikeResources.find((r) => r.id === activeImageResourceId)?.uri;
+  }, [activeImageResourceId, imageLikeResources]);
+
+  const resourceId = activeImageResourceId ?? doc?.resources[0]?.id ?? `${stone.id}:model`;
   const alignment = getAlignment(doc);
   // B3 关系连线需要的 relations 列表（与 RelationsEditor 用同一份 store 读出）
   const relations = useMemo(() => getRelations(doc), [doc]);
@@ -269,6 +342,7 @@ export function AnnotationWorkspace({
           background={background}
           cannyOptions={cannyOptions}
           fitToken={fitToken}
+          imageUrl={activeImageUrl}
           layer={imageLayer}
           stoneId={stone.id}
           onScreenProjectionChange={handleProjectionChange}
@@ -315,6 +389,35 @@ export function AnnotationWorkspace({
       </div>
       {sourceMode === "image" ? (
         <>
+          {imageLikeResources.length > 0 ? (
+            <div
+              className="annotation-resource-switch"
+              role="group"
+              aria-label="底图资源"
+              title="I1 v0.8.0：多资源画布切换。在 pic/ 原图与 doc.resources 里注册的正射 / 拓片 / 法线图间切换"
+            >
+              <span className="annotation-resource-switch-label">底图</span>
+              <button
+                type="button"
+                className={!activeImageResourceId ? "active" : ""}
+                onClick={() => setActiveImageResourceId(undefined)}
+                title="默认 pic/ 原图（后端 tif → PNG 转码缓存）"
+              >
+                原图
+              </button>
+              {imageLikeResources.map((resource) => (
+                <button
+                  key={resource.id}
+                  type="button"
+                  className={activeImageResourceId === resource.id ? "active" : ""}
+                  onClick={() => setActiveImageResourceId(resource.id)}
+                  title={`${resource.type} · ${resource.uri}`}
+                >
+                  {resource.label}
+                </button>
+              ))}
+            </div>
+          ) : null}
           <div className="annotation-layer-switch" role="group" aria-label="图层">
             <button
               type="button"
@@ -328,7 +431,12 @@ export function AnnotationWorkspace({
               type="button"
               className={imageLayer === "canny" ? "active" : ""}
               onClick={() => setImageLayer("canny")}
-              title="原图 + 半透明线图叠加，辅助辨识浅浮雕轮廓"
+              disabled={Boolean(activeImageResourceId)}
+              title={
+                activeImageResourceId
+                  ? "切到 pic/ 原图底图才能叠线图（Canny 基于 pic/ 原图生成）"
+                  : "原图 + 半透明线图叠加，辅助辨识浅浮雕轮廓"
+              }
             >
               +线图
             </button>

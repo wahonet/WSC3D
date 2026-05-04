@@ -33,6 +33,11 @@ type SourceImageViewProps = {
   layer?: SourceImageLayer;
   // Canny 线图选项；layer === "canny" 时才生效。
   cannyOptions?: CannyOptions;
+  // I1 v0.8.0：可覆写底图 URL。默认走 /ai/source-image/{stoneId}（pic/ 原图），
+  // 传了就用它（正射图 / 拓片扫描 / 任意 doc.resources 里的 image 类资源）。
+  // Canny 线图仍然基于 pic/ 原图生成，所以 layer === "canny" 叠加在正射 / 拓片
+  // 上会错位；当 imageUrl 被覆写时前端 UI 会自动关掉 +线图 开关防止错位。
+  imageUrl?: string;
   // 与 StoneViewer 一致的 projection 回调，AnnotationCanvas 不感知底图来源。
   onScreenProjectionChange?: (projection: ScreenProjection | undefined) => void;
 };
@@ -75,6 +80,7 @@ export function SourceImageView({
   fitToken,
   layer = "source",
   cannyOptions,
+  imageUrl,
   onScreenProjectionChange
 }: SourceImageViewProps) {
   const canny = cannyOptions ?? defaultCanny;
@@ -108,7 +114,7 @@ export function SourceImageView({
     viewStateRef.current = viewState;
   }, [viewState]);
 
-  const url = getSourceImageUrl(stoneId);
+  const url = imageUrl ?? getSourceImageUrl(stoneId);
 
   const emitProjection = useCallback((next: ViewState | undefined) => {
     const callback = onProjectionChangeRef.current;
@@ -175,7 +181,8 @@ export function SourceImageView({
     setViewState(undefined);
     viewStateRef.current = undefined;
     onProjectionChangeRef.current?.(undefined);
-  }, [stoneId]);
+    // stoneId / imageUrl 任一变化都重置视图（切画像石 / 切资源）
+  }, [stoneId, imageUrl]);
 
   // 容器 resize 时：如果 viewState 还没初始化（图未加载或刚切 stone），保持 undefined 等 onLoad；
   // 如果已经在用户态了，**不**重置 viewState，仅同步 corners（offset 是绝对像素，scale 是绝对值，

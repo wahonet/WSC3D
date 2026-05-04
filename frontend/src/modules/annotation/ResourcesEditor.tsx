@@ -7,7 +7,7 @@ import {
   type StoneResourceEntry
 } from "../../api/client";
 import { generateOrthoImage } from "./orthophoto";
-import type { IimlDocument, IimlResourceEntry } from "./types";
+import type { IimlDocument, IimlResourceEntry, IimlResourceTransform } from "./types";
 
 // 资源标签页主面板。做了 4 件事：
 //
@@ -112,7 +112,8 @@ export function ResourcesEditor({
       const uploaded = await uploadStoneResource(stoneId, result.blob, {
         type: `ortho-${orthoView}`
       });
-      // 把新资源条目加进 IIML doc.resources
+      // 把新资源条目加进 IIML doc.resources，带完整的跨资源坐标变换元数据
+      // （I2 v0.8.0：modelBox UV ↔ 正射图 UV 的线性仿射变换信息）
       const resourceId = `resource-ortho-${orthoView}-${Date.now().toString(36)}`;
       onAddResource({
         id: resourceId,
@@ -120,7 +121,15 @@ export function ResourcesEditor({
         uri: uploaded.uri,
         description: `从 3D 模型生成的正射图（${orthoViewOptions.find((o) => o.id === orthoView)?.label ?? orthoView}）；像素尺寸 ${result.width}×${result.height}；模型 AABB ${result.modelSize.width.toFixed(2)}×${result.modelSize.height.toFixed(2)}×${result.modelSize.depth.toFixed(2)}`,
         acquisition: "offscreen-three-ortho",
-        acquiredAt: new Date().toISOString()
+        acquiredAt: new Date().toISOString(),
+        transform: {
+          kind: "orthographic-from-model",
+          view: result.view,
+          modelAABB: result.modelSize,
+          pixelSize: { width: result.width, height: result.height },
+          frustumScale: result.frustumScale,
+          generatedAt: new Date().toISOString()
+        }
       });
       await refreshServerResources();
       onStatusMessage?.(`已生成正射图：${result.width}×${result.height}px，已关联到 IIML resources`);
@@ -164,6 +173,17 @@ export function ResourcesEditor({
     setDraftDescription("");
     onStatusMessage?.(`已添加资源条目 ${id}`);
   };
+
+  function describeTransform(transform: IimlResourceTransform): string {
+    if (transform.kind === "orthographic-from-model") {
+      const viewLabel = orthoViewOptions.find((o) => o.id === transform.view)?.label ?? transform.view;
+      return `正射投影 · ${viewLabel} · AABB ${transform.modelAABB.width.toFixed(1)}×${transform.modelAABB.height.toFixed(1)} · frustum ${transform.frustumScale.toFixed(2)}× · 像素 ${transform.pixelSize.width}×${transform.pixelSize.height}`;
+    }
+    if (transform.kind === "homography-4pt") {
+      return `4 点单应性 · ${transform.controlPoints.length} 对对应点`;
+    }
+    return "3×3 仿射矩阵";
+  }
 
   return (
     <section className="resources-tab">
@@ -289,6 +309,11 @@ export function ResourcesEditor({
                   </div>
                   {resource.description ? (
                     <div className="resources-item-desc">{resource.description}</div>
+                  ) : null}
+                  {resource.transform ? (
+                    <div className="resources-item-transform" title="跨资源坐标变换元数据">
+                      <strong>坐标变换</strong> · {describeTransform(resource.transform)}
+                    </div>
                   ) : null}
                 </li>
               );

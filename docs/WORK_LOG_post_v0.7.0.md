@@ -109,3 +109,63 @@
 **下一步**
 
 commit + push 这一波，然后开始 **I1 多资源画布切换**。
+
+---
+
+### 2026-05-04 17:40 · I1 + I2 + I3 完成 — 多资源画布切换 + 跨资源坐标变换 + .hpsml 解包
+
+#### I1 多资源画布切换
+
+- SourceImageView 新增 `imageUrl?: string` props：默认走 `/ai/source-image/{stoneId}`
+  （pic/ 原图），传了就用它（任意 doc.resources 里的 image 类资源 URI）
+- 切换 stoneId 或 imageUrl 都重置 viewState 走 fit
+- AnnotationWorkspace 新增 `activeImageResourceId` 状态 + `imageLikeResources` 派生：
+  从 doc.resources 过滤 Orthophoto / Rubbing / NormalMap / LineDrawing / OriginalImage /
+  RTI / Other 类型作为可选底图
+- 高清图模式下 source-switch 下方新增"资源切换" segmented UI，chip 文案按类型
+  + 方向生成（"正射·正" / "拓片" / "法线" / ...）
+- 切到非 pic/ 资源时强制禁用 Canny 线图叠加（后端 canny 管线只处理 pic/ 原图）
+- 资源列表变动时自动清掉无效的 activeImageResourceId
+- CSS：`.annotation-resource-switch` 插入 source-switch 和 layer-switch 之间，
+  layer-switch / lineart-panel 位置下移 40px 避免重叠
+
+#### I2 跨资源坐标变换（数据模型层）
+
+- `types.ts` 新增 `IimlResourceTransform` 联合类型，3 种 kind：
+  - `orthographic-from-model`：view / modelAABB / pixelSize / frustumScale，
+    纯线性仿射（modelBox UV ↔ 正射图 UV）
+  - `homography-4pt`：4 对对应点，同 alignment 但绑到资源
+  - `affine-matrix`：显式 3×3 矩阵
+- `IimlResourceEntry.transform` 字段（可选）保存变换
+- `orthophoto.ts` 的 `OrthoImageResult` 返回 `frustumScale` + `view`
+- `ResourcesEditor` 生成正射图时自动填入 `transform: { kind: "orthographic-from-model", ... }`
+- 资源卡片上增加 `.resources-item-transform` 提示条（金绿色边框），显示
+  "正射投影 · 正面 · AABB WxH · frustum 1.05× · 像素 WxH"
+
+**画布投影实装留 v0.9.0**：v0.8.0 只把跨资源元数据铺好，画布渲染时暂仍按
+原 frame 显示（不做跨资源投影），避免引入画布层 bug
+
+#### I3 .hpsml 解包导入
+
+- `backend/src/services/hpsml.ts` 新建：
+  - `importHpsmlPackage(root, config, getCatalog, payload, options)` 解包
+  - 校验 `format === "hpsml"` + `formatVersion`（不同版本告警继续尝试）
+  - 解 stoneId：options.stoneId > context.stone.id > iiml.documentId 前缀
+  - IIML 主体直接走 `saveIimlDoc`（完整 ajv 校验）
+  - 拼接方案导入 `data/assembly-plans/`，冲突时生成新 id + `importedFromHpsml` 标记
+  - conflictStrategy: overwrite（默认）/ skip；skip 模式探测本机已存在则跳过 iiml
+- `server.ts` 加 `POST /api/hpsml/import?stoneId=...&conflict=overwrite|skip`
+- `client.ts` 加 `importHpsmlPackage(payload, options)` + `HpsmlImportSummary` 类型
+- `AnnotationPanel` ListTab 下载区加"导入 .hpsml"按钮
+- `App.handleImportHpsml`：用隐藏 `<input type="file" accept=".json,.hpsml">` 触发
+  文件选择，解析 JSON 后调 API；若导入的是当前 stoneId，重新拉 IIML 让画布刷新
+
+#### 验证
+
+- npm run typecheck 全程绿（前后端都过）
+- 未做浏览器端手动测试，需要在 v0.8.0 收尾验收
+
+**下一步**
+
+写 v0.8.0 release notes + 更新 README + ROADMAP，最后 commit + push 一次完成
+本轮交付。

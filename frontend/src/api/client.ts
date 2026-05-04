@@ -496,6 +496,44 @@ export async function listStoneResources(stoneId: string): Promise<StoneResource
  * 或传 base64 字符串（比如剪贴板粘贴）。后端会把文件存到 data/stone-resources/
  * {stoneId}/{type}-{ts}.png 并返回前端可加到 IIML resources 的元信息。
  */
+// I3 v0.8.0：.hpsml 研究包解包 / 导入
+export type HpsmlImportSummary = {
+  stoneId: string;
+  imported: {
+    iiml: boolean;
+    annotations: number;
+    relations: number;
+    processingRuns: number;
+    resources: number;
+    assemblyPlans: number;
+  };
+  skipped: {
+    iiml: boolean;
+    assemblyPlans: number;
+  };
+  warnings: string[];
+};
+
+export async function importHpsmlPackage(
+  payload: unknown,
+  options: { stoneId?: string; conflict?: "overwrite" | "skip" } = {}
+): Promise<HpsmlImportSummary> {
+  const params = new URLSearchParams();
+  if (options.stoneId) params.set("stoneId", options.stoneId);
+  if (options.conflict) params.set("conflict", options.conflict);
+  const url = `/api/hpsml/import${params.toString() ? `?${params.toString()}` : ""}`;
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+  if (!response.ok) {
+    const message = await response.text().catch(() => "unknown");
+    throw new Error(`hpsml_import_failed: ${response.status} ${message}`);
+  }
+  return (await response.json()) as HpsmlImportSummary;
+}
+
 export async function uploadStoneResource(
   stoneId: string,
   payload: Blob | { type?: string; imageBase64: string },
