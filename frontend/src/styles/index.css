@@ -1,0 +1,9 @@
+/*
+ * 样式入口。
+ *
+ * 现阶段先通过一个稳定入口包住 legacy 全局样式，后续按 app-shell / viewer /
+ * annotation / binding / assembly 逐段迁移到本目录下的分文件，避免 main.tsx
+ * 直接绑定到 5000+ 行全局 CSS。
+ */
+
+@import "../styles.css";

@@ -19,15 +19,19 @@
  * - 关系编辑器（B1）+ 空间关系自动推导（B2）只在编辑 tab 当前选中标注时显示
  */
 
-import { AlertTriangle, Check, CircleAlert, Download, Eye, EyeOff, Group, Layers, Lock, Network, Package, RotateCcw, Trash2, Unlock, Wand2, X } from "lucide-react";
+import { AlertTriangle, Check, CircleAlert, Download, Eye, EyeOff, FolderOpen, Group, Layers, Lock, Network, Package, RotateCcw, Save, Trash2, Unlock, Wand2, X } from "lucide-react";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import type {
   IimlAnnotation,
+  IimlAnnotationIssue,
+  IimlAnnotationQualityTier,
   IimlDocument,
+  IimlGeometryIntent,
   IimlHanStoneCategory,
   IimlSource,
   IimlStructuralLevel,
   IimlTermRef,
+  IimlTrainingRole,
   StoneListItem,
   StoneMetadata,
   VocabularyCategory,
@@ -55,6 +59,17 @@ type AnnotationPanelProps = {
   doc?: IimlDocument;
   selectedAnnotation?: IimlAnnotation;
   draftAnnotationId?: string;
+  saveState?: {
+    phase: "idle" | "dirty" | "saving" | "saved" | "error";
+    savedAt?: string;
+    error?: string;
+  };
+  statusMessage?: string;
+  trainingDatasetLocation?: {
+    datasetDir: string;
+    absolutePath?: string;
+    reportFileName?: string;
+  };
   metadata?: StoneMetadata;
   vocabularyCategories: VocabularyCategory[];
   vocabularyTerms: VocabularyTerm[];
@@ -81,10 +96,12 @@ type AnnotationPanelProps = {
   // M5 Phase 1 A2 主动学习闭环：把 data/iiml/*.iiml.json 跨石头聚合 + 校验 +
   // 70/15/15 划分 + 写 data/datasets/wsc-han-stone-v0/ 整套目录（COCO + IIML 双轨）
   onExportTraining?: () => void;
+  onRevealTrainingDataset?: () => void;
   // D 阶段：上线前预检（pic 配对 / IIML 完整度 / 训练池估算 / 类别均衡）
   onPreflight?: () => void;
   // I3 v0.8.0：.hpsml 研究包解包 / 导入（文件选择 → POST /api/hpsml/import）
   onImportHpsml?: () => void;
+  onManualSave?: () => void;
   // G1 多资源版本管理：增 / 删 / 改 doc.resources。v0.7.0 独立 tab，
   // 可从三维模型生成正射图自动落盘 + 关联到 IIML。
   onAddResource?: (resource: import("./types").IimlResourceEntry) => void;
@@ -118,6 +135,35 @@ const structuralLevelOptions: Array<{ value: IimlStructuralLevel; label: string 
   { value: "inscription", label: "题刻" },
   { value: "damage", label: "病害" },
   { value: "unknown", label: "未定" }
+];
+
+const annotationQualityOptions: Array<{ value: IimlAnnotationQualityTier; label: string; title: string }> = [
+  { value: "weak", label: "weak", title: "框、点、涂鸦、局部线索；用于覆盖和弱监督" },
+  { value: "silver", label: "silver", title: "AI 或人工快速修正的 polygon/mask；可训练但需统计噪声" },
+  { value: "gold", label: "gold", title: "专家精修；用于验证集、测试集或论文评估" }
+];
+
+const geometryIntentOptions: Array<{ value: IimlGeometryIntent; label: string; title: string }> = [
+  { value: "visible_trace", label: "可见刻痕", title: "只标图像上可见的雕刻/痕迹区域" },
+  { value: "semantic_extent", label: "语义范围", title: "标专家判定该对象在画面中的整体范围" },
+  { value: "reconstructed_extent", label: "复原范围", title: "包含磨损、遮挡后的专家推断完整形态" }
+];
+
+const trainingRoleOptions: Array<{ value: IimlTrainingRole; label: string; title: string }> = [
+  { value: "train", label: "训练", title: "常规训练候选" },
+  { value: "validation", label: "验证/评估", title: "gold 子集，优先留作验证或论文评估" },
+  { value: "holdout", label: "暂存", title: "保留在 IIML 中，但导出报告会单独标记" }
+];
+
+const annotationIssueOptions: Array<{ value: IimlAnnotationIssue; label: string }> = [
+  { value: "low_contrast", label: "低对比" },
+  { value: "texture_confusion", label: "纹理混淆" },
+  { value: "ambiguous_boundary", label: "边界歧义" },
+  { value: "occluded_or_worn", label: "遮挡/风化" },
+  { value: "oversegmented", label: "过分割" },
+  { value: "undersegmented", label: "欠分割" },
+  { value: "class_uncertain", label: "类别不确定" },
+  { value: "needs_expert_review", label: "需专家复核" }
 ];
 
 type TabKey = "edit" | "review" | "list" | "graph" | "resources";
@@ -213,6 +259,23 @@ export function AnnotationPanel(props: AnnotationPanelProps) {
           {relations.length > 0 ? <span className="annotation-tab-count">{relations.length}</span> : null}
         </button>
       </nav>
+
+      {props.saveState ? (
+        <AnnotationSaveBar
+          saveState={props.saveState}
+          statusMessage={props.statusMessage}
+          trainingDatasetLocation={props.trainingDatasetLocation}
+          onManualSave={props.onManualSave}
+          onRevealTrainingDataset={props.onRevealTrainingDataset}
+        />
+      ) : props.statusMessage ? (
+        <div className="annotation-save-bar annotation-save-bar--idle" role="status" aria-live="polite" title={props.statusMessage}>
+          <span className="annotation-save-dot" aria-hidden />
+          <span className="annotation-save-copy">
+            <span className="annotation-status-inline">{props.statusMessage}</span>
+          </span>
+        </div>
+      ) : null}
 
       <div className="annotation-tab-body" role="tabpanel">
         {tab === "edit" ? (
@@ -387,6 +450,28 @@ function EditTab({
     onUpdateAnnotation(annotation.id, { category: next });
     markDirty();
   };
+  const handleQualityChange = (value: IimlAnnotationQualityTier) => {
+    onUpdateAnnotation(annotation.id, { annotationQuality: value });
+    markDirty();
+  };
+  const handleGeometryIntentChange = (value: IimlGeometryIntent) => {
+    onUpdateAnnotation(annotation.id, { geometryIntent: value });
+    markDirty();
+  };
+  const handleTrainingRoleChange = (value: IimlTrainingRole) => {
+    onUpdateAnnotation(annotation.id, { trainingRole: value });
+    markDirty();
+  };
+  const handleIssueToggle = (issue: IimlAnnotationIssue) => {
+    const current = new Set(annotation.annotationIssues ?? []);
+    if (current.has(issue)) {
+      current.delete(issue);
+    } else {
+      current.add(issue);
+    }
+    onUpdateAnnotation(annotation.id, { annotationIssues: Array.from(current) });
+    markDirty();
+  };
   const handleColorChange = (color: string) => {
     onUpdateAnnotation(annotation.id, { color });
     markDirty();
@@ -529,6 +614,66 @@ function EditTab({
             提示：故事类标注建议填具体母题（SOP 附录 A）；空值不阻塞但 A2 导出会标记。
           </p>
         ) : null}
+      </Field>
+
+      <Field label="训练质量">
+        <div className="edit-row">
+          <select
+            value={annotation.annotationQuality ?? (annotation.target.type === "BBox" || annotation.target.type === "Point" || annotation.target.type === "LineString" ? "weak" : "silver")}
+            onChange={(event) => handleQualityChange(event.target.value as IimlAnnotationQualityTier)}
+            title="weak/silver/gold 分层，导出报告和 stats 会单独统计"
+          >
+            {annotationQualityOptions.map((option) => (
+              <option key={option.value} value={option.value} title={option.title}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+          <select
+            value={annotation.geometryIntent ?? "semantic_extent"}
+            onChange={(event) => handleGeometryIntentChange(event.target.value as IimlGeometryIntent)}
+            title="区分可见刻痕、语义范围和专家复原范围"
+          >
+            {geometryIntentOptions.map((option) => (
+              <option key={option.value} value={option.value} title={option.title}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+          <select
+            value={annotation.trainingRole ?? "train"}
+            onChange={(event) => handleTrainingRoleChange(event.target.value as IimlTrainingRole)}
+            title="gold 子集可标 validation，争议或暂不用样本可标 holdout"
+          >
+            {trainingRoleOptions.map((option) => (
+              <option key={option.value} value={option.value} title={option.title}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        <p className="edit-hint">
+          weak 用于框/点/涂鸦覆盖，silver 用于可训练粗 mask，gold 优先留作验证与论文评估。
+        </p>
+      </Field>
+
+      <Field label="问题标签">
+        <div className="issue-chip-list">
+          {annotationIssueOptions.map((option) => {
+            const checked = (annotation.annotationIssues ?? []).includes(option.value);
+            return (
+              <label key={option.value} className={checked ? "issue-chip is-on" : "issue-chip"}>
+                <input
+                  type="checkbox"
+                  checked={checked}
+                  onChange={() => handleIssueToggle(option.value)}
+                />
+                {option.label}
+              </label>
+            );
+          })}
+        </div>
+        <p className="edit-hint">用于记录 SAM 失败原因，并进入主动学习队列排序。</p>
       </Field>
 
       <Field label="透明度">
@@ -715,6 +860,72 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
       <div className="edit-field-body">{children}</div>
     </div>
   );
+}
+
+function AnnotationSaveBar({
+  saveState,
+  statusMessage,
+  trainingDatasetLocation,
+  onRevealTrainingDataset,
+  onManualSave
+}: {
+  saveState: NonNullable<AnnotationPanelProps["saveState"]>;
+  statusMessage?: string;
+  trainingDatasetLocation?: AnnotationPanelProps["trainingDatasetLocation"];
+  onRevealTrainingDataset?: () => void;
+  onManualSave?: () => void;
+}) {
+  const label =
+    saveState.phase === "dirty"
+      ? "有未保存改动"
+      : saveState.phase === "saving"
+        ? "保存中..."
+        : saveState.phase === "saved"
+          ? `已保存${saveState.savedAt ? ` ${formatSaveTime(saveState.savedAt)}` : ""}`
+          : saveState.phase === "error"
+            ? "保存失败"
+            : "等待标注";
+  const detail = saveState.phase === "error" ? saveState.error : undefined;
+  const datasetPath = trainingDatasetLocation?.absolutePath ?? trainingDatasetLocation?.datasetDir;
+  const title = [detail || label, statusMessage, datasetPath ? `训练集目录：${datasetPath}` : ""].filter(Boolean).join(" · ");
+  return (
+    <div className={`annotation-save-bar annotation-save-bar--${saveState.phase}`} role="status" aria-live="polite" title={title}>
+      <span className="annotation-save-dot" aria-hidden />
+      <span className="annotation-save-copy">
+        <span className="annotation-save-text">{label}</span>
+        {statusMessage ? <span className="annotation-status-inline">{statusMessage}</span> : null}
+      </span>
+      <span className="annotation-save-actions">
+        {trainingDatasetLocation ? (
+          <button
+            type="button"
+            className="secondary-action small annotation-dataset-button"
+            onClick={onRevealTrainingDataset}
+            disabled={!onRevealTrainingDataset}
+            title={`打开训练集目录：${datasetPath ?? trainingDatasetLocation.datasetDir}`}
+          >
+            <FolderOpen size={13} /> 目录
+          </button>
+        ) : null}
+        <button
+          type="button"
+          className="mini-icon annotation-save-button"
+          onClick={onManualSave}
+          disabled={!onManualSave || saveState.phase === "saving"}
+          title="立即保存当前画像石的 IIML 标注文档"
+          aria-label="立即保存"
+        >
+          <Save size={14} />
+        </button>
+      </span>
+    </div>
+  );
+}
+
+function formatSaveTime(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false });
 }
 
 function ListTab({
@@ -997,6 +1208,10 @@ function AnnotationRow({
   const isCandidate = annotation.reviewStatus === "candidate";
   const color = annotation.color ?? fallbackColor;
   const label = annotation.label ?? "";
+  const quality = getAnnotationQuality(annotation);
+  const category = annotation.category ?? "未分类";
+  const role = annotation.trainingRole ?? "train";
+  const issueCount = annotation.annotationIssues?.length ?? 0;
 
   return (
     <li
@@ -1016,7 +1231,6 @@ function AnnotationRow({
           aria-label="选择此标注用于合并"
         />
       </label>
-      <TrainingBadge result={trainingResult} />
       <span
         className="annotation-color-dot annotation-color-dot--static"
         style={{ background: color }}
@@ -1026,23 +1240,45 @@ function AnnotationRow({
         type="button"
         className="annotation-row-name"
         onClick={onSelect}
-        title={label || "未命名"}
+        title={`${label || "未命名"} · ${category} · ${annotation.target.type}`}
         aria-pressed={isSelected}
       >
-        {label ? label : <em>未命名</em>}
-        {isCandidate ? <span className="annotation-candidate-badge" title="AI 候选，待审核">候选</span> : null}
+        <span className="annotation-row-title">
+          <span className="annotation-row-label">{label ? label : <em>未命名</em>}</span>
+          {isCandidate ? <span className="annotation-candidate-badge" title="AI 候选，待审核">候选</span> : null}
+        </span>
+        <span className="annotation-row-meta">
+          <TrainingBadge result={trainingResult} />
+          <span className={`annotation-quality-badge annotation-quality-badge--${quality}`}>
+            {quality}
+          </span>
+          <span className="annotation-meta-chip">{annotation.target.type}</span>
+          <span className="annotation-meta-chip">{category}</span>
+          {role !== "train" ? <span className="annotation-meta-chip">{role}</span> : null}
+          {issueCount > 0 ? <span className="annotation-meta-chip">问题×{issueCount}</span> : null}
+        </span>
       </button>
-      <button className="mini-icon" title={visible ? "隐藏" : "显示"} onClick={onToggleVisible}>
-        {visible ? <Eye size={14} /> : <EyeOff size={14} />}
-      </button>
-      <button className="mini-icon" title={locked ? "解锁" : "锁定"} onClick={onToggleLocked}>
-        {locked ? <Lock size={14} /> : <Unlock size={14} />}
-      </button>
-      <button className="mini-icon danger" title="删除" onClick={onDelete}>
-        <Trash2 size={14} />
-      </button>
+      <div className="annotation-row-actions">
+        <button className="mini-icon" title={visible ? "隐藏" : "显示"} onClick={onToggleVisible}>
+          {visible ? <Eye size={14} /> : <EyeOff size={14} />}
+        </button>
+        <button className="mini-icon" title={locked ? "解锁" : "锁定"} onClick={onToggleLocked}>
+          {locked ? <Lock size={14} /> : <Unlock size={14} />}
+        </button>
+        <button className="mini-icon danger" title="删除" onClick={onDelete}>
+          <Trash2 size={14} />
+        </button>
+      </div>
     </li>
   );
+}
+
+function getAnnotationQuality(annotation: IimlAnnotation): IimlAnnotationQualityTier {
+  if (annotation.annotationQuality) return annotation.annotationQuality;
+  if (annotation.target.type === "BBox" || annotation.target.type === "Point" || annotation.target.type === "LineString") {
+    return "weak";
+  }
+  return "silver";
 }
 
 // M5 Phase 1 A2 子任务：训练池徽标。把 SOP §11 校验结果可视化为 ✓/⚠/✗ 三档图标。
@@ -1064,19 +1300,27 @@ const TRAINING_REASON_LABELS: Record<string, string> = {
   "geometry-polygon-too-small": "Polygon 面积 < 64 px²（SOP §11.11）",
   "geometry-multipolygon-too-small": "MultiPolygon 总面积 < 64 px²",
   "geometry-unknown-type": "几何 type 不在受控集",
+  "frame-model-no-alignment": "frame=model 但缺少 4 点对齐或等价正射图",
   "bad-structural-level": "structuralLevel 不在 8 档",
   "bad-category": "category 缺失或不在 13 + unknown（SOP §1）",
   "motif-too-long": "motif 超过 200 字符上限",
+  "bad-annotation-quality": "annotationQuality 不在 weak/silver/gold",
+  "bad-geometry-intent": "geometryIntent 不在三类边界语义",
+  "bad-training-role": "trainingRole 不在 train/validation/holdout",
   "no-terms": "至少 1 个受控术语（terms[]）",
-  "no-sources": "至少 1 条 sources",
-  "no-evidence-source": "需要 ≥ 1 条 metadata / reference 来源",
+  "no-sources": "未填写证据源；可进训练池，但发布/论文前建议补齐",
+  "no-evidence-source": "sources 中缺 metadata / reference；可进训练池，但溯源质量较弱",
   "pre-iconographic-too-short": "preIconographic < 10 字（SOP §4.4）",
   "iconographic-too-short": "iconographicMeaning < 10 字（SOP §4.4）",
   "review-status-candidate": "未审核（reviewStatus=candidate）",
   "review-status-reviewed": "需二次审核才能进训练池",
   "review-status-rejected": "已被拒（reviewStatus=rejected）",
   "inscription-no-transcription": "inscription 类必须有题刻 transcription",
-  "missing-motif-for-narrative": "故事类建议填 motif（SOP §11.12 warning）"
+  "missing-motif-for-narrative": "故事类建议填 motif（SOP §11.12 warning）",
+  "annotation-quality-weak": "weak 标注：用于覆盖/弱监督，正式 mask 训练需谨慎",
+  "geometry-intent-reconstructed": "复原范围：含专家推断，建议单独评估",
+  "training-role-validation": "验证/评估子集：训练脚本应默认留出",
+  "training-role-holdout": "暂存样本：保留但默认不参与训练"
 };
 
 function describeTrainingReasons(codes: string[]): string {

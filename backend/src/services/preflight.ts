@@ -13,9 +13,16 @@
 
 import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
+import { HAN_STONE_CATEGORIES, NARRATIVE_CATEGORIES_NEED_MOTIF } from "../domain/han-stone.js";
 import type { CatalogConfig, getCatalog } from "./catalog.js";
 import type { IimlAnnotation, IimlDocument } from "./iiml.js";
-import { getPicDir, scanPicDir, stoneIdToNumericKey } from "./pic.js";
+import { matchPicHealthToCatalog } from "./pic-catalog.js";
+import { getPicDir, scanPicDir } from "./pic.js";
+import {
+  getAnnotationQuality,
+  getGeometryIntent,
+  getTrainingRole
+} from "./training-annotation-meta.js";
 import {
   getAlignmentFromDoc,
   isEquivalentOrthophotoResource,
@@ -57,6 +64,9 @@ export type PreflightReport = {
     missingMotifInNarrativeCount: number;
     frameModelNoAlignmentCount: number;
     reviewStatusBreakdown: Record<string, number>;
+    annotationQualityDistribution: Record<string, number>;
+    geometryIntentDistribution: Record<string, number>;
+    trainingRoleDistribution: Record<string, number>;
   };
   trainingReadiness: {
     estimatedAccepted: number;
@@ -66,12 +76,6 @@ export type PreflightReport = {
     underrepresentedCategories: string[];
   };
 };
-
-const NARRATIVE_CATEGORIES = new Set([
-  "figure-loyal-assassin",
-  "figure-filial-son",
-  "figure-virtuous-woman"
-]);
 
 // 类别样本不足阈值：低于这个数会在 underrepresentedCategories 高亮
 const CATEGORY_MIN_SAMPLES = 30;
@@ -88,16 +92,7 @@ export async function runPreflight(
     scanPicDir(getPicDir(projectRoot)),
     getCatalogImpl(catalogConfig)
   ]);
-  const matched: Array<{ stoneId: string; fileName: string }> = [];
-  const unmatchedStones: string[] = [];
-  for (const stone of catalog.stones) {
-    const key = stoneIdToNumericKey(stone.id);
-    if (key && picHealth.byNumericKey[key]?.length) {
-      matched.push({ stoneId: stone.id, fileName: picHealth.byNumericKey[key][0].fileName });
-    } else {
-      unmatchedStones.push(stone.id);
-    }
-  }
+  const { matched, unmatchedStones } = matchPicHealthToCatalog(catalog, picHealth);
 
   // 2) IIML 全扫
   const iimlDir = path.join(projectRoot, "data", "iiml");
@@ -124,6 +119,9 @@ export async function runPreflight(
   const reviewStatusBreakdown: Record<string, number> = {};
   const skipReasons: Record<string, number> = {};
   const categoryDistribution: Record<string, number> = {};
+  const annotationQualityDistribution: Record<string, number> = {};
+  const geometryIntentDistribution: Record<string, number> = {};
+  const trainingRoleDistribution: Record<string, number> = {};
   let estimatedAccepted = 0;
   let estimatedSkipped = 0;
 
@@ -135,7 +133,7 @@ export async function runPreflight(
 
       // 字段统计
       if (!a.category) missingCategoryCount += 1;
-      if (a.category && NARRATIVE_CATEGORIES.has(a.category) && !(a.motif && a.motif.trim())) {
+      if (a.category && NARRATIVE_CATEGORIES_NEED_MOTIF.has(a.category) && !(a.motif && a.motif.trim())) {
         missingMotifInNarrativeCount += 1;
       }
       const frame = ann.frame ?? "model";
@@ -144,6 +142,12 @@ export async function runPreflight(
       }
       const rs = ann.reviewStatus ?? "(undefined)";
       reviewStatusBreakdown[rs] = (reviewStatusBreakdown[rs] ?? 0) + 1;
+      const quality = getAnnotationQuality(ann);
+      annotationQualityDistribution[quality] = (annotationQualityDistribution[quality] ?? 0) + 1;
+      const intent = getGeometryIntent(ann);
+      geometryIntentDistribution[intent] = (geometryIntentDistribution[intent] ?? 0) + 1;
+      const role = getTrainingRole(ann);
+      trainingRoleDistribution[role] = (trainingRoleDistribution[role] ?? 0) + 1;
 
       // 训练池模拟：跑 validate 看会不会通过
       const result = validateAnnotationForTraining(ann, doc);
@@ -165,24 +169,8 @@ export async function runPreflight(
     .slice(0, 5)
     .map(([reason, count]) => ({ reason, count }));
 
-  // SOP §1.1 13 类 + unknown，逐类比 CATEGORY_MIN_SAMPLES
-  const allCategories = [
-    "figure-deity",
-    "figure-immortal",
-    "figure-mythic-ruler",
-    "figure-loyal-assassin",
-    "figure-filial-son",
-    "figure-virtuous-woman",
-    "figure-music-dance",
-    "chariot-procession",
-    "mythic-creature",
-    "celestial",
-    "daily-life-scene",
-    "architecture",
-    "inscription",
-    "pattern-border"
-  ];
-  const underrepresentedCategories = allCategories.filter(
+  // SOP §1.1 训练类别逐类比 CATEGORY_MIN_SAMPLES；unknown 不进入 COCO 训练表。
+  const underrepresentedCategories = HAN_STONE_CATEGORIES.filter((category) => category !== "unknown").filter(
     (c) => (categoryDistribution[c] ?? 0) < CATEGORY_MIN_SAMPLES
   );
 
@@ -217,7 +205,10 @@ export async function runPreflight(
       missingCategoryCount,
       missingMotifInNarrativeCount,
       frameModelNoAlignmentCount,
-      reviewStatusBreakdown
+      reviewStatusBreakdown,
+      annotationQualityDistribution,
+      geometryIntentDistribution,
+      trainingRoleDistribution
     },
     trainingReadiness: {
       estimatedAccepted,
@@ -228,3 +219,4 @@ export async function runPreflight(
     }
   };
 }
+

@@ -42,7 +42,7 @@ from typing import Any, Optional
 import cv2
 import numpy as np
 
-from .sam import get_source_image_png, resolve_resource_uri
+from .resources import get_source_image_png, resolve_resource_uri
 from .utils import decode_image
 
 # YOLOv8 nano 通用模型：~6 MB，对汉画像石"人物 / 鸟兽"等 COCO 类别可识别，但对

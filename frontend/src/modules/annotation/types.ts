@@ -19,7 +19,10 @@ import type {
   IimlAlignmentControlPoint,
   IimlAnnotation,
   IimlAnnotationFrame,
+  IimlAnnotationIssue,
+  IimlAnnotationQualityTier,
   IimlDocument,
+  IimlGeometryIntent,
   IimlGeometry,
   IimlHanStoneCategory,
   IimlPoint,
@@ -29,6 +32,7 @@ import type {
   IimlRelationOrigin,
   IimlReviewStatus,
   IimlStructuralLevel,
+  IimlTrainingRole,
   VocabularyTerm
 } from "../../api/client";
 
@@ -132,7 +136,10 @@ export type {
   IimlAlignmentControlPoint,
   IimlAnnotation,
   IimlAnnotationFrame,
+  IimlAnnotationIssue,
+  IimlAnnotationQualityTier,
   IimlDocument,
+  IimlGeometryIntent,
   IimlGeometry,
   IimlHanStoneCategory,
   IimlPoint,
@@ -142,5 +149,6 @@ export type {
   IimlRelationOrigin,
   IimlReviewStatus,
   IimlStructuralLevel,
+  IimlTrainingRole,
   VocabularyTerm
 };

@@ -4,51 +4,24 @@
  * 与 `frontend/src/modules/annotation/training.ts` 算法严格对齐 ——
  * SOP v0.3 §11 `is_training_ready` 11 项硬约束 + 1 项 warning。
  *
- * 重复实现而非共享代码的原因：
- * - 前端 / 后端类型定义历史上是手动同步（client.ts ↔ services/iiml.ts）
- * - 后端校验在 A2 数据集导出时跑一次（写盘前），不依赖网络
- * - 前端校验给 ListTab 实时徽标提示（每条 annotation rerender）
- *
- * 当 SOP §11 升级为 v0.4 时，**两个文件必须一起改**。
+ * 领域枚举和训练派生字段都从单一模块导入，避免 preflight / export / schema
+ * 各自维护一份类别表或默认规则。
  */
 
 import type { IimlAlignment, IimlAnnotation, IimlDocument, IimlGeometry } from "./iiml.js";
-
-const STRUCTURAL_LEVELS_V8 = new Set([
-  "whole",
-  "scene",
-  "figure",
-  "component",
-  "trace",
-  "inscription",
-  "damage",
-  "unknown"
-]);
-
-// SOP v0.3 §1.1 类别表 13 + unknown
-const HAN_STONE_CATEGORIES = new Set([
-  "figure-deity",
-  "figure-immortal",
-  "figure-mythic-ruler",
-  "figure-loyal-assassin",
-  "figure-filial-son",
-  "figure-virtuous-woman",
-  "figure-music-dance",
-  "chariot-procession",
-  "mythic-creature",
-  "celestial",
-  "daily-life-scene",
-  "architecture",
-  "inscription",
-  "pattern-border",
-  "unknown"
-]);
-
-const NARRATIVE_CATEGORIES_NEED_MOTIF = new Set([
-  "figure-loyal-assassin",
-  "figure-filial-son",
-  "figure-virtuous-woman"
-]);
+import {
+  ANNOTATION_QUALITY_TIER_SET,
+  GEOMETRY_INTENT_SET,
+  HAN_STONE_CATEGORY_SET,
+  NARRATIVE_CATEGORIES_NEED_MOTIF,
+  STRUCTURAL_LEVELS_V8,
+  TRAINING_ROLE_SET
+} from "../domain/han-stone.js";
+import {
+  getAnnotationQuality,
+  getGeometryIntent,
+  getTrainingRole
+} from "./training-annotation-meta.js";
 
 export type TrainingValidationResult = {
   ready: boolean;
@@ -88,7 +61,7 @@ export function validateAnnotationForTraining(
 
   // 3. category
   const category = (ann as IimlAnnotation & { category?: string }).category;
-  if (!category || !HAN_STONE_CATEGORIES.has(category)) {
+  if (!category || !HAN_STONE_CATEGORY_SET.has(category)) {
     errors.push("bad-category");
   }
 
@@ -98,18 +71,34 @@ export function validateAnnotationForTraining(
     errors.push("motif-too-long");
   }
 
+  const quality = getAnnotationQuality(ann);
+  if (!ANNOTATION_QUALITY_TIER_SET.has(quality)) {
+    errors.push("bad-annotation-quality");
+  }
+
+  const geometryIntent = getGeometryIntent(ann);
+  if (!GEOMETRY_INTENT_SET.has(geometryIntent)) {
+    errors.push("bad-geometry-intent");
+  }
+
+  const trainingRole = getTrainingRole(ann);
+  if (!TRAINING_ROLE_SET.has(trainingRole)) {
+    errors.push("bad-training-role");
+  }
+
   // 5. terms >= 1
   const termCount = ann.semantics?.terms?.length ?? 0;
   if (termCount < 1) {
     errors.push("no-terms");
   }
 
-  // 6. sources >= 1，且 ≥ 1 条 metadata 或 reference
+  // 6. sources 是学术溯源质量项，不再作为视觉训练准入硬门槛。
+  //    缺失时进入训练池但保留 warning，避免批量 SAM3 候选被来源字段挡住。
   const sources = ann.sources ?? [];
   if (sources.length < 1) {
-    errors.push("no-sources");
+    warnings.push("no-sources");
   } else if (!sources.some((s) => s.kind === "metadata" || s.kind === "reference")) {
-    errors.push("no-evidence-source");
+    warnings.push("no-evidence-source");
   }
 
   // 7. preIconographic ≥ 10
@@ -153,6 +142,19 @@ export function validateAnnotationForTraining(
     !(motif && motif.trim())
   ) {
     warnings.push("missing-motif-for-narrative");
+  }
+
+  if (quality === "weak") {
+    warnings.push("annotation-quality-weak");
+  }
+  if (geometryIntent === "reconstructed_extent") {
+    warnings.push("geometry-intent-reconstructed");
+  }
+  if (trainingRole === "validation") {
+    warnings.push("training-role-validation");
+  }
+  if (trainingRole === "holdout") {
+    warnings.push("training-role-holdout");
   }
 
   return { ready: errors.length === 0, errors, warnings };

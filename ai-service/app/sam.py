@@ -36,8 +36,6 @@ prompt 协议：
 
 from __future__ import annotations
 
-import os
-import re
 import threading
 import urllib.request
 from pathlib import Path
@@ -45,8 +43,8 @@ from typing import Any, Optional
 
 import cv2
 import numpy as np
-from PIL import Image
 
+from .resources import load_image_from_uri, load_source_image
 from .utils import contour_to_polygon, decode_image, fallback_box_polygon
 
 # MobileSAM 官方权重（约 39 MB），首次启动时后台下载。
@@ -54,20 +52,6 @@ _WEIGHT_URL = "https://github.com/ChaoningZhang/MobileSAM/raw/master/weights/mob
 _WEIGHT_PATH = Path(__file__).resolve().parent.parent / "weights" / "mobile_sam.pt"
 _MODEL_TYPE = "vit_t"
 _MODEL_NAME = "mobile-sam-vit-t"
-
-# 高清原图目录：默认 <repo_root>/pic，可用 WSC3D_PIC_DIR 覆盖。
-# 文件名约定：以 `NN` 开头的数字前缀 → 对应 stoneId `asset-NN`
-# （如 `29东汉武氏祠左石室后壁小龛西侧画像石.tif` → asset-29）。
-_PIC_DIR = Path(
-    os.environ.get("WSC3D_PIC_DIR", Path(__file__).resolve().parent.parent.parent / "pic")
-)
-_SOURCE_EXTS = {".tif", ".tiff", ".png", ".jpg", ".jpeg", ".webp", ".bmp"}
-
-# 项目根目录，用于把前端传过来的 /assets/stone-resources/... URI 反解到
-# <repo>/data/stone-resources/... 本地路径（backend express 实际托管这条路径）
-_PROJECT_ROOT = Path(
-    os.environ.get("WSC3D_ROOT", Path(__file__).resolve().parent.parent.parent)
-)
 
 # predictor 实例与加载状态；predict 时加互斥锁，避免并发 set_image 冲突。
 _predictor_lock = threading.Lock()
@@ -79,14 +63,6 @@ _load_status: dict[str, Any] = {
     "detail": "",
     "weightPath": str(_WEIGHT_PATH),
 }
-
-# 高清图缓存：只存一张，切到不同 stoneId 时替换；tif 解码几秒级，避免每次点击重读。
-_source_cache: dict[str, Any] = {"stoneId": None, "image": None, "name": None}
-
-# 浏览器可读 PNG 落盘缓存目录：tif 浏览器原生不支持，标注界面切到"高清图模式"时
-# 通过 /ai/source-image/{stone_id} 拉取这里转码出来的 PNG。
-_PNG_CACHE_DIR = Path(__file__).resolve().parent.parent / "cache" / "source"
-
 
 def _set_status(status: str, detail: str = "") -> None:
     _load_status["status"] = status
@@ -179,97 +155,6 @@ def get_status() -> dict[str, Any]:
 # --------------------------------------------------------------
 # 高清图查找与加载（按 stoneId）
 # --------------------------------------------------------------
-
-
-def _find_source_image(stone_id: str) -> Optional[Path]:
-    """
-    在 pic 目录找数字前缀匹配的图像文件。
-    stoneId 格式多样（'29' / 'asset-29' / 'stone-29-xxx'），统一用 re.search 抽第一个
-    数字作为匹配 key；pic 里的文件名同样取开头数字串；用去零比较（01 ↔ 1 等价）。
-    """
-    if not _PIC_DIR.exists():
-        return None
-    m = re.search(r"(\d+)", stone_id)
-    if not m:
-        return None
-    expected = m.group(1).lstrip("0") or "0"
-    try:
-        for entry in _PIC_DIR.iterdir():
-            if not entry.is_file() or entry.suffix.lower() not in _SOURCE_EXTS:
-                continue
-            mm = re.match(r"^(\d+)", entry.name)
-            if mm and (mm.group(1).lstrip("0") or "0") == expected:
-                return entry
-    except OSError:
-        return None
-    return None
-
-
-def _load_source_image(stone_id: str) -> Optional[tuple[np.ndarray, str]]:
-    """从 pic 目录加载高清图为 RGB numpy。命中单张缓存就直接返回。"""
-    global _source_cache
-    if _source_cache["stoneId"] == stone_id and _source_cache["image"] is not None:
-        return _source_cache["image"], _source_cache["name"]
-    path = _find_source_image(stone_id)
-    if path is None:
-        # 打印一行方便开发时判断"是 stoneId 没匹配上"还是"解码失败"。
-        print(f"[SAM] no source image for {stone_id} in {_PIC_DIR}", flush=True)
-        return None
-    size_mb = path.stat().st_size / 1024 / 1024
-    print(f"[SAM] loading source image {path.name} ({size_mb:.1f} MB)", flush=True)
-    try:
-        pil = Image.open(path)
-        pil.load()
-        arr = np.array(pil.convert("RGB"))
-    except Exception as exc:  # noqa: BLE001
-        print(f"[SAM] source-load-failed: {exc}", flush=True)
-        return None
-    _source_cache = {"stoneId": stone_id, "image": arr, "name": path.name}
-    print(f"[SAM] source loaded: {arr.shape[1]}x{arr.shape[0]} px", flush=True)
-    return arr, path.name
-
-
-def get_source_image_png(stone_id: str, max_edge: int = 4096) -> Optional[Path]:
-    """
-    把 pic/ 里的原图（通常是 tif）转成浏览器可读的 PNG，落盘缓存后返回路径。
-    标注界面"高清图模式"通过该函数暴露的端点直接 <img> 加载。
-
-    - 长边超过 max_edge 时按比例缩放，避免几十 MB 的 PNG 把网络打满；
-      4096 对前端浏览查看 / SAM 二次推理都足够。
-    - 缓存文件名按数字前缀 + 长边参数命名，原图文件 mtime 比缓存新就重新生成
-      （手动替换 pic/ 下的图也能感知）。
-    """
-    path = _find_source_image(stone_id)
-    if path is None:
-        return None
-
-    m = re.search(r"(\d+)", stone_id)
-    numeric = (m.group(1).lstrip("0") or "0") if m else "unknown"
-    safe_max = max(256, min(int(max_edge), 8192))
-
-    _PNG_CACHE_DIR.mkdir(parents=True, exist_ok=True)
-    cache_path = _PNG_CACHE_DIR / f"{numeric}_max{safe_max}.png"
-    if cache_path.exists() and cache_path.stat().st_mtime >= path.stat().st_mtime:
-        return cache_path
-
-    print(
-        f"[source-image] transcoding {path.name} -> {cache_path.name} (max edge {safe_max}px)",
-        flush=True,
-    )
-    try:
-        with Image.open(path) as pil:
-            pil = pil.convert("RGB")
-            long_edge = max(pil.size)
-            if long_edge > safe_max:
-                ratio = safe_max / float(long_edge)
-                new_size = (max(1, int(pil.size[0] * ratio)), max(1, int(pil.size[1] * ratio)))
-                # LANCZOS 在缩放工艺品 / 浮雕这种细节图上比 BICUBIC 更稳。
-                pil = pil.resize(new_size, Image.LANCZOS)
-            pil.save(cache_path, format="PNG", optimize=False, compress_level=3)
-    except Exception as exc:  # noqa: BLE001
-        print(f"[source-image] transcode-failed: {exc}", flush=True)
-        return None
-    return cache_path
 
 
 # --------------------------------------------------------------
@@ -536,7 +421,7 @@ def sam_segment_by_stone(stone_id: str, prompts_uv: list[dict]) -> dict:
     高清图路径：根据 stoneId 在 pic 目录找对应原图，跑 SAM，返回 modelBox UV 归一化 polygon。
     前端可以直接把 polygon 作为 annotation 坐标使用，不需要再做 screenToUV。
     """
-    loaded = _load_source_image(stone_id)
+    loaded = load_source_image(stone_id)
     if loaded is None:
         return {
             "polygons": [],
@@ -566,46 +451,6 @@ def sam_segment_by_stone(stone_id: str, prompts_uv: list[dict]) -> dict:
 # --------------------------------------------------------------
 
 
-def resolve_resource_uri(uri: str) -> Optional[Path]:
-    """
-    把前端传过来的资源 URI 反解成本地文件路径。支持：
-      - /assets/stone-resources/...  → <repo>/data/stone-resources/...
-      - /ai/source-image/...         → 直接走 get_source_image_png（转码缓存）
-      - file://... 绝对路径          → 本地文件
-      - 其他相对路径                 → 相对于项目根
-    HTTP URL 不支持（ai-service 不该依赖 backend 在线）。返回 None = 无法解析。
-    """
-    if not uri:
-        return None
-    if uri.startswith("/assets/stone-resources/"):
-        rel = uri[len("/assets/stone-resources/") :]
-        return _PROJECT_ROOT / "data" / "stone-resources" / rel
-    if uri.startswith("file://"):
-        return Path(uri[len("file://") :])
-    if uri.startswith("/"):
-        # 其它 /api/.. 或 /assets/.. 暂不支持
-        return None
-    candidate = _PROJECT_ROOT / uri
-    return candidate if candidate.exists() else None
-
-
-def _load_image_from_uri(uri: str) -> Optional[tuple[np.ndarray, str]]:
-    path = resolve_resource_uri(uri)
-    if path is None or not path.exists() or not path.is_file():
-        print(f"[SAM] uri not resolvable: {uri}", flush=True)
-        return None
-    try:
-        image = cv2.imread(str(path), cv2.IMREAD_COLOR)
-        if image is None:
-            print(f"[SAM] cv2.imread returned None: {path}", flush=True)
-            return None
-        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-    except Exception as exc:  # noqa: BLE001
-        print(f"[SAM] load-from-uri failed: {exc}", flush=True)
-        return None
-    return image, path.name
-
-
 def sam_segment_by_uri(uri: str, prompts_uv: list[dict]) -> dict:
     """
     v0.8.0 J：让 SAM 用任意资源 URI（正射图 / 拓片 / 法线图 / 外链 PNG）作为输入。
@@ -615,7 +460,7 @@ def sam_segment_by_uri(uri: str, prompts_uv: list[dict]) -> dict:
     equivalentToModel 的正射图），返回的 UV 可直接当 modelBox UV 用；否则由
     前端做必要的跨资源变换。
     """
-    loaded = _load_image_from_uri(uri)
+    loaded = load_image_from_uri(uri)
     if loaded is None:
         return {
             "polygons": [],

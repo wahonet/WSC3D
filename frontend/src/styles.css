@@ -129,7 +129,12 @@ button {
 .workspace-grid {
   min-height: 0;
   display: grid;
-  grid-template-columns: 52px minmax(0, 1fr) 360px;
+  grid-template-columns: 52px minmax(0, 1fr) 400px;
+}
+
+/* 关联 tab 不需要右侧 .side-panel；主区扩展到剩余宽度 */
+.workspace-grid.is-wide {
+  grid-template-columns: 52px minmax(0, 1fr);
 }
 
 .tool-rail {
@@ -159,6 +164,176 @@ button {
   color: #12110f;
   background: #2ec4b6;
   border-color: #2ec4b6;
+}
+
+.sam3-launcher {
+  position: relative;
+  width: 36px;
+}
+
+.sam3-button {
+  overflow: visible;
+}
+
+.sam3-icon-stack {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+}
+
+.sam3-plus {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  width: 11px;
+  height: 11px;
+  color: #11100f;
+  background: #f3a712;
+  border: 1px solid rgba(17, 16, 15, 0.38);
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.sam3-plus-a {
+  top: 0;
+  right: 0;
+}
+
+.sam3-plus-b {
+  right: 4px;
+  bottom: 1px;
+  color: #11100f;
+  background: #2ec4b6;
+}
+
+.sam3-popover {
+  position: absolute;
+  z-index: 80;
+  top: -48px;
+  left: 44px;
+  width: 260px;
+  display: grid;
+  gap: 10px;
+  padding: 10px;
+  color: #eee8df;
+  background: rgba(29, 26, 24, 0.98);
+  border: 1px solid #463f37;
+  border-radius: 8px;
+  box-shadow: 0 18px 36px rgba(0, 0, 0, 0.48);
+}
+
+.sam3-popover::before {
+  content: "";
+  position: absolute;
+  left: -7px;
+  top: 58px;
+  width: 12px;
+  height: 12px;
+  background: inherit;
+  border-left: 1px solid #463f37;
+  border-bottom: 1px solid #463f37;
+  transform: rotate(45deg);
+}
+
+.sam3-popover-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.sam3-popover-head strong {
+  color: #f3a712;
+  font-size: 13px;
+}
+
+.sam3-close {
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  color: #cfc7bd;
+  background: #302b26;
+  border: 1px solid #463f37;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.sam3-close:hover {
+  color: #11100f;
+  background: #f3a712;
+  border-color: #f3a712;
+}
+
+.sam3-chip-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+
+.sam3-chip-grid button,
+.sam3-custom-row button {
+  min-height: 30px;
+  color: #cfc7bd;
+  background: #302b26;
+  border: 1px solid #463f37;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.sam3-chip-grid button:hover,
+.sam3-custom-row button:hover:not(:disabled) {
+  color: #11100f;
+  background: #2ec4b6;
+  border-color: #2ec4b6;
+}
+
+.sam3-field {
+  display: grid;
+  gap: 5px;
+  color: #a9a096;
+  font-size: 12px;
+}
+
+.sam3-field input[type="range"] {
+  accent-color: #2ec4b6;
+}
+
+.sam3-field select,
+.sam3-custom-row input {
+  min-width: 0;
+  height: 30px;
+  color: #eee8df;
+  background: #1d1a18;
+  border: 1px solid #403a33;
+  border-radius: 6px;
+  padding: 0 8px;
+}
+
+.sam3-custom-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 54px;
+  gap: 6px;
+}
+
+.sam3-custom-row button:disabled {
+  opacity: 0.38;
+  cursor: not-allowed;
+}
+
+.sam3-check {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: #cfc7bd;
+  font-size: 12px;
+}
+
+.sam3-check input {
+  accent-color: #2ec4b6;
 }
 
 .main-viewport {
@@ -1172,6 +1347,17 @@ button {
   background: #141312;
 }
 
+.annotation-workspace .view-cube {
+  top: 54px;
+  right: 24px;
+  z-index: 40;
+  pointer-events: auto;
+}
+
+.annotation-workspace .view-cube * {
+  pointer-events: auto;
+}
+
 .annotation-canvas-host {
   position: absolute;
   inset: 0;
@@ -1246,10 +1432,25 @@ button {
   background: #f3a712;
 }
 
-/* 高清图模式下右上角再叠一个图层切换：原图 / +线图。位置下移避免与资源切换重叠。 */
+/* 高清图模式下右上角叠加：面 / 资源 / 图层切换。 */
+.annotation-face-switch {
+  position: absolute;
+  top: 56px;
+  right: 14px;
+  z-index: 25;
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 4px 2px 8px;
+  gap: 3px;
+  border-radius: 8px;
+  background: rgba(29, 26, 24, 0.78);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(10px);
+}
+
 .annotation-layer-switch {
   position: absolute;
-  top: 96px;
+  top: 136px;
   right: 14px;
   z-index: 25;
   display: inline-flex;
@@ -1265,7 +1466,7 @@ button {
    原图 / 生成的正射图 / 拓片 / 法线图之间切换 */
 .annotation-resource-switch {
   position: absolute;
-  top: 56px;
+  top: 96px;
   right: 14px;
   z-index: 25;
   display: inline-flex;
@@ -1287,7 +1488,8 @@ button {
   flex: 0 0 auto;
 }
 
-.annotation-resource-switch button {
+.annotation-resource-switch button,
+.annotation-face-switch button {
   flex: 0 0 auto;
   padding: 3px 9px;
   font-size: 11px;
@@ -1300,12 +1502,14 @@ button {
   white-space: nowrap;
 }
 
-.annotation-resource-switch button:hover {
+.annotation-resource-switch button:hover,
+.annotation-face-switch button:hover {
   color: #f4ece0;
   background: rgba(255, 255, 255, 0.06);
 }
 
-.annotation-resource-switch button.active {
+.annotation-resource-switch button.active,
+.annotation-face-switch button.active {
   color: #11100f;
   background: #2ec4b6;
 }
@@ -1313,7 +1517,7 @@ button {
 /* I4 v0.8.0 J：等价正射图上的对齐提示徽章 */
 .annotation-resource-aligned-hint {
   position: absolute;
-  top: 56px;
+  top: 96px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 25;
@@ -1362,7 +1566,7 @@ button {
 /* F2 阶段：线图算法 + 阈值调节面板，仅 layer === "canny" 时显示，位置在 layer-switch 下方 */
 .annotation-lineart-panel {
   position: absolute;
-  top: 132px;
+  top: 172px;
   right: 14px;
   z-index: 25;
   width: 230px;
@@ -3248,14 +3452,13 @@ button {
 
 .annotation-row {
   display: grid;
-  /* checkbox(18) + 颜色点(18) + 名称(1fr) + 三个 mini-icon(auto*3) */
-  grid-template-columns: 18px 18px minmax(0, 1fr) auto auto auto;
-  gap: 6px;
-  align-items: center;
-  padding: 5px 8px;
+  grid-template-columns: 18px 14px minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: start;
+  padding: 8px 10px;
   background: #1f1c19;
   border: 1px solid #403a33;
-  border-radius: 6px;
+  border-radius: 8px;
   transition: background 0.12s, border-color 0.12s;
 }
 
@@ -3273,6 +3476,7 @@ button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  padding-top: 4px;
   cursor: pointer;
 }
 
@@ -3284,8 +3488,8 @@ button {
 }
 
 .annotation-color-dot {
-  width: 16px;
-  height: 16px;
+  width: 12px;
+  height: 28px;
   border-radius: 4px;
   border: 1px solid rgba(255, 255, 255, 0.2);
   cursor: pointer;
@@ -3402,16 +3606,164 @@ button {
   color: #11100f;
 }
 
+.annotation-save-bar {
+  display: grid;
+  grid-template-columns: 8px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 7px;
+  min-height: 34px;
+  margin: 6px 14px 0;
+  padding: 4px 7px;
+  color: #a9a096;
+  background: rgba(255, 255, 255, 0.035);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 7px;
+  font-size: 12px;
+}
+
+.annotation-save-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #7a7068;
+}
+
+.annotation-save-copy {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  line-height: 1.25;
+}
+
+.annotation-save-text {
+  min-width: 0;
+  flex: 0 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.annotation-status-inline {
+  min-width: 0;
+  flex: 1 1 auto;
+  color: #d8d0c6;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.annotation-save-text + .annotation-status-inline::before {
+  content: "·";
+  margin-right: 6px;
+  color: #6f665d;
+}
+
+.annotation-save-button {
+  width: 28px;
+  height: 28px;
+  min-height: 28px;
+  border-radius: 6px;
+  padding: 0;
+}
+
+.annotation-save-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+}
+
+.annotation-dataset-button {
+  min-height: 28px;
+  padding: 0 8px;
+  gap: 5px;
+  white-space: nowrap;
+}
+
+.annotation-save-button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.annotation-save-button:disabled:hover {
+  color: #cfc7bd;
+  background: #302b26;
+  border-color: #463f37;
+}
+
+.annotation-save-bar--dirty {
+  color: #f3d28b;
+  border-color: rgba(243, 167, 18, 0.24);
+  background: rgba(243, 167, 18, 0.08);
+}
+
+.annotation-save-bar--dirty .annotation-save-dot {
+  background: #f3a712;
+}
+
+.annotation-save-bar--saving .annotation-save-dot {
+  background: #2ec4b6;
+}
+
+.annotation-save-bar--saved {
+  color: #b6d99a;
+  border-color: rgba(158, 195, 128, 0.2);
+  background: rgba(158, 195, 128, 0.06);
+}
+
+.annotation-save-bar--saved .annotation-save-dot {
+  background: #9ec380;
+}
+
+.annotation-save-bar--error {
+  color: #f3c4bf;
+  border-color: rgba(255, 95, 87, 0.3);
+  background: rgba(255, 95, 87, 0.08);
+}
+
+.annotation-save-bar--error .annotation-save-dot {
+  background: #ff5f57;
+}
+
 .annotation-candidate-badge {
   flex: 0 0 auto;
-  margin-left: auto;
-  padding: 1px 6px;
+  padding: 2px 6px;
   color: #f3a712;
   background: rgba(243, 167, 18, 0.12);
   border: 1px solid rgba(243, 167, 18, 0.3);
   border-radius: 999px;
   font-size: 10px;
   letter-spacing: 0.3px;
+}
+
+.annotation-quality-badge {
+  flex: 0 0 auto;
+  padding: 1px 7px;
+  color: #a9a096;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  font-size: 10px;
+  line-height: 16px;
+  letter-spacing: 0.3px;
+}
+
+.annotation-quality-badge--weak {
+  color: #93c5fd;
+  border-color: rgba(147, 197, 253, 0.35);
+  background: rgba(147, 197, 253, 0.1);
+}
+
+.annotation-quality-badge--silver {
+  color: #d1d5db;
+  border-color: rgba(209, 213, 219, 0.35);
+}
+
+.annotation-quality-badge--gold {
+  color: #facc15;
+  border-color: rgba(250, 204, 21, 0.35);
+  background: rgba(250, 204, 21, 0.1);
 }
 
 /* --- 候选 tab --- */
@@ -3793,6 +4145,43 @@ button {
   color: #6a6057;
 }
 
+.edit-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.issue-chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.issue-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #a9a096;
+  background: #1d1a18;
+  border: 1px solid #3a342e;
+  border-radius: 999px;
+  padding: 4px 7px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.issue-chip input {
+  width: auto;
+  margin: 0;
+  accent-color: #f3a712;
+}
+
+.issue-chip.is-on {
+  color: #f7dfaa;
+  border-color: #8a6a25;
+  background: rgba(243, 167, 18, 0.12);
+}
+
 .edit-opacity {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -3857,7 +4246,7 @@ button {
 
 .annotation-list-tab .annotation-list {
   max-height: none;
-  gap: 4px;
+  gap: 8px;
 }
 
 .annotation-list-tab .annotation-empty {
@@ -3881,10 +4270,10 @@ button {
 .annotation-row-name {
   width: 100%;
   min-width: 0;
-  height: 28px;
-  display: inline-flex;
-  align-items: center;
-  padding: 0 6px;
+  min-height: 34px;
+  display: grid;
+  gap: 4px;
+  padding: 0 4px;
   color: #eee8df;
   background: transparent;
   border: 1px solid transparent;
@@ -3892,10 +4281,46 @@ button {
   font-family: inherit;
   font-size: inherit;
   text-align: left;
-  white-space: nowrap;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.annotation-row-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.annotation-row-label {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
-  cursor: pointer;
+  white-space: nowrap;
+  font-size: 13px;
+  line-height: 1.25;
+}
+
+.annotation-row-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  min-width: 0;
+}
+
+.annotation-meta-chip {
+  max-width: 120px;
+  padding: 1px 6px;
+  color: #9d948a;
+  background: rgba(255, 255, 255, 0.035);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  font-size: 10px;
+  line-height: 16px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .annotation-row-name em {
@@ -3905,11 +4330,22 @@ button {
 
 .annotation-row-name:hover {
   color: #fff;
-  background: rgba(255, 255, 255, 0.03);
 }
 
 .annotation-row.is-active .annotation-row-name {
   color: #fff;
+}
+
+.annotation-row-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding-top: 1px;
+}
+
+.annotation-row-actions .mini-icon {
+  width: 26px;
+  min-height: 26px;
 }
 
 .annotation-downloads {
@@ -4020,12 +4456,12 @@ button {
 /* 列表行的 SOP §11 训练池徽标。三档颜色与 .training-stat 相同，但是图标形态。 */
 .training-badge {
   flex: 0 0 auto;
-  width: 18px;
+  width: 20px;
   height: 18px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 4px;
+  border-radius: 999px;
   cursor: help;
 }
 
@@ -4625,4 +5061,615 @@ button {
   .adjust-grid {
     grid-template-columns: repeat(3, 1fr);
   }
+}
+
+/* ============================================================
+ * 关联工作台（BindingWorkspace） — 顶层 tab，与浏览/拼接/标注平级
+ * 主区三栏：石头列表（带 3D 缩略图）/ 选中详情 / pic/ 高清图缩略图网格
+ * ============================================================ */
+/* 与其它 workspace 一致：absolute inset 0 + flex column，让内层 flex 链
+   能正确传递高度，避免 binding-grid 在文件多时被压扁而不滚动 */
+.binding-workspace {
+  position: absolute;
+  inset: 0;
+  background: #161412;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.binding-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 12px 18px;
+  border-bottom: 1px solid #3a352f;
+  background: #1c1a18;
+  flex-shrink: 0;
+}
+
+.binding-header h2 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: #f3eadd;
+}
+
+.binding-sub {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: #a59c8c;
+}
+
+.binding-header-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.binding-header-actions button {
+  padding: 6px 14px;
+  background: #2c2825;
+  color: #eee8df;
+  border: 1px solid #4a423a;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.binding-header-actions button:hover:not(:disabled) {
+  background: #3a342f;
+}
+
+.binding-header-actions button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.binding-status {
+  padding: 10px 18px;
+  font-size: 12px;
+  background: #1f3019;
+  color: #c8e1bb;
+  border-bottom: 1px solid #2c4520;
+  flex-shrink: 0;
+}
+
+.binding-status.is-error {
+  background: #3a1f1d;
+  color: #f3c4bf;
+  border-bottom-color: #5a2c28;
+}
+
+.binding-body {
+  display: grid;
+  grid-template-columns: 320px 360px 1fr;
+  gap: 0;
+  overflow: hidden;
+  flex: 1;
+  min-height: 0;
+}
+
+.binding-body > section {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-right: 1px solid #3a352f;
+  overflow: hidden;
+}
+
+.binding-body > section:last-child {
+  border-right: 0;
+}
+
+.binding-body > section > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: #1f1d1b;
+  border-bottom: 1px solid #3a352f;
+  flex-shrink: 0;
+}
+
+.binding-body > section > header h3 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: #d6cdb9;
+}
+
+.binding-body > section > header select {
+  background: #2a2622;
+  color: #eee8df;
+  border: 1px solid #4a423a;
+  border-radius: 3px;
+  padding: 3px 6px;
+  font-size: 11px;
+}
+
+/* ----- 左栏：石头列表（带 3D 缩略图） ----- */
+.binding-stones ul {
+  list-style: none;
+  margin: 0;
+  padding: 4px 0;
+  overflow: auto;
+  flex: 1;
+}
+
+.binding-stones li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  cursor: pointer;
+  border-left: 3px solid transparent;
+}
+
+.binding-stones li:hover {
+  background: #262320;
+}
+
+.binding-stones li.is-selected {
+  background: #2c2825;
+  border-left-color: #c8a85a;
+}
+
+.binding-stone-thumb {
+  width: 64px;
+  height: 48px;
+  flex-shrink: 0;
+  background: #0d0c0b;
+  border: 1px solid #2c2825;
+  border-radius: 3px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.binding-stone-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.binding-stone-thumb-placeholder {
+  font-size: 9px;
+  color: #5a5247;
+  text-align: center;
+  padding: 2px;
+  line-height: 1.2;
+}
+
+.binding-stone-meta {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.binding-stone-id {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+  font-size: 11px;
+  color: #c8a85a;
+}
+
+.binding-dot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #2a2622;
+  color: #6e6555;
+  font-size: 9px;
+  flex-shrink: 0;
+}
+
+.binding-dot.is-on {
+  background: #2f4a25;
+  color: #b6d99a;
+}
+
+.binding-stone-name {
+  font-size: 12px;
+  color: #d6cdb9;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ----- 中栏：选中详情 ----- */
+/* 选择器写成 .binding-body > section.binding-detail 与父级
+   `.binding-body > section { overflow: hidden }` 同特异性（0,1,2），且后定义
+   覆盖前者的 overflow，保证内容超长时（双面石头：A 缩略图 + face slot + B
+   绑定预览 + 取消按钮）能滚出"取消关联"按钮。 */
+.binding-body > section.binding-detail {
+  padding: 14px;
+  overflow-y: auto;
+}
+
+.binding-detail h3 {
+  margin: 0 0 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #d6cdb9;
+}
+
+.binding-detail-card {
+  background: #221f1d;
+  border: 1px solid #3a352f;
+  border-radius: 6px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.binding-detail-thumb {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  background: #0d0c0b;
+  border-radius: 4px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.binding-detail-thumb .viewer-shell {
+  border-radius: 4px;
+}
+
+.binding-detail-thumb .three-stage {
+  cursor: grab;
+}
+
+.binding-detail-thumb .three-stage:active {
+  cursor: grabbing;
+}
+
+/* 参考图视觉降级：灰色边框 + 轻微去饱和，与正式 thumbnail 区分 */
+.binding-stone-thumb img.is-reference,
+.binding-detail-thumb img.is-reference {
+  filter: saturate(0.7) brightness(0.95);
+  outline: 1px dashed rgba(213, 167, 78, 0.55);
+  outline-offset: -1px;
+}
+
+.binding-detail-thumb-tag {
+  position: absolute;
+  left: 6px;
+  bottom: 6px;
+  padding: 2px 6px;
+  font-size: 11px;
+  color: #f3e0bf;
+  background: rgba(78, 56, 23, 0.85);
+  border-radius: 3px;
+  pointer-events: none;
+}
+
+.binding-detail-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.binding-detail-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.binding-detail-id {
+  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+  font-size: 13px;
+  color: #c8a85a;
+}
+
+.binding-detail-name {
+  font-size: 13px;
+  color: #f3eadd;
+}
+
+.binding-detail-label {
+  font-size: 11px;
+  color: #6e6555;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.binding-detail-bound,
+.binding-bind-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px dashed #3a352f;
+}
+
+/* 面 slot 列表（双面 / 多面石头）：横向排列，每个 slot 是一个小卡 */
+.binding-face-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px dashed #3a352f;
+}
+
+.binding-face-slot {
+  flex: 0 0 auto;
+  width: 96px;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  padding: 6px;
+  background: #1d1a16;
+  border: 1px solid #3a352f;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 11px;
+  color: #d6cdb9;
+}
+
+.binding-face-slot.is-selected {
+  border-color: #d5a74e;
+  box-shadow: 0 0 0 1px #d5a74e inset;
+}
+
+.binding-face-slot.is-empty {
+  background: #15130f;
+  color: #8a8270;
+  border-style: dashed;
+}
+
+.binding-face-slot.is-bound {
+  background: #1d2417;
+  border-color: #5a6d3a;
+}
+
+.binding-face-slot:hover:not(.is-selected) {
+  border-color: #6e6557;
+}
+
+.binding-face-slot img {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border-radius: 2px;
+}
+
+.binding-face-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  background: #0d0c0b;
+  color: #5d574b;
+  border-radius: 2px;
+}
+
+.binding-face-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-weight: 600;
+  font-size: 11px;
+}
+
+.binding-face-tag,
+.binding-face-tag-inline {
+  font-style: normal;
+  font-size: 9px;
+  font-weight: 400;
+  padding: 1px 4px;
+  margin-left: 4px;
+  background: #2c2418;
+  border-radius: 2px;
+  color: #d5a74e;
+  letter-spacing: 0.05em;
+}
+
+.binding-face-tag-inline {
+  font-size: 10px;
+}
+
+.binding-card-face {
+  font-size: 10px;
+  color: #c89a3a;
+  margin-top: 2px;
+}
+
+.binding-detail-bound code,
+.binding-bind-row code {
+  background: #2a2622;
+  border: 1px solid #4a423a;
+  border-radius: 3px;
+  padding: 4px 8px;
+  font-size: 11px;
+  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+  color: #b6d99a;
+  word-break: break-all;
+}
+
+.binding-detail-thumb-preview {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  background: #0d0c0b;
+  border-radius: 4px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.binding-detail-thumb-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.binding-detail-meta {
+  font-size: 11px;
+  color: #a59c8c;
+}
+
+.binding-detail-meta span {
+  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+  color: #d6cdb9;
+}
+
+.binding-bind-row button {
+  align-self: flex-start;
+  background: #4a3a1c;
+  color: #f3eadd;
+  border: 1px solid #6e5732;
+  border-radius: 4px;
+  padding: 8px 16px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.binding-bind-row button:hover:not(:disabled) {
+  background: #5a4622;
+}
+
+.binding-bind-row button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.binding-unbind {
+  align-self: flex-start;
+  background: #3a1f1d;
+  color: #f3c4bf;
+  border: 1px solid #5a2c28;
+  border-radius: 4px;
+  padding: 6px 12px;
+  cursor: pointer;
+  font-size: 11px;
+}
+
+.binding-unbind:hover:not(:disabled) {
+  background: #4a2724;
+}
+
+.binding-hint {
+  font-size: 12px;
+  color: #6e6555;
+  padding: 12px 0;
+  text-align: center;
+}
+
+/* ----- 右栏：pic 文件缩略图网格 ----- */
+.binding-files {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.binding-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 14px;
+  padding: 14px 20px 14px 16px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+  align-content: start;
+  scrollbar-gutter: stable;
+}
+
+.binding-card {
+  background: #1f1d1b;
+  border: 1px solid #3a352f;
+  border-radius: 8px;
+  padding: 0;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 230px;
+  text-align: left;
+  overflow: hidden;
+  transition: border-color 0.1s;
+}
+
+.binding-card:hover {
+  border-color: #6e6555;
+}
+
+.binding-card.is-selected {
+  border-color: #c8a85a;
+  box-shadow: 0 0 0 1px #c8a85a inset;
+}
+
+.binding-card.is-bound {
+  opacity: 0.6;
+}
+
+.binding-thumb {
+  position: relative;
+  width: 100%;
+  min-height: 176px;
+  aspect-ratio: 4 / 3;
+  background: #0d0c0b;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.binding-thumb img {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.binding-thumb-fallback {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+  color: #6e6555;
+  font-size: 12px;
+  text-align: center;
+}
+
+.binding-card-name {
+  padding: 8px 10px 3px;
+  font-size: 12px;
+  color: #d6cdb9;
+  word-break: break-all;
+  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+}
+
+.binding-card-meta {
+  display: flex;
+  justify-content: space-between;
+  padding: 0 10px 8px;
+  font-size: 11px;
+  color: #6e6555;
+}
+
+.binding-card-bound {
+  padding: 4px 8px;
+  background: #2f4a25;
+  color: #b6d99a;
+  font-size: 11px;
+  border-top: 1px solid #2c4520;
 }

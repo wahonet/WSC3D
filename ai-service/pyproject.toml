@@ -6,11 +6,16 @@ requires-python = ">=3.10"
 dependencies = [
   "fastapi",
   "uvicorn[standard]",
-  "numpy",
+  "numpy==1.26.4",
   "pillow",
-  "opencv-python",
+  "opencv-python==4.10.0.84",
   "torch",
+  "torchvision",
+  "timm",
   "ultralytics",
+  "sam3 @ git+https://github.com/facebookresearch/sam3.git",
+  "ftfy==6.1.1",
+  "triton-windows; platform_system == 'Windows'",
   "mobile-sam @ git+https://github.com/ChaoningZhang/MobileSAM.git"
 ]
 

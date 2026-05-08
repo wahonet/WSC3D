@@ -24,10 +24,13 @@
 import type {
   IimlAnnotation,
   IimlAnnotationFrame,
+  IimlAnnotationQualityTier,
+  IimlGeometryIntent,
   IimlGeometry,
   IimlPoint,
   IimlReviewStatus,
   IimlStructuralLevel,
+  IimlTrainingRole,
   ProjectionContext
 } from "./types";
 
@@ -41,6 +44,9 @@ export function createAnnotationFromGeometry({
   structuralLevel = "unknown",
   reviewStatus = "reviewed",
   frame = "model",
+  annotationQuality,
+  geometryIntent = "semantic_extent",
+  trainingRole = "train",
   generation
 }: {
   geometry: IimlGeometry;
@@ -52,6 +58,9 @@ export function createAnnotationFromGeometry({
   // 标注创建时所在的坐标系。SAM/手绘工具应传入当前画布的 sourceMode，
   // 这样跨 frame 显示和保存时坐标系信息不会丢。
   frame?: IimlAnnotationFrame;
+  annotationQuality?: IimlAnnotationQualityTier;
+  geometryIntent?: IimlGeometryIntent;
+  trainingRole?: IimlTrainingRole;
   generation?: IimlAnnotation["generation"];
 }): IimlAnnotation {
   const now = new Date().toISOString();
@@ -63,6 +72,9 @@ export function createAnnotationFromGeometry({
     target: geometry,
     frame,
     structuralLevel,
+    annotationQuality: annotationQuality ?? inferAnnotationQuality(geometry),
+    geometryIntent,
+    trainingRole,
     label: label ?? defaultLabel(geometry.type),
     color,
     visible: true,
@@ -73,6 +85,13 @@ export function createAnnotationFromGeometry({
     createdAt: now,
     updatedAt: now
   };
+}
+
+function inferAnnotationQuality(geometry: IimlGeometry): IimlAnnotationQualityTier {
+  if (geometry.type === "BBox" || geometry.type === "Point" || geometry.type === "LineString") {
+    return "weak";
+  }
+  return "silver";
 }
 
 function clamp01(value: number) {

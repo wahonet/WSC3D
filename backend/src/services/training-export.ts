@@ -43,43 +43,32 @@ import path from "node:path";
 import { imageSize } from "image-size";
 import type { IimlAnnotation, IimlDocument, IimlGeometry } from "./iiml.js";
 import {
+  TRAINING_COCO_CATEGORIES,
+  TRAINING_COCO_CATEGORY_ID_BY_NAME
+} from "../domain/han-stone.js";
+import {
   getAlignmentFromDoc,
   isEquivalentOrthophotoResource,
   validateAnnotationForTraining
 } from "./training-validation.js";
+import {
+  getAnnotationIssues,
+  getAnnotationQuality,
+  getGeometryIntent,
+  getTrainingRole
+} from "./training-annotation-meta.js";
 import { type AlignmentMatrices, applyHomography, buildAlignmentMatrices } from "./homography.js";
 import { findPicForStone, getPicDir } from "./pic.js";
 
-// COCO 类别表（SOP §14.1）—— id 与名称固定，未来不允许重排序
-const COCO_CATEGORIES = [
-  { id: 1, name: "figure-deity", supercategory: "mythic" },
-  { id: 2, name: "figure-immortal", supercategory: "mythic" },
-  { id: 3, name: "figure-mythic-ruler", supercategory: "historic" },
-  { id: 4, name: "figure-loyal-assassin", supercategory: "historic" },
-  { id: 5, name: "figure-filial-son", supercategory: "historic" },
-  { id: 6, name: "figure-virtuous-woman", supercategory: "historic" },
-  { id: 7, name: "figure-music-dance", supercategory: "daily-life" },
-  { id: 8, name: "chariot-procession", supercategory: "daily-life" },
-  { id: 9, name: "mythic-creature", supercategory: "mythic" },
-  { id: 10, name: "celestial", supercategory: "mythic" },
-  { id: 11, name: "daily-life-scene", supercategory: "daily-life" },
-  { id: 12, name: "architecture", supercategory: "daily-life" },
-  { id: 13, name: "inscription", supercategory: "meta" },
-  { id: 14, name: "pattern-border", supercategory: "meta" }
-] as const;
-
-// 用 Map<string, number> 而非 readonly tuple 推断的窄类型，让 .get() 接受任意
-// 字符串（含 "unknown"）。"unknown" 不在 COCO categories 内，.get 自然返回 undefined，
-// 调用点会跳过这条 annotation。
-const COCO_CATEGORY_ID_BY_NAME: Map<string, number> = new Map(
-  COCO_CATEGORIES.map((c) => [c.name as string, c.id])
-);
+const COCO_CATEGORIES = TRAINING_COCO_CATEGORIES;
+const COCO_CATEGORY_ID_BY_NAME = TRAINING_COCO_CATEGORY_ID_BY_NAME;
 
 const DATASET_NAME = "wsc-han-stone-v0";
 
 export type TrainingExportSummary = {
   exportedAt: string;
   datasetDir: string;
+  absoluteDatasetDir: string;
   totalAnnotations: number;
   acceptedAnnotations: number;
   skippedAnnotations: number;
@@ -88,7 +77,11 @@ export type TrainingExportSummary = {
   splits: { train: number; val: number; test: number };
   categoryDistribution: Record<string, number>;
   motifDistribution: Record<string, number>;
+  annotationQualityDistribution: Record<string, number>;
+  geometryIntentDistribution: Record<string, number>;
+  trainingRoleDistribution: Record<string, number>;
   warningCounts: Record<string, number>;
+  activeLearningQueueSize: number;
   /** 报告文件名（reports/export_{ts}.csv） */
   reportFileName: string;
 };
@@ -202,6 +195,7 @@ export async function exportTrainingDataset(projectRoot: string): Promise<Traini
   return {
     exportedAt,
     datasetDir: path.relative(projectRoot, datasetRoot).replace(/\\/g, "/"),
+    absoluteDatasetDir: datasetRoot,
     totalAnnotations: accepted.length + skipped.length,
     acceptedAnnotations: accepted.length,
     skippedAnnotations: skipped.length,
@@ -210,7 +204,11 @@ export async function exportTrainingDataset(projectRoot: string): Promise<Traini
     splits: { train: splits.train.length, val: splits.val.length, test: splits.test.length },
     categoryDistribution: countCategoryDistribution(accepted),
     motifDistribution: countMotifDistribution(accepted),
+    annotationQualityDistribution: countAnnotationQualityDistribution(accepted),
+    geometryIntentDistribution: countGeometryIntentDistribution(accepted),
+    trainingRoleDistribution: countTrainingRoleDistribution(accepted),
     warningCounts,
+    activeLearningQueueSize: buildActiveLearningQueue(accepted, skipped).length,
     reportFileName
   };
 }
@@ -718,6 +716,36 @@ async function writeAllOutputs(args: {
     "utf8"
   );
 
+  await writeFile(
+    path.join(tmpRoot, "annotations", "weak_annotations.json"),
+    JSON.stringify(buildWeakAnnotationsManifest(stones, accepted, skipped), null, 2),
+    "utf8"
+  );
+
+  await writeFile(
+    path.join(tmpRoot, "annotations", "gold_validation.json"),
+    JSON.stringify(buildGoldValidationManifest(accepted), null, 2),
+    "utf8"
+  );
+
+  await writeFile(
+    path.join(tmpRoot, "annotations", "enhancement_manifest.json"),
+    JSON.stringify(buildEnhancementManifest(buckets), null, 2),
+    "utf8"
+  );
+
+  await writeFile(
+    path.join(tmpRoot, "annotations", "baseline_recipes.json"),
+    JSON.stringify(buildBaselineRecipes(), null, 2),
+    "utf8"
+  );
+
+  await writeFile(
+    path.join(tmpRoot, "annotations", "active_learning_queue.json"),
+    JSON.stringify(buildActiveLearningQueue(accepted, skipped), null, 2),
+    "utf8"
+  );
+
   // annotations/coco_train|val|test.json
   for (const splitName of ["train", "val", "test"] as const) {
     const slice = splits[splitName];
@@ -785,6 +813,8 @@ async function writeAllOutputs(args: {
     "utf8"
   );
 
+  await writeFile(path.join(tmpRoot, "DATASET_CHANGELOG.md"), buildDatasetChangelog(exportedAt, accepted, skipped), "utf8");
+
   return reportFileName;
 }
 
@@ -824,6 +854,10 @@ type CocoAnnotationOut = {
     iiml_structuralLevel?: string;
     iiml_terms: string[];
     iiml_reviewStatus?: string;
+    iiml_annotationQuality?: string;
+    iiml_geometryIntent?: string;
+    iiml_trainingRole?: string;
+    iiml_annotationIssues?: string[];
     iiml_resource_id?: string;
     iiml_provenance_author?: string;
     iiml_frame?: string;
@@ -876,6 +910,7 @@ function buildCocoDoc(
   let nextAnnId = 1;
   const cocoAnnotations: CocoAnnotationOut[] = [];
   for (const item of slice) {
+    if (getTrainingRole(item.ann) === "holdout") continue;
     const cat = (item.ann as IimlAnnotation & { category?: string }).category;
     const categoryId = cat ? COCO_CATEGORY_ID_BY_NAME.get(cat) : undefined;
     if (!categoryId) continue; // 已在 validate 过滤掉，但双重保险
@@ -954,6 +989,10 @@ function convertToCocoAnn(
     iiml_structuralLevel: ann.structuralLevel,
     iiml_terms: (ann.semantics?.terms ?? []).map((t) => t.id),
     iiml_reviewStatus: ann.reviewStatus,
+    iiml_annotationQuality: getAnnotationQuality(ann),
+    iiml_geometryIntent: getGeometryIntent(ann),
+    iiml_trainingRole: getTrainingRole(ann),
+    iiml_annotationIssues: getAnnotationIssues(ann),
     iiml_resource_id: a.resourceId,
     iiml_provenance_author: provenance?.author,
     iiml_frame: ann.frame,
@@ -1111,6 +1150,12 @@ function buildStats(
     categoryDistribution: countCategoryDistribution(accepted),
     motifDistribution: countMotifDistribution(accepted),
     structuralLevelDistribution: countStructuralLevelDistribution(accepted),
+    annotationQualityDistribution: countAnnotationQualityDistribution(accepted),
+    geometryIntentDistribution: countGeometryIntentDistribution(accepted),
+    trainingRoleDistribution: countTrainingRoleDistribution(accepted),
+    goldValidationCount: accepted.filter((item) => getAnnotationQuality(item.ann) === "gold" || getTrainingRole(item.ann) === "validation").length,
+    weakAnnotationCount: accepted.filter((item) => getAnnotationQuality(item.ann) === "weak").length,
+    activeLearningQueueSize: buildActiveLearningQueue(accepted, skipped).length,
     stoneDistribution,
     imageTypeDistribution,    // bucket 数量
     annotationsPerImageType: annPerImageType, // ann 数量
@@ -1148,21 +1193,233 @@ function countStructuralLevelDistribution(accepted: AcceptedAnn[]): Record<strin
   return out;
 }
 
+function countAnnotationQualityDistribution(accepted: AcceptedAnn[]): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const item of accepted) {
+    const quality = getAnnotationQuality(item.ann);
+    out[quality] = (out[quality] ?? 0) + 1;
+  }
+  return out;
+}
+
+function countGeometryIntentDistribution(accepted: AcceptedAnn[]): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const item of accepted) {
+    const intent = getGeometryIntent(item.ann);
+    out[intent] = (out[intent] ?? 0) + 1;
+  }
+  return out;
+}
+
+function countTrainingRoleDistribution(accepted: AcceptedAnn[]): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const item of accepted) {
+    const role = getTrainingRole(item.ann);
+    out[role] = (out[role] ?? 0) + 1;
+  }
+  return out;
+}
+
+function buildWeakAnnotationsManifest(
+  stones: StoneDocPair[],
+  accepted: AcceptedAnn[],
+  skipped: SkippedAnn[]
+) {
+  const acceptedKeys = new Set(accepted.map((item) => `${item.stoneId}|${item.ann.id}`));
+  const skippedByKey = new Map<string, string[]>(
+    skipped.map((item) => [`${item.stoneId}|${item.ann.id}`, item.errors])
+  );
+  const items = [];
+  for (const stone of stones) {
+    for (const ann of stone.doc.annotations ?? []) {
+      const quality = getAnnotationQuality(ann);
+      const weakLike = quality === "weak" || ann.target?.type === "BBox" || ann.target?.type === "Point" || ann.target?.type === "LineString";
+      if (!weakLike) continue;
+      const key = `${stone.stoneId}|${ann.id}`;
+      items.push({
+        stoneId: stone.stoneId,
+        annotationId: ann.id,
+        ready: acceptedKeys.has(key),
+        errors: skippedByKey.get(key) ?? [],
+        geometryType: ann.target?.type,
+        category: (ann as IimlAnnotation & { category?: string }).category ?? null,
+        motif: (ann as IimlAnnotation & { motif?: string }).motif ?? null,
+        annotationQuality: quality,
+        geometryIntent: getGeometryIntent(ann),
+        trainingRole: getTrainingRole(ann),
+        annotationIssues: getAnnotationIssues(ann),
+        label: ann.label ?? null,
+        resourceId: ann.resourceId,
+        frame: ann.frame ?? "model",
+        target: ann.target
+      });
+    }
+  }
+  return {
+    description: "弱监督标注清单：bbox / point / scribble(LineString) / weak tier。供 BoxInst、point/scribble-supervised segmentation 等实验使用。",
+    total: items.length,
+    items
+  };
+}
+
+function buildGoldValidationManifest(accepted: AcceptedAnn[]) {
+  const items = accepted
+    .filter((item) => getAnnotationQuality(item.ann) === "gold" || getTrainingRole(item.ann) === "validation")
+    .map((item) => ({
+      stoneId: item.stoneId,
+      annotationId: item.ann.id,
+      imageId: item.bucket.imageId,
+      imageType: item.bucket.imageType,
+      category: (item.ann as IimlAnnotation & { category?: string }).category ?? null,
+      motif: (item.ann as IimlAnnotation & { motif?: string }).motif ?? null,
+      annotationQuality: getAnnotationQuality(item.ann),
+      geometryIntent: getGeometryIntent(item.ann),
+      trainingRole: getTrainingRole(item.ann),
+      label: item.ann.label ?? null
+    }));
+  return {
+    description: "gold / validation 子集索引。训练脚本默认应将 trainingRole=validation 的样本留作评估。",
+    total: items.length,
+    items
+  };
+}
+
+function buildEnhancementManifest(buckets: ImageBucket[]) {
+  const images = buckets.map((bucket) => ({
+    stoneId: bucket.stoneId,
+    resourceId: bucket.resourceId,
+    imageId: bucket.imageId,
+    imageType: bucket.imageType,
+    fileName: bucket.cocoFileName,
+    recommendedEnhancements:
+      bucket.imageType === "normal"
+        ? ["curvature", "ambient_occlusion", "relighting"]
+        : ["clahe", "retinex", "highpass", "canny_plus", "log_edges"]
+  }));
+  return {
+    description: "多通道增强规划。增强图不替代 OriginalImage 真源，训练时应以本 manifest 作为派生资源记录。",
+    channels: [
+      { id: "rgb", source: "original image", role: "truth source" },
+      { id: "clahe", source: "derived", role: "low-contrast relief enhancement" },
+      { id: "retinex", source: "derived", role: "illumination normalization" },
+      { id: "canny_plus", source: "derived", role: "edge prompt / annotation aid" },
+      { id: "normal", source: "3d geometry or NormalMap resource", role: "geometry-aware model input" },
+      { id: "depth", source: "3d geometry", role: "relief separation" },
+      { id: "relighting", source: "3d geometry / RTI", role: "multi-light training augmentation" }
+    ],
+    images
+  };
+}
+
+function buildBaselineRecipes() {
+  return {
+    description: "训练基线配方索引；命令为建议模板，具体脚本可在 ML 环境中读取本数据集目录。",
+    recipes: [
+      {
+        id: "detector-bbox",
+        task: "object-detection",
+        supervision: "bbox",
+        inputs: ["annotations/coco_train.json", "annotations/coco_val.json"],
+        candidates: ["YOLO", "RT-DETR"],
+        metric: ["mAP50", "mAP50-95"],
+        note: "先用 bbox 跑通粗定位和检索，不依赖完整 mask。"
+      },
+      {
+        id: "instance-segmentation",
+        task: "instance-segmentation",
+        supervision: "silver/gold polygon",
+        inputs: ["annotations/coco_train.json", "annotations/coco_val.json", "annotations/gold_validation.json"],
+        candidates: ["YOLO-seg", "Mask R-CNN", "Mask2Former", "SAM-Adapter"],
+        metric: ["mask AP", "Dice", "IoU"],
+        note: "按 annotationQuality 拆分报告，避免 silver 噪声掩盖 gold 评估。"
+      },
+      {
+        id: "weak-supervision",
+        task: "weakly-supervised-segmentation",
+        supervision: "bbox/point/scribble",
+        inputs: ["annotations/weak_annotations.json"],
+        candidates: ["BoxInst", "point-supervised segmentation", "scribble-supervised segmentation"],
+        metric: ["mask AP on gold subset", "click cost", "correction time"],
+        note: "用于解决汉画像石手描成本过高的问题。"
+      }
+    ]
+  };
+}
+
+function buildActiveLearningQueue(accepted: AcceptedAnn[], skipped: SkippedAnn[]) {
+  const queue = [
+    ...accepted.map((item) => ({
+      stoneId: item.stoneId,
+      annotationId: item.ann.id,
+      priority: scoreActiveLearningItem(item.ann, []),
+      decision: "accepted" as const,
+      reasons: describeActiveLearningReasons(item.ann, []),
+      category: (item.ann as IimlAnnotation & { category?: string }).category ?? null,
+      annotationQuality: getAnnotationQuality(item.ann),
+      geometryIntent: getGeometryIntent(item.ann),
+      trainingRole: getTrainingRole(item.ann),
+      label: item.ann.label ?? null
+    })),
+    ...skipped.map((item) => ({
+      stoneId: item.stoneId,
+      annotationId: item.ann.id,
+      priority: scoreActiveLearningItem(item.ann, item.errors),
+      decision: "skipped" as const,
+      reasons: describeActiveLearningReasons(item.ann, item.errors),
+      category: (item.ann as IimlAnnotation & { category?: string }).category ?? null,
+      annotationQuality: getAnnotationQuality(item.ann),
+      geometryIntent: getGeometryIntent(item.ann),
+      trainingRole: getTrainingRole(item.ann),
+      label: item.ann.label ?? null
+    }))
+  ];
+  return queue
+    .filter((item) => item.priority > 0)
+    .sort((a, b) => b.priority - a.priority || a.stoneId.localeCompare(b.stoneId));
+}
+
+function scoreActiveLearningItem(ann: IimlAnnotation, errors: string[]): number {
+  let score = errors.length * 10;
+  if (ann.reviewStatus === "candidate") score += 40;
+  if (getAnnotationQuality(ann) === "weak") score += 20;
+  if (getGeometryIntent(ann) === "reconstructed_extent") score += 15;
+  if (getTrainingRole(ann) === "validation") score += 10;
+  const confidence = ann.generation?.confidence ?? ann.confidence;
+  if (typeof confidence === "number" && confidence < 0.5) score += Math.round((0.5 - confidence) * 40);
+  score += getAnnotationIssues(ann).length * 8;
+  return score;
+}
+
+function describeActiveLearningReasons(ann: IimlAnnotation, errors: string[]): string[] {
+  const reasons = [...errors];
+  if (ann.reviewStatus === "candidate") reasons.push("candidate-needs-review");
+  if (getAnnotationQuality(ann) === "weak") reasons.push("weak-supervision");
+  if (getGeometryIntent(ann) === "reconstructed_extent") reasons.push("reconstructed-extent");
+  const confidence = ann.generation?.confidence ?? ann.confidence;
+  if (typeof confidence === "number" && confidence < 0.5) reasons.push("low-confidence");
+  for (const issue of getAnnotationIssues(ann)) reasons.push(`issue-${issue}`);
+  return reasons;
+}
+
 function buildSourcesCsv(stones: StoneDocPair[]): string {
-  const header = "stoneId,displayName,resourceId,resourceType,uri,description,acquisition,acquiredBy,acquiredAt";
+  const header = "stoneId,displayName,resourceId,resourceType,uri,description,acquisition,acquiredBy,acquiredAt,face,license,status";
   const rows: string[] = [header];
   for (const stone of stones) {
     for (const r of stone.doc.resources ?? []) {
+      const resource = r as Record<string, unknown>;
       const row = [
         csvCell(stone.stoneId),
         csvCell(getDisplayName(stone.doc)),
         csvCell(r.id),
         csvCell(r.type),
         csvCell(String(r.uri ?? "")),
-        csvCell(asString((r as Record<string, unknown>).description)),
-        csvCell(asString((r as Record<string, unknown>).acquisition)),
-        csvCell(asString((r as Record<string, unknown>).acquiredBy)),
-        csvCell(asString((r as Record<string, unknown>).acquiredAt))
+        csvCell(asString(resource.description)),
+        csvCell(asString(resource.acquisition)),
+        csvCell(asString(resource.acquiredBy)),
+        csvCell(asString(resource.acquiredAt)),
+        csvCell(asString(resource.face)),
+        csvCell(asString(resource.license) || "CC-BY-NC 4.0"),
+        csvCell(asString(resource.status))
       ].join(",");
       rows.push(row);
     }
@@ -1192,7 +1449,7 @@ function buildReportCsv(
   for (const item of splits.test) splitOf.set(`${item.stoneId}|${item.ann.id}`, "test");
 
   const header =
-    "stoneId,annotationId,decision,split,errors,category,motif,structuralLevel,reviewStatus,label,imageType,imageId,frame,projected";
+    "stoneId,annotationId,decision,split,errors,category,motif,structuralLevel,reviewStatus,annotationQuality,geometryIntent,trainingRole,annotationIssues,label,imageType,imageId,frame,projected";
   const rows: string[] = [header];
 
   for (const item of accepted) {
@@ -1209,6 +1466,10 @@ function buildReportCsv(
         csvCell(a.motif ?? ""),
         csvCell(item.ann.structuralLevel ?? ""),
         csvCell(item.ann.reviewStatus ?? ""),
+        csvCell(getAnnotationQuality(item.ann)),
+        csvCell(getGeometryIntent(item.ann)),
+        csvCell(getTrainingRole(item.ann)),
+        csvCell(getAnnotationIssues(item.ann).join(";")),
         csvCell(item.ann.label ?? ""),
         csvCell(item.bucket.imageType),
         String(item.bucket.imageId),
@@ -1230,6 +1491,10 @@ function buildReportCsv(
         csvCell(a.motif ?? ""),
         csvCell(item.ann.structuralLevel ?? ""),
         csvCell(item.ann.reviewStatus ?? ""),
+        csvCell(getAnnotationQuality(item.ann)),
+        csvCell(getGeometryIntent(item.ann)),
+        csvCell(getTrainingRole(item.ann)),
+        csvCell(getAnnotationIssues(item.ann).join(";")),
         csvCell(item.ann.label ?? ""),
         "",
         "",
@@ -1266,6 +1531,32 @@ function buildQualityWarningsCsv(
           "",
           csvCell(item.ann.label ?? ""),
           ""
+        ].join(",")
+      );
+    }
+    const structuredWarnings: Array<{ warning: string; detail: string }> = [];
+    if (getAnnotationQuality(item.ann) === "weak") {
+      structuredWarnings.push({ warning: "annotation-quality-weak", detail: "弱标注默认用于覆盖和弱监督实验" });
+    }
+    if (getGeometryIntent(item.ann) === "reconstructed_extent") {
+      structuredWarnings.push({ warning: "geometry-intent-reconstructed", detail: "包含专家推断范围，建议单独评估" });
+    }
+    if (getTrainingRole(item.ann) === "validation") {
+      structuredWarnings.push({ warning: "training-role-validation", detail: "训练脚本默认应留出作为验证/评估" });
+    }
+    if (getTrainingRole(item.ann) === "holdout") {
+      structuredWarnings.push({ warning: "training-role-holdout", detail: "默认不参与训练，仅保留在 IIML" });
+    }
+    for (const warning of structuredWarnings) {
+      rows.push(
+        [
+          csvCell(item.stoneId),
+          csvCell(item.ann.id),
+          csvCell(warning.warning),
+          csvCell(a.category ?? ""),
+          csvCell(a.motif ?? ""),
+          csvCell(item.ann.label ?? ""),
+          csvCell(warning.detail)
         ].join(",")
       );
     }
@@ -1307,15 +1598,18 @@ function buildReadme(exportedAt: string, totalStones: number, totalAccepted: num
     "- `annotations/coco_train.json` / `coco_val.json` / `coco_test.json`：COCO 三套划分（70/15/15，按 stoneId 划分防泄漏）",
     "- `annotations/coco_categories.json`：13 类 + unknown（id 1-14；unknown 不进入 COCO 训练）",
     "- `annotations/motifs.json`：本次涉及的 motif 频次表",
+    "- `annotations/weak_annotations.json`：bbox / point / scribble / weak tier 弱监督实验清单",
+    "- `annotations/gold_validation.json`：gold 或 validation 子集索引，用于稳定评估",
+    "- `annotations/enhancement_manifest.json`：RGB、边缘增强、normal/depth/relighting 多通道规划",
+    "- `annotations/baseline_recipes.json`：检测、实例分割、弱监督分割三条 baseline 配方",
+    "- `annotations/active_learning_queue.json`：按候选状态、弱标注、低置信、失败原因排序的人工复核队列",
     "- `annotations/splits/stone_split.json`：stoneId → split 完整映射",
     "- `iiml/{stoneId}.iiml.json`：完整 IIML 备份（保留 IIML 链路）",
     "- `relations/relations_all.jsonl`：跨石头关系全集（图谱训练用）",
-    "- `images/original/{stoneId}/`：**目录占位**。实际图像文件未复制，",
-    "  COCO `file_name` 字段引用 `original/{stoneId}/main.png` 相对路径，",
-    "  训练时由 ML 工程师按 `SOURCES.csv` 把 `data/stone-resources/{stoneId}/`",
-    "  里的 PNG 链接 / 复制到这里。",
+    "- `images/{type}/{stoneId}/`：导出时复制的真实图像文件，COCO `file_name` 相对 `images/`",
     "- `SOURCES.csv`：每张图来源 / 摄影者 / 拓制者 / 授权状态",
     "- `stats.json`：完整统计（类别 / motif / 层级 / stone / 跳过原因）",
+    "- `DATASET_CHANGELOG.md`：本次导出与版本冻结记录模板",
     "- `reports/export_*.csv`：本次每条 annotation 的 accepted / skipped 决策 + 原因",
     "- `reports/quality_warnings.csv`：故事类缺 motif 等质量警告",
     "",
@@ -1333,6 +1627,30 @@ function buildReadme(exportedAt: string, totalStones: number, totalAccepted: num
     "from detectron2.data.datasets import register_coco_instances",
     `register_coco_instances("${DATASET_NAME}-train", {}, "annotations/coco_train.json", "images/original")`,
     "```"
+  ].join("\n");
+}
+
+function buildDatasetChangelog(exportedAt: string, accepted: AcceptedAnn[], skipped: SkippedAnn[]): string {
+  return [
+    "# Dataset Changelog",
+    "",
+    `## ${exportedAt}`,
+    "",
+    "- Dataset: `wsc-han-stone-v0`",
+    "- SOP: `docs/han-stone-annotation-SOP.md`",
+    `- Accepted annotations: ${accepted.length}`,
+    `- Skipped annotations: ${skipped.length}`,
+    `- Quality tiers: ${JSON.stringify(countAnnotationQualityDistribution(accepted))}`,
+    `- Geometry intents: ${JSON.stringify(countGeometryIntentDistribution(accepted))}`,
+    `- Training roles: ${JSON.stringify(countTrainingRoleDistribution(accepted))}`,
+    "",
+    "Release checklist:",
+    "",
+    "- [ ] `SOURCES.csv` license / acquisition / face fields reviewed",
+    "- [ ] `annotations/gold_validation.json` frozen before model selection",
+    "- [ ] `annotations/active_learning_queue.json` triaged for next annotation round",
+    "- [ ] `stats.json` category imbalance reviewed",
+    "- [ ] Public package excludes non-redistributable resources"
   ].join("\n");
 }
 
