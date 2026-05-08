@@ -25,6 +25,13 @@ import * as Ajv2020Module from "ajv/dist/2020.js";
 import type { AnySchema } from "ajv";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
+import {
+  ANNOTATION_ISSUES,
+  ANNOTATION_QUALITY_TIERS,
+  GEOMETRY_INTENTS,
+  HAN_STONE_CATEGORIES,
+  TRAINING_ROLES
+} from "../domain/han-stone.js";
 import type { CatalogConfig, getCatalog } from "./catalog.js";
 import type { StoneRecord } from "../types.js";
 import { findPicForStone, getPicDir } from "./pic.js";
@@ -56,6 +63,22 @@ export type IimlSource =
 
 // 标注所处坐标系；缺省 "model" 兼容历史数据。
 export type IimlAnnotationFrame = "image" | "model";
+
+export type IimlAnnotationQualityTier = "weak" | "silver" | "gold";
+
+export type IimlGeometryIntent = "visible_trace" | "semantic_extent" | "reconstructed_extent";
+
+export type IimlTrainingRole = "train" | "validation" | "holdout";
+
+export type IimlAnnotationIssue =
+  | "low_contrast"
+  | "texture_confusion"
+  | "ambiguous_boundary"
+  | "occluded_or_worn"
+  | "oversegmented"
+  | "undersegmented"
+  | "class_uncertain"
+  | "needs_expert_review";
 
 export type IimlAlignmentControlPoint = {
   modelUv: [number, number];
@@ -98,6 +121,15 @@ export type IimlAnnotation = {
     | "unknown";
   // SOP §1.6 二层母题：具体故事 / 视觉格套，自由字符串。
   motif?: string;
+  // 训练集建设质量层：weak=框/点/涂鸦等弱标注，silver=AI/人工快速修正，
+  // gold=专家精修，可用于稳定验证或论文评估。
+  annotationQuality?: IimlAnnotationQualityTier;
+  // 几何语义：可见刻痕、语义范围、专家复原范围必须区分，避免训练标签漂移。
+  geometryIntent?: IimlGeometryIntent;
+  // 是否参与常规训练、gold 验证/评估，或暂时保留不用。
+  trainingRole?: IimlTrainingRole;
+  // 记录 SAM/YOLO 或人工标注失败原因，供主动学习队列排序。
+  annotationIssues?: IimlAnnotationIssue[];
   label?: string;
   color?: string;
   // 标注填充区域的透明度 0..1；描边不透明。默认 0.15。
@@ -179,26 +211,6 @@ const iimlContext = {
 
 const structuralLevels = new Set(["whole", "scene", "figure", "component", "trace", "inscription", "damage", "unknown"]);
 
-// SOP v0.3 §1.1 类别表 —— 13 类 + unknown。schema 仅作为 enum 校验；
-// 字段本身可选，所以历史 annotation（无 category 字段）仍能通过。
-const hanStoneCategories = [
-  "figure-deity",
-  "figure-immortal",
-  "figure-mythic-ruler",
-  "figure-loyal-assassin",
-  "figure-filial-son",
-  "figure-virtuous-woman",
-  "figure-music-dance",
-  "chariot-procession",
-  "mythic-creature",
-  "celestial",
-  "daily-life-scene",
-  "architecture",
-  "inscription",
-  "pattern-border",
-  "unknown"
-] as const;
-
 const iimlSchema: AnySchema = {
   type: "object",
   additionalProperties: true,
@@ -238,10 +250,18 @@ const iimlSchema: AnySchema = {
           target: { type: "object", additionalProperties: true, required: ["type", "coordinates"] },
           structuralLevel: { type: "string" },
           // SOP v0.3 §1：领域类别。可选；非空时必须 ∈ 13 + unknown。
-          category: { type: "string", nullable: true, enum: [...hanStoneCategories, null] },
+          category: { type: "string", nullable: true, enum: [...HAN_STONE_CATEGORIES, null] },
           // SOP v0.3 §1.6：自由字符串 motif，建议来自附录 A 速查表。长度上限 200
           // 防止误把整段叙述塞进来。
-          motif: { type: "string", nullable: true, maxLength: 200 }
+          motif: { type: "string", nullable: true, maxLength: 200 },
+          annotationQuality: { type: "string", nullable: true, enum: [...ANNOTATION_QUALITY_TIERS, null] },
+          geometryIntent: { type: "string", nullable: true, enum: [...GEOMETRY_INTENTS, null] },
+          trainingRole: { type: "string", nullable: true, enum: [...TRAINING_ROLES, null] },
+          annotationIssues: {
+            type: "array",
+            nullable: true,
+            items: { type: "string", enum: [...ANNOTATION_ISSUES] }
+          }
         }
       }
     },

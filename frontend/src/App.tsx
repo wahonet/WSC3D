@@ -24,8 +24,6 @@ import { Camera, MousePointer2, Ruler, RotateCcw, SquareDashedMousePointer, Tras
 import { lazy, Suspense, useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import * as THREE from "three";
 import {
-  fetchAiHealth,
-  fetchAlignmentStatuses,
   fetchAssemblyPlan,
   fetchAssemblyPlans,
   fetchIimlDocument,
@@ -35,13 +33,15 @@ import {
   exportTrainingDataset,
   fetchPreflight,
   importHpsmlPackage,
+  revealTrainingDataset,
+  runSam3ConceptSegmentation,
   runYoloDetection,
   saveAssemblyPlan,
   saveIimlDocument,
   type AssemblyPlanRecord,
   type IimlDocument,
   type IimlSource,
-  type SamStatus,
+  type SamSegmentationResponse,
   type StoneListItem,
   type StoneListResponse,
   type StoneMetadata,
@@ -56,7 +56,10 @@ import { TaskProgressPanel, type TaskProgress } from "./modules/annotation/TaskP
 import { annotationPalette, annotationReducer, getProcessingRuns, getRelations, initialAnnotationState } from "./modules/annotation/store";
 import { deriveSpatialRelations } from "./modules/annotation/spatial";
 import type { ActiveImageResourceInfo, AnnotationSourceMode } from "./modules/annotation/AnnotationWorkspace";
+import { useAlignmentStatuses } from "./modules/annotation/useAlignmentStatuses";
+import type { Sam3ConceptInput } from "./modules/annotation/AnnotationToolbar";
 import type { YoloScanOptions } from "./modules/annotation/YoloScanDialog";
+import { useAiHealth } from "./modules/app/useAiHealth";
 import type { AdjustmentAxis, AdjustmentMode } from "./modules/assembly/AssemblyAdjustControls";
 import type { AssemblyCameraState } from "./modules/assembly/AssemblyWorkspace";
 import type { AssemblyDimensions, AssemblyItem, AssemblyTransform } from "./modules/assembly/types";
@@ -85,9 +88,23 @@ const AnnotationPanel = lazy(() =>
 const AnnotationToolbar = lazy(() =>
   import("./modules/annotation/AnnotationToolbar").then((module) => ({ default: module.AnnotationToolbar }))
 );
+const BindingWorkspace = lazy(() =>
+  import("./modules/binding/BindingWorkspace").then((module) => ({ default: module.BindingWorkspace }))
+);
 
-type WorkspaceMode = "viewer" | "assembly" | "annotation";
+type WorkspaceMode = "viewer" | "assembly" | "annotation" | "binding";
 type BackgroundMode = "black" | "gray" | "white";
+type AnnotationSavePhase = "idle" | "dirty" | "saving" | "saved" | "error";
+type AnnotationSaveState = {
+  phase: AnnotationSavePhase;
+  savedAt?: string;
+  error?: string;
+};
+type TrainingDatasetLocation = {
+  datasetDir: string;
+  absolutePath?: string;
+  reportFileName?: string;
+};
 
 const viewerModeLabels: Record<ViewerMode, string> = {
   "3d": "3D",
@@ -100,6 +117,67 @@ const backgroundLabels: Record<BackgroundMode, string> = {
   gray: "灰",
   white: "白"
 };
+
+function formatSam3Error(error?: string, detail?: string): string {
+  const raw = [error, detail].filter(Boolean).join(": ");
+  if (
+    /SAM3 checkpoint is not available locally|LocalEntryNotFoundError|facebook\/sam3|Access denied|requires approval|sam3\.pt/i.test(raw)
+  ) {
+    return [
+      "SAM3 权重尚未就绪。",
+      "请先在 Hugging Face 通过 facebook/sam3 访问审批并登录，",
+      "然后下载权重到 ai-service\\weights\\sam3\\sam3.pt；",
+      "也可以手动把 sam3.pt 放到这个目录后重启 AI 服务。"
+    ].join("");
+  }
+  if (/WinError 10060|timed out|connection|connect timeout|ReadTimeout/i.test(raw)) {
+    return "SAM3 权重下载连接超时。请设置代理或 Hugging Face 镜像后重启 AI 服务，或手动把 sam3.pt 放到 ai-service\\weights\\sam3\\sam3.pt。";
+  }
+  return raw || "SAM3 未返回具体错误。";
+}
+
+function uniqueSam3Prompts(prompts: string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const prompt of prompts) {
+    const value = prompt.trim();
+    const key = value.toLowerCase();
+    if (!value || seen.has(key)) continue;
+    seen.add(key);
+    out.push(value);
+  }
+  return out;
+}
+
+function sam3PromptCandidates(prompt: string): string[] {
+  const value = prompt.trim();
+  const lower = value.toLowerCase();
+  const candidates = [value];
+
+  if (/人|人物|人像|侍|官|吏|person|people|human|man|woman|figure|attendant|official/.test(lower)) {
+    candidates.push("human figure", "figure", "person", "people", "human");
+  }
+  if (/马|馬|horse/.test(lower)) {
+    candidates.push("horse", "horse figure", "animal");
+  }
+  if (/鸟|鳥|bird/.test(lower)) {
+    candidates.push("bird", "bird figure", "animal");
+  }
+  if (/兽|獸|animal|beast/.test(lower)) {
+    candidates.push("animal", "beast", "animal figure");
+  }
+  if (/车|車|chariot|cart|carriage/.test(lower)) {
+    candidates.push("chariot", "carriage", "cart", "vehicle");
+  }
+  if (/纹|紋|饰|飾|ornament|pattern|motif|decorative/.test(lower)) {
+    candidates.push("decorative pattern", "ornament", "pattern", "motif");
+  }
+  if (/骑|騎|rider/.test(lower)) {
+    candidates.push("rider", "horse rider", "human figure", "horse");
+  }
+
+  return uniqueSam3Prompts(candidates).slice(0, 6);
+}
 
 export function App() {
   const [catalog, setCatalog] = useState<StoneListResponse>();
@@ -128,6 +206,10 @@ export function App() {
   const [selectedPlanId, setSelectedPlanId] = useState("");
   const [currentPlanId, setCurrentPlanId] = useState<string>();
   const [annotationState, dispatchAnnotation] = useReducer(annotationReducer, initialAnnotationState);
+  const [annotationSaveState, setAnnotationSaveState] = useState<AnnotationSaveState>({ phase: "idle" });
+  const [trainingDatasetLocation, setTrainingDatasetLocation] = useState<TrainingDatasetLocation>();
+  const lastSavedAnnotationRef = useRef<{ stoneId: string; json: string } | undefined>(undefined);
+  const annotationSaveSeqRef = useRef(0);
   // 标注底图来源：默认 3D 模型，可切到高清原图（来自 ai-service /ai/source-image）。
   // 切到高清图后 SAM 候选与画布显示在同一坐标系，对齐天然准确。
   const [annotationSourceMode, setAnnotationSourceMode] = useState<AnnotationSourceMode>("model");
@@ -140,12 +222,12 @@ export function App() {
   // YOLO 批量扫描：dialog 状态 + 推理进行中标记
   const [yoloDialogOpen, setYoloDialogOpen] = useState(false);
   const [yoloScanning, setYoloScanning] = useState(false);
+  const [sam3Scanning, setSam3Scanning] = useState(false);
   // J v0.8.0：当前底图资源（正射图 / 拓片 / 法线图等）；undefined = 默认 pic/ 原图。
   // 由 AnnotationWorkspace 通过 onActiveImageResourceChange 回传，供 YOLO 批量
   // 扫描 / SAM 精修路由到正确 imageUri，并决定候选 frame / resourceId 绑定。
   const [activeImageResource, setActiveImageResource] = useState<ActiveImageResourceInfo | undefined>(undefined);
-  // C5' 头部画像石下拉：每块石头是否已做 4 点对齐校准
-  const [alignmentStatuses, setAlignmentStatuses] = useState<Record<string, boolean>>({});
+  const alignmentStatuses = useAlignmentStatuses(selectedId, hasAlignment);
   // G3 任务进度面板：长任务（SAM 批量精修 / 多石头 YOLO）的进度 + 取消
   const [tasks, setTasks] = useState<TaskProgress[]>([]);
   // 取消请求集合：循环里检查 cancelRequestedRef.current.has(taskId) 提前 return
@@ -170,14 +252,34 @@ export function App() {
   }, []);
   const [vocabularyCategories, setVocabularyCategories] = useState<VocabularyCategory[]>([]);
   const [vocabularyTerms, setVocabularyTerms] = useState<VocabularyTerm[]>([]);
-  // AI 服务健康状态；/ai/health 轮询到 sam.ready 就停止，断连则持续重试。
-  const [samStatus, setSamStatus] = useState<SamStatus | undefined>(undefined);
+  const aiHealth = useAiHealth();
+  const samStatus = aiHealth?.sam;
+  const sam3Status = aiHealth?.sam3;
   // 一旦进入过拼接/标注模式，保持组件 mount，用 CSS 切换可见性，
   // 避免重建 Three.js / Konva 场景导致 gizmo、相机、TransformControls 链路失效。
   const [hasEnteredAssembly, setHasEnteredAssembly] = useState(false);
   const [hasEnteredAnnotation, setHasEnteredAnnotation] = useState(false);
   const isAssemblyActive = workspaceMode === "assembly";
   const isAnnotationActive = workspaceMode === "annotation";
+  const hasUnsavedAnnotation =
+    annotationSaveState.phase === "dirty" ||
+    annotationSaveState.phase === "saving" ||
+    annotationSaveState.phase === "error";
+
+  const requestSelectStone = useCallback(
+    (nextId: string) => {
+      if (!nextId || nextId === selectedId) return;
+      if (
+        workspaceMode === "annotation" &&
+        hasUnsavedAnnotation &&
+        !window.confirm("当前标注还有未保存或保存失败的改动。确定要切换画像石吗？")
+      ) {
+        return;
+      }
+      setSelectedId(nextId);
+    },
+    [hasUnsavedAnnotation, selectedId, workspaceMode]
+  );
 
   useEffect(() => {
     if (isAssemblyActive && !hasEnteredAssembly) {
@@ -212,43 +314,6 @@ export function App() {
   }, []);
 
   useEffect(() => {
-    let alive = true;
-    let timer: number | undefined;
-    // 指数退避：10s → 20s → 40s，上限 60s；sam.ready 或 error 时直接停止。
-    // 避免 SAM 模型下载慢时前端每 5 秒刷屏 /ai/health。
-    let delay = 10_000;
-    const tick = async () => {
-      try {
-        const health = await fetchAiHealth();
-        if (!alive) {
-          return;
-        }
-        setSamStatus(health.sam);
-        // ready / error 都是终态，不再轮询；error 需要用户介入（装依赖或手放权重）。
-        if (!health.sam || health.sam.ready || health.sam.status === "error") {
-          return;
-        }
-        timer = window.setTimeout(tick, delay);
-        delay = Math.min(delay * 2, 60_000);
-      } catch {
-        if (!alive) {
-          return;
-        }
-        setSamStatus(undefined);
-        timer = window.setTimeout(tick, delay);
-        delay = Math.min(delay * 2, 60_000);
-      }
-    };
-    tick();
-    return () => {
-      alive = false;
-      if (timer !== undefined) {
-        window.clearTimeout(timer);
-      }
-    };
-  }, []);
-
-  useEffect(() => {
     fetchAssemblyPlans()
       .then((plans) => {
         setSavedPlans(plans);
@@ -256,23 +321,6 @@ export function App() {
       })
       .catch(() => setSavedPlans([]));
   }, []);
-
-  // 启动时一次性拉所有画像石的 alignment 状态，供下拉显示 ✓ / 未校准提示。
-  // 当前 doc 改动（保存对齐 / 清除）时本地直接维护 map，避免重复请求 backend。
-  useEffect(() => {
-    fetchAlignmentStatuses().then(setAlignmentStatuses).catch(() => undefined);
-  }, []);
-
-  // 当本地 alignment 改动（dispatchAnnotation 'set-alignment' 后），同步本地 map
-  // 让下拉立即反映 —— autosave 写盘后下次刷新也能持久。
-  useEffect(() => {
-    if (!selectedId) return;
-    setAlignmentStatuses((prev) => {
-      const next = { ...prev };
-      next[selectedId] = hasAlignment;
-      return next;
-    });
-  }, [hasAlignment, selectedId]);
 
   // C2 全局键盘快捷键：仅在标注模式 + 焦点不在 input/textarea/contenteditable
   // 时生效，避免在编辑标签 / 备注 / 释文等输入框时被打断。
@@ -377,26 +425,87 @@ export function App() {
     if (!selectedId) {
       return;
     }
+    let cancelled = false;
+    setAnnotationSaveState({ phase: "idle" });
     fetchIimlDocument(selectedId)
       .then((doc) => {
+        if (cancelled) return;
+        lastSavedAnnotationRef.current = { stoneId: selectedId, json: JSON.stringify(doc) };
+        setAnnotationSaveState({ phase: "saved", savedAt: new Date().toISOString() });
         dispatchAnnotation({ type: "set-doc", doc });
       })
-      .catch(() => undefined);
+      .catch((error: Error) => {
+        if (cancelled) return;
+        setAnnotationSaveState({ phase: "error", error: error.message });
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [selectedId]);
+
+  const saveAnnotationDocumentNow = useCallback(async () => {
+    const doc = annotationState.doc;
+    if (!selectedId || !doc || !docBelongsToStone(doc, selectedId)) {
+      return false;
+    }
+    const json = JSON.stringify(doc);
+    const last = lastSavedAnnotationRef.current;
+    if (last?.stoneId === selectedId && last.json === json) {
+      setAnnotationSaveState((prev) => ({ phase: "saved", savedAt: prev.savedAt ?? new Date().toISOString() }));
+      return true;
+    }
+    const seq = annotationSaveSeqRef.current + 1;
+    annotationSaveSeqRef.current = seq;
+    setAnnotationSaveState({ phase: "saving" });
+    try {
+      await saveIimlDocument(selectedId, doc);
+      if (annotationSaveSeqRef.current !== seq) {
+        return true;
+      }
+      lastSavedAnnotationRef.current = { stoneId: selectedId, json };
+      const savedAt = new Date().toISOString();
+      setAnnotationSaveState({ phase: "saved", savedAt });
+      dispatchAnnotation({ type: "set-status", status: "标注已保存" });
+      return true;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (annotationSaveSeqRef.current === seq) {
+        setAnnotationSaveState({ phase: "error", error: message });
+        dispatchAnnotation({ type: "set-status", status: message });
+      }
+      return false;
+    }
+  }, [annotationState.doc, selectedId]);
 
   useEffect(() => {
     if (workspaceMode !== "annotation" || !selectedId || !annotationState.doc) {
       return;
     }
+    if (!docBelongsToStone(annotationState.doc, selectedId)) {
+      return;
+    }
+    const json = JSON.stringify(annotationState.doc);
+    const last = lastSavedAnnotationRef.current;
+    if (last?.stoneId === selectedId && last.json === json) {
+      return;
+    }
+    setAnnotationSaveState((prev) => (prev.phase === "saving" ? prev : { ...prev, phase: "dirty", error: undefined }));
     const timer = window.setTimeout(() => {
-      saveIimlDocument(selectedId, annotationState.doc!)
-        .then(() => {
-          dispatchAnnotation({ type: "set-status", status: "已自动保存" });
-        })
-        .catch((err: Error) => dispatchAnnotation({ type: "set-status", status: err.message }));
+      void saveAnnotationDocumentNow();
     }, 900);
     return () => window.clearTimeout(timer);
-  }, [annotationState.doc, selectedId, workspaceMode]);
+  }, [annotationState.doc, saveAnnotationDocumentNow, selectedId, workspaceMode]);
+
+  useEffect(() => {
+    const shouldWarn = annotationSaveState.phase === "dirty" || annotationSaveState.phase === "saving" || annotationSaveState.phase === "error";
+    if (!shouldWarn) return;
+    const onBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [annotationSaveState.phase]);
 
   const selectedStone = useMemo(() => catalog?.stones.find((stone) => stone.id === selectedId), [catalog?.stones, selectedId]);
   const selectedAnnotation = useMemo(
@@ -811,13 +920,38 @@ export function App() {
       const warnLine = Object.entries(summary.warningCounts).length === 0
         ? ""
         : ` · 警告 ${Object.values(summary.warningCounts).reduce((a, b) => a + b, 0)}`;
+      const qualityLine = Object.entries(summary.annotationQualityDistribution)
+        .map(([k, v]) => `${k}=${v}`)
+        .join(" / ");
+      setTrainingDatasetLocation({
+        datasetDir: summary.datasetDir,
+        absolutePath: summary.absoluteDatasetDir,
+        reportFileName: summary.reportFileName
+      });
       dispatchAnnotation({
         type: "set-status",
-        status: `已导出训练集 → ${summary.datasetDir}（${summary.acceptedAnnotations}/${summary.acceptedAnnotations + summary.skippedAnnotations} 进池，train ${summary.splits.train} / val ${summary.splits.val} / test ${summary.splits.test}${warnLine}；Top: ${top3Categories || "（暂无）"}；报告 reports/${summary.reportFileName}）`
+        status: `已导出训练集 → ${summary.datasetDir}（${summary.acceptedAnnotations}/${summary.acceptedAnnotations + summary.skippedAnnotations} 进池，train ${summary.splits.train} / val ${summary.splits.val} / test ${summary.splits.test}${warnLine}；质量层 ${qualityLine || "暂无"}；主动学习 ${summary.activeLearningQueueSize} 条；Top: ${top3Categories || "（暂无）"}；报告 reports/${summary.reportFileName}）`
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       dispatchAnnotation({ type: "set-status", status: `训练池导出失败：${message}` });
+    }
+  }, []);
+
+  const handleRevealTrainingDataset = useCallback(async () => {
+    try {
+      const result = await revealTrainingDataset();
+      setTrainingDatasetLocation({
+        datasetDir: result.datasetDir,
+        absolutePath: result.absolutePath
+      });
+      dispatchAnnotation({
+        type: "set-status",
+        status: `已打开训练集目录：${result.absolutePath}`
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      dispatchAnnotation({ type: "set-status", status: `打开训练集目录失败：${message}` });
     }
   }, []);
 
@@ -832,22 +966,23 @@ export function App() {
         if (r.catalog.numericKeyConflictCount > 0) issues.push(`ID 冲突 ${r.catalog.numericKeyConflictCount}`);
         if (r.catalog.orphanModelCount > 0) issues.push(`孤儿模型 ${r.catalog.orphanModelCount}`);
         if (r.catalog.unmatchedMetadataCount > 0) issues.push(`无模型档案 ${r.catalog.unmatchedMetadataCount}`);
-        if (r.catalog.unrecognizedRuleCount > 0) issues.push(`override 失效 ${r.catalog.unrecognizedRuleCount}`);
-        const overrideTag = r.catalog.overrideSourcePath ? "已启用 override" : "未启用 override";
-        return `catalog ${r.catalog.totalStones} 块（${overrideTag}${issues.length ? "；" + issues.join(" / ") : "；干净"}）`;
+        return `catalog ${r.catalog.totalStones} 块（${issues.length ? issues.join(" / ") : "干净"}）`;
       })();
       const picLine = r.pic.exists
         ? `pic ${r.pic.matchedCount}/${r.pic.matchedCount + r.pic.unmatchedStones.length} 配对${r.pic.duplicateKeys.length ? ` · ${r.pic.duplicateKeys.length} 冲突` : ""}`
         : `pic 目录不存在 (${r.pic.picDir})`;
       const iimlLine = `IIML ${r.iiml.totalDocs} 份 / ${r.iiml.annotationsTotal} 条；缺 category ${r.iiml.missingCategoryCount}，缺 motif ${r.iiml.missingMotifInNarrativeCount}，frame=model 未对齐 ${r.iiml.frameModelNoAlignmentCount}`;
       const trainLine = `训练池估算：进池 ${r.trainingReadiness.estimatedAccepted} / 跳过 ${r.trainingReadiness.estimatedSkipped}；样本不足类 ${r.trainingReadiness.underrepresentedCategories.length}`;
+      const qualityLine = Object.entries(r.iiml.annotationQualityDistribution)
+        .map(([k, v]) => `${k}=${v}`)
+        .join(" / ");
       const skipTop = r.trainingReadiness.skipReasonTop
         .slice(0, 3)
         .map((s) => `${s.reason}=${s.count}`)
         .join(" / ");
       dispatchAnnotation({
         type: "set-status",
-        status: `预检 · ${catalogLine}；${picLine}；${iimlLine}；${trainLine}${skipTop ? `；Top 阻塞: ${skipTop}` : ""}`
+        status: `预检 · ${catalogLine}；${picLine}；${iimlLine}；质量 ${qualityLine || "暂无"}；${trainLine}${skipTop ? `；Top 阻塞: ${skipTop}` : ""}`
       });
       // eslint-disable-next-line no-console
       console.log("[preflight] full report:", r);
@@ -933,6 +1068,8 @@ export function App() {
           id,
           patch: {
             target,
+            annotationQuality: "silver",
+            geometryIntent: annotation.geometryIntent ?? "semantic_extent",
             generation: {
               ...annotation.generation,
               method: "sam",
@@ -1106,6 +1243,185 @@ export function App() {
     setYoloDialogOpen(false);
   }, [yoloScanning]);
 
+  const handleStartSam3 = useCallback(async (options: Sam3ConceptInput) => {
+    if (!selectedStone || !annotationState.doc || sam3Scanning) {
+      return;
+    }
+    const prompt = options.prompt.trim();
+    if (!prompt) {
+      return;
+    }
+    const displayLabel = options.label.trim() || prompt;
+
+    const doc = annotationState.doc;
+    const activeUri = activeImageResource?.uri;
+    const candidateFrame: AnnotationSourceMode = activeImageResource?.equivalentToModel
+      ? "model"
+      : annotationSourceMode;
+    const candidateResourceId = activeImageResource?.id
+      ?? doc.resources?.[0]?.id
+      ?? `${selectedStone.id}:model`;
+    const startedAt = new Date().toISOString();
+    const createdIds: string[] = [];
+    let runModel = "sam3";
+    let runError: string | undefined;
+    let effectivePrompt = prompt;
+    let effectiveThreshold = options.threshold;
+    let sam3StillRunning = true;
+
+    setSam3Scanning(true);
+    dispatchAnnotation({
+      type: "set-status",
+      status: activeUri ? `SAM3 正在分割“${displayLabel}”…（${activeImageResource?.type ?? "资源"}）` : `SAM3 正在分割“${displayLabel}”…`
+    });
+    window.setTimeout(() => {
+      if (!sam3StillRunning) return;
+      dispatchAnnotation({
+        type: "set-status",
+        status: `SAM3 首次调用可能正在加载模型。“${displayLabel}”完成后会自动生成候选；若失败会显示错误详情。`
+      });
+    }, 2000);
+
+    try {
+      const promptCandidates = options.autoExpand ? sam3PromptCandidates(prompt) : [prompt];
+      const retryThreshold = Math.max(0.1, Number((options.threshold - 0.2).toFixed(2)));
+      const thresholds = options.autoExpand && retryThreshold < options.threshold
+        ? [options.threshold, retryThreshold]
+        : [options.threshold];
+      let response: SamSegmentationResponse | undefined;
+      let lastEmptyPrompt = prompt;
+      for (const threshold of thresholds) {
+        for (const candidatePrompt of promptCandidates) {
+          dispatchAnnotation({
+            type: "set-status",
+            status: `SAM3 正在尝试“${candidatePrompt}”（阈值 ${threshold}）…`
+          });
+          const attempt = await runSam3ConceptSegmentation({
+            stoneId: activeUri ? undefined : selectedStone.id,
+            imageUri: activeUri,
+            textPrompt: candidatePrompt,
+            threshold,
+            maxResults: options.maxResults
+          });
+          runModel = attempt.model;
+          if (attempt.error) {
+            response = attempt;
+            break;
+          }
+          if ((attempt.polygons ?? []).length > 0) {
+            response = attempt;
+            effectivePrompt = candidatePrompt;
+            effectiveThreshold = threshold;
+            break;
+          }
+          response = attempt;
+          lastEmptyPrompt = candidatePrompt;
+        }
+        if (response?.error || (response?.polygons ?? []).length > 0) {
+          break;
+        }
+      }
+      if (!response) {
+        throw new Error("SAM3 未返回结果");
+      }
+      runModel = response.model;
+      if (response.error) {
+        runError = formatSam3Error(response.error, response.detail);
+        dispatchAnnotation({ type: "set-status", status: `SAM3 分割失败：${runError}` });
+        window.alert(`SAM3 分割失败：${runError}`);
+        return;
+      }
+
+      const polygons = response.polygons ?? [];
+      if (polygons.length === 0) {
+        dispatchAnnotation({ type: "set-status", status: `SAM3 未找到“${displayLabel}”对应区域` });
+        window.alert(`SAM3 未找到“${displayLabel}”对应区域。已尝试 ${promptCandidates.join(" / ")}，最后尝试为“${lastEmptyPrompt}”。可以换更具体的英文概念词，或用普通 SAM 点选/框选精修。`);
+        return;
+      }
+
+      const baseColorIndex = doc.annotations.length;
+      polygons.forEach((polygon, index) => {
+        const uvs = polygon
+          .map((point) => ({ u: Number(point[0] ?? 0), v: Number(point[1] ?? 0) }))
+          .filter((uv) => Number.isFinite(uv.u) && Number.isFinite(uv.v));
+        if (uvs.length < 3) return;
+        const detection = response.detections?.[index];
+        const annotation = createAnnotationFromGeometry({
+          geometry: polygonFromUVs(uvs),
+          resourceId: candidateResourceId,
+          color: annotationPalette[(baseColorIndex + index) % annotationPalette.length],
+          frame: candidateFrame,
+          label: `SAM3 候选：${displayLabel}`,
+          structuralLevel: "figure",
+          reviewStatus: "candidate",
+          generation: {
+            method: "sam3",
+            model: response.model,
+            confidence: detection?.score ?? response.confidence,
+            prompt: {
+              textPrompt: prompt,
+              label: displayLabel,
+              effectiveTextPrompt: effectivePrompt,
+              imageUri: activeUri ?? null,
+              threshold: effectiveThreshold,
+              maxResults: options.maxResults,
+              autoExpand: options.autoExpand
+            }
+          }
+        });
+        dispatchAnnotation({ type: "add-annotation", annotation });
+        createdIds.push(annotation.id);
+      });
+
+      dispatchAnnotation({
+        type: "set-status",
+        status: `SAM3 完成，落入 ${createdIds.length} 个“${displayLabel}”候选（实际概念词：${effectivePrompt}）`
+      });
+    } catch (error) {
+      runError = formatSam3Error("sam3-request-failed", error instanceof Error ? error.message : String(error));
+      dispatchAnnotation({ type: "set-status", status: `SAM3 调用出错：${runError}` });
+      window.alert(`SAM3 调用出错：${runError}`);
+    } finally {
+      sam3StillRunning = false;
+      dispatchAnnotation({
+        type: "add-processing-run",
+        run: {
+          id: `run-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          method: "sam3",
+          model: runModel,
+          input: {
+            stoneId: selectedStone.id,
+            textPrompt: prompt,
+            label: displayLabel,
+            effectiveTextPrompt: effectivePrompt,
+            threshold: effectiveThreshold,
+            maxResults: options.maxResults,
+            autoExpand: options.autoExpand,
+            imageUri: activeUri ?? null,
+            sourceMode: annotationSourceMode
+          },
+          output: {
+            ok: createdIds.length > 0,
+            detectionsCount: createdIds.length
+          },
+          resultAnnotationIds: createdIds,
+          resourceId: candidateResourceId,
+          frame: candidateFrame,
+          startedAt,
+          endedAt: new Date().toISOString(),
+          error: runError
+        }
+      });
+      setSam3Scanning(false);
+    }
+  }, [
+    activeImageResource,
+    annotationSourceMode,
+    annotationState.doc,
+    sam3Scanning,
+    selectedStone
+  ]);
+
   const handleSubmitYoloScan = useCallback(
     async (options: YoloScanOptions) => {
       if (!selectedStone) {
@@ -1273,11 +1589,14 @@ export function App() {
           <button className={workspaceMode === "annotation" ? "active" : ""} disabled={!selectedStone?.hasModel} onClick={enterAnnotationMode}>
             标注
           </button>
+          <button className={workspaceMode === "binding" ? "active" : ""} onClick={() => setWorkspaceMode("binding")}>
+            关联
+          </button>
         </nav>
 
         <label className="stone-select">
           <span>画像石</span>
-          <select value={selectedId} onChange={(event) => setSelectedId(event.target.value)}>
+          <select value={selectedId} onChange={(event) => requestSelectStone(event.target.value)}>
             {catalog?.stones.map((stone) => {
               // ✓ 表示已完成 4 点对齐校准；前缀让用户在下拉里一眼区分
               const aligned = alignmentStatuses[stone.id];
@@ -1293,7 +1612,7 @@ export function App() {
         </label>
       </header>
 
-      <div className="workspace-grid">
+      <div className={`workspace-grid${workspaceMode === "binding" ? " is-wide" : ""}`}>
         <aside className="tool-rail" aria-label="工具栏">
           {workspaceMode === "annotation" ? (
             <Suspense fallback={null}>
@@ -1304,6 +1623,8 @@ export function App() {
                 canRedo={annotationState.redoStack.length > 0}
                 canUndo={annotationState.undoStack.length > 0}
                 hasAlignment={hasAlignment}
+                sam3Scanning={sam3Scanning}
+                sam3Status={sam3Status}
                 samStatus={samStatus}
                 yoloScanning={yoloScanning}
                 onCancelCalibration={() => dispatchAnnotation({ type: "set-tool", tool: "select" })}
@@ -1311,6 +1632,7 @@ export function App() {
                 onRedo={() => dispatchAnnotation({ type: "redo" })}
                 onResetView={() => setResetToken((value) => value + 1)}
                 onStartCalibration={() => dispatchAnnotation({ type: "set-tool", tool: "calibrate" })}
+                onStartSam3={handleStartSam3}
                 onStartYoloScan={handleStartYoloScan}
                 onToolChange={(tool) => dispatchAnnotation({ type: "set-tool", tool })}
                 onUndo={() => dispatchAnnotation({ type: "undo" })}
@@ -1371,6 +1693,17 @@ export function App() {
               </div>
             </Suspense>
           ) : null}
+          {workspaceMode === "binding" ? (
+            <Suspense fallback={<div className="empty-state">正在加载关联模块...</div>}>
+              <BindingWorkspace
+                active={workspaceMode === "binding"}
+                stones={catalog?.stones ?? []}
+                selectedStoneId={selectedId}
+                onSelectStone={requestSelectStone}
+                onChanged={() => setResetToken((v) => v + 1)}
+              />
+            </Suspense>
+          ) : null}
           {hasEnteredAnnotation && selectedStone ? (
             <Suspense fallback={<div className="empty-state">正在加载标注模块...</div>}>
               <div className={isAnnotationActive ? "workspace-layer is-active" : "workspace-layer is-hidden"}>
@@ -1403,6 +1736,7 @@ export function App() {
           ) : null}
         </main>
 
+        {workspaceMode === "binding" ? null : (
         <aside className="side-panel">
           {workspaceMode === "annotation" ? (
             <Suspense fallback={<section className="panel-section"><p className="muted-text">正在加载标注面板...</p></section>}>
@@ -1411,6 +1745,9 @@ export function App() {
                 draftAnnotationId={annotationState.draftAnnotationId}
                 metadata={metadata}
                 selectedAnnotation={selectedAnnotation}
+                saveState={annotationSaveState}
+                statusMessage={annotationState.status}
+                trainingDatasetLocation={trainingDatasetLocation}
                 vocabularyCategories={vocabularyCategories}
                 vocabularyTerms={vocabularyTerms}
                 onAcceptCandidate={handleAcceptCandidate}
@@ -1427,8 +1764,10 @@ export function App() {
                 onExportIiif={handleExportIiif}
                 onExportHpsml={handleExportHpsml}
                 onExportTraining={handleExportTraining}
+                onRevealTrainingDataset={handleRevealTrainingDataset}
                 onPreflight={handlePreflight}
                 onImportHpsml={handleImportHpsml}
+                onManualSave={saveAnnotationDocumentNow}
                 onAddResource={(resource) => dispatchAnnotation({ type: "add-resource", resource })}
                 onUpdateResource={(id, patch) => dispatchAnnotation({ type: "update-resource", id, patch })}
                 onDeleteResource={(id) => dispatchAnnotation({ type: "delete-resource", id })}
@@ -1529,6 +1868,7 @@ export function App() {
             </>
           )}
         </aside>
+        )}
       </div>
       <TaskProgressPanel
         tasks={tasks}
@@ -1691,6 +2031,12 @@ function formatExportTimestamp() {
   const now = new Date();
   const pad = (value: number) => String(value).padStart(2, "0");
   return `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}`;
+}
+
+function docBelongsToStone(doc: IimlDocument, stoneId: string): boolean {
+  if (doc.documentId === `${stoneId}:iiml` || doc.documentId === stoneId) return true;
+  const objectId = (doc.culturalObject as { objectId?: unknown } | undefined)?.objectId;
+  return objectId === stoneId;
 }
 
 function downloadBlob(blob: Blob, fileName: string) {

@@ -37,6 +37,12 @@ export type StoneListItem = {
   hasMetadata: boolean;
   modelUrl?: string;
   thumbnailUrl?: string;
+  /**
+   * 参考缩略图：当本石头没匹配到 3D 模型时，按 id 数字编号在 temp/ 里
+   * 找同编号 .png。subject 可能与 metadata 描述不一致，仅供关联工作台
+   * 视觉参考，不参与训练 / 标注。
+   */
+  referenceThumbnailUrl?: string;
   metadata?: {
     stone_id: string;
     name: string;
@@ -91,6 +97,18 @@ export type IimlGeometry =
 
 export type IimlStructuralLevel = "whole" | "scene" | "figure" | "component" | "trace" | "inscription" | "damage" | "unknown";
 export type IimlReviewStatus = "candidate" | "reviewed" | "approved" | "rejected";
+export type IimlAnnotationQualityTier = "weak" | "silver" | "gold";
+export type IimlGeometryIntent = "visible_trace" | "semantic_extent" | "reconstructed_extent";
+export type IimlTrainingRole = "train" | "validation" | "holdout";
+export type IimlAnnotationIssue =
+  | "low_contrast"
+  | "texture_confusion"
+  | "ambiguous_boundary"
+  | "occluded_or_worn"
+  | "oversegmented"
+  | "undersegmented"
+  | "class_uncertain"
+  | "needs_expert_review";
 
 // 汉画像石领域类别（13 类 + unknown）；与 structuralLevel 正交。
 // 详见 docs/han-stone-annotation-SOP.md §1。category 用于 YOLO/SAM 训练，
@@ -230,6 +248,14 @@ export type IimlAnnotation = {
   // 二层母题：具体故事 / 视觉格套（SOP §1.6 + 附录 A 受控词表 130+ 项）。
   // 自由字符串以容纳学界新格套；建议从 categories.ts motifSuggestionsByCategory 选。
   motif?: string;
+  // 训练集质量层：weak=框/点/涂鸦，silver=AI/快速修正，gold=专家精修。
+  annotationQuality?: IimlAnnotationQualityTier;
+  // 几何语义：可见刻痕、语义对象范围、专家复原范围不要混为一个标签。
+  geometryIntent?: IimlGeometryIntent;
+  // train=常规训练；validation=gold 评估子集；holdout=保留不用。
+  trainingRole?: IimlTrainingRole;
+  // 低对比、纹理混淆、遮挡风化等问题标签，供主动学习队列排序。
+  annotationIssues?: IimlAnnotationIssue[];
   label?: string;
   color?: string;
   // 标注填充区域的透明度 0..1；描边始终用 color 不透明。默认 0.15。
@@ -416,8 +442,34 @@ export type AssemblyPlanRecord = AssemblyPlanPayload & {
   itemCount: number;
 };
 
+const STARTUP_RETRY_DELAYS_MS = [250, 750, 1500, 2500];
+
+async function fetchWithStartupRetry(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt <= STARTUP_RETRY_DELAYS_MS.length; attempt += 1) {
+    try {
+      const response = await fetch(input, init);
+      if (response.ok || response.status < 500 || attempt === STARTUP_RETRY_DELAYS_MS.length) {
+        return response;
+      }
+      lastError = new Error(`http-${response.status}`);
+    } catch (error) {
+      lastError = error;
+      if (attempt === STARTUP_RETRY_DELAYS_MS.length) {
+        throw error;
+      }
+    }
+    await delay(STARTUP_RETRY_DELAYS_MS[attempt]);
+  }
+  throw lastError instanceof Error ? lastError : new Error(String(lastError));
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
 export async function fetchStones(): Promise<StoneListResponse> {
-  const response = await fetch("/api/stones");
+  const response = await fetchWithStartupRetry("/api/stones");
   if (!response.ok) {
     throw new Error(`获取画像石列表失败：${response.status}`);
   }
@@ -425,7 +477,7 @@ export async function fetchStones(): Promise<StoneListResponse> {
 }
 
 export async function fetchStoneMetadata(id: string): Promise<StoneMetadata> {
-  const response = await fetch(`/api/stones/${encodeURIComponent(id)}/metadata`);
+  const response = await fetchWithStartupRetry(`/api/stones/${encodeURIComponent(id)}/metadata`);
   if (!response.ok) {
     throw new Error(`获取画像石元数据失败：${response.status}`);
   }
@@ -433,7 +485,7 @@ export async function fetchStoneMetadata(id: string): Promise<StoneMetadata> {
 }
 
 export async function fetchIimlDocument(stoneId: string): Promise<IimlDocument> {
-  const response = await fetch(`/api/iiml/${encodeURIComponent(stoneId)}`);
+  const response = await fetchWithStartupRetry(`/api/iiml/${encodeURIComponent(stoneId)}`);
   if (!response.ok) {
     throw new Error(`读取标注文档失败：${response.status}`);
   }
@@ -444,7 +496,7 @@ export async function fetchIimlDocument(stoneId: string): Promise<IimlDocument> 
 // 头部画像石下拉用它在 option 文本前加 ✓ 标识。
 export async function fetchAlignmentStatuses(): Promise<Record<string, boolean>> {
   try {
-    const response = await fetch("/api/iiml/alignments");
+    const response = await fetchWithStartupRetry("/api/iiml/alignments");
     if (!response.ok) {
       return {};
     }
@@ -477,7 +529,7 @@ export async function importMarkdownAnnotations(stoneId: string): Promise<IimlDo
 }
 
 export async function fetchTerms(): Promise<{ categories: VocabularyCategory[]; terms: VocabularyTerm[] }> {
-  const response = await fetch("/api/terms");
+  const response = await fetchWithStartupRetry("/api/terms");
   if (!response.ok) {
     throw new Error(`读取术语库失败：${response.status}`);
   }
@@ -491,6 +543,8 @@ export type TrainingExportSummary = {
   exportedAt: string;
   /** 相对项目根的目录路径，比如 "data/datasets/wsc-han-stone-v0" */
   datasetDir: string;
+  /** 本机绝对路径，比如 "E:\\WSC3D\\data\\datasets\\wsc-han-stone-v0" */
+  absoluteDatasetDir?: string;
   totalAnnotations: number;
   acceptedAnnotations: number;
   skippedAnnotations: number;
@@ -499,7 +553,11 @@ export type TrainingExportSummary = {
   splits: { train: number; val: number; test: number };
   categoryDistribution: Record<string, number>;
   motifDistribution: Record<string, number>;
+  annotationQualityDistribution: Record<string, number>;
+  geometryIntentDistribution: Record<string, number>;
+  trainingRoleDistribution: Record<string, number>;
   warningCounts: Record<string, number>;
+  activeLearningQueueSize: number;
   reportFileName: string;
 };
 
@@ -508,6 +566,21 @@ export async function exportTrainingDataset(): Promise<TrainingExportSummary> {
   if (!response.ok) {
     const text = await response.text().catch(() => "");
     throw new Error(`训练池导出失败 ${response.status}：${text || response.statusText}`);
+  }
+  return response.json();
+}
+
+export type TrainingDatasetRevealResult = {
+  opened: boolean;
+  datasetDir: string;
+  absolutePath: string;
+};
+
+export async function revealTrainingDataset(): Promise<TrainingDatasetRevealResult> {
+  const response = await fetch("/api/training/reveal-dataset", { method: "POST" });
+  if (!response.ok) {
+    const text = await response.text().catch(() => "");
+    throw new Error(`打开训练集目录失败 ${response.status}：${text || response.statusText}`);
   }
   return response.json();
 }
@@ -546,6 +619,9 @@ export type PreflightReport = {
     missingMotifInNarrativeCount: number;
     frameModelNoAlignmentCount: number;
     reviewStatusBreakdown: Record<string, number>;
+    annotationQualityDistribution: Record<string, number>;
+    geometryIntentDistribution: Record<string, number>;
+    trainingRoleDistribution: Record<string, number>;
   };
   trainingReadiness: {
     estimatedAccepted: number;
@@ -565,6 +641,100 @@ export async function fetchPreflight(): Promise<PreflightReport> {
   return response.json();
 }
 
+// ----- 高清图 ↔ 石头手动关联（v0.8.x 新增） -----
+
+export type PicBinding = {
+  stoneId: string;
+  /** 面标识：undefined = 主面（A 面，文件名无后缀）；"B"/"C"… = 副面 */
+  face?: string;
+  originalFileName: string;
+  currentFileName: string;
+  displayName: string;
+  boundAt: string;
+};
+
+export type PicListEntry = {
+  fileName: string;
+  /** 文件名 ^(\d+) 数字前缀；用户原始命名（08A0001.tif 等）没有数字前缀 → undefined */
+  numericKey?: string;
+  /** 文件名 ^(\d+)-(F)... 的 F；undefined = 主面 */
+  face?: string;
+  size: number;
+  isBound: boolean;
+  boundStoneId?: string;
+  boundFace?: string;
+  boundDisplayName?: string;
+  originalFileName?: string;
+};
+
+export type PicListResponse = {
+  picDir: string;
+  exists: boolean;
+  totalFiles: number;
+  duplicateKeys: Array<{ key: string; fileNames: string[] }>;
+  unrecognizedFiles: string[];
+  bindings: PicBinding[];
+  files: PicListEntry[];
+};
+
+export async function fetchPicList(): Promise<PicListResponse> {
+  const response = await fetchWithStartupRetry("/api/pic/list");
+  if (!response.ok) {
+    const text = await response.text().catch(() => "");
+    throw new Error(`pic 列表加载失败 ${response.status}：${text || response.statusText}`);
+  }
+  return response.json();
+}
+
+export type PicBindResult =
+  | { ok: true; binding: PicBinding }
+  | { ok: false; error: string; detail?: string };
+
+export async function bindPicToStone(
+  stoneId: string,
+  originalFileName: string,
+  face?: string
+): Promise<PicBindResult> {
+  const response = await fetch("/api/pic/bind", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ stoneId, originalFileName, face })
+  });
+  if (response.status === 409 || response.status === 400 || response.status === 404) {
+    return response.json();
+  }
+  if (!response.ok) {
+    const text = await response.text().catch(() => "");
+    throw new Error(`关联失败 ${response.status}：${text || response.statusText}`);
+  }
+  return response.json();
+}
+
+export type PicUnbindResult =
+  | { ok: true; restoredFileName: string }
+  | { ok: false; error: string; detail?: string };
+
+export async function unbindPicFromStone(stoneId: string, face?: string): Promise<PicUnbindResult> {
+  const response = await fetch("/api/pic/unbind", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ stoneId, face })
+  });
+  if (response.status === 409 || response.status === 400) {
+    return response.json();
+  }
+  if (!response.ok) {
+    const text = await response.text().catch(() => "");
+    throw new Error(`取消关联失败 ${response.status}：${text || response.statusText}`);
+  }
+  return response.json();
+}
+
+/** UI grid 里 <img src> 的缩略图地址；ai-service 提供，按 fileName 查询。 */
+export function picPreviewUrl(fileName: string, maxEdge: number = 400): string {
+  return `/ai/pic-preview?fileName=${encodeURIComponent(fileName)}&max_edge=${maxEdge}`;
+}
+
 export type SamStatus = {
   ready: boolean;
   // pending | downloading | loading | ready | error
@@ -578,6 +748,7 @@ export type AiHealthResponse = {
   service?: string;
   features?: string[];
   sam?: SamStatus;
+  sam3?: SamStatus;
 };
 
 export async function fetchAiHealth(): Promise<AiHealthResponse> {
@@ -590,8 +761,10 @@ export async function fetchAiHealth(): Promise<AiHealthResponse> {
 
 // 高清图 PNG 端点：后端会把 pic/ 下的 tif 解码并缩放到指定长边后落盘缓存，
 // 浏览器直接 <img src=...> 即可。HEAD 请求可用来探测某块画像石是否配了高清图。
-export function getSourceImageUrl(stoneId: string, maxEdge = 4096): string {
-  return `/ai/source-image/${encodeURIComponent(stoneId)}?max_edge=${maxEdge}`;
+export function getSourceImageUrl(stoneId: string, maxEdge = 4096, face?: string): string {
+  const params = new URLSearchParams({ max_edge: String(maxEdge) });
+  if (face) params.set("face", face);
+  return `/ai/source-image/${encodeURIComponent(stoneId)}?${params.toString()}`;
 }
 
 export async function probeSourceImage(stoneId: string): Promise<boolean> {
@@ -746,15 +919,18 @@ export function getLineartUrl(
 
 export type SamSegmentationResponse = {
   polygons: Array<IimlPoint[]>;
+  detections?: Array<{ polygon: IimlPoint[]; bbox?: [number, number, number, number] | null; score: number }>;
   confidence: number;
   model: string;
   // 响应坐标系：旧截图路径返回图像归一化（y 向下），需要前端再做 screenToUV；
   // 高清图路径返回 modelBox-uv（v 向下，与屏幕/图像坐标一致），前端可以直接当 UV 用。
-  coordinateSystem?: "image-normalized" | "modelbox-uv";
-  sourceMode?: "screenshot" | "source";
+  coordinateSystem?: "image-normalized" | "modelbox-uv" | "image-uv";
+  sourceMode?: "screenshot" | "source" | "resource-uri";
   sourceImage?: string;
   sourceSize?: [number, number];
+  textPrompt?: string;
   error?: string;
+  detail?: string;
   warning?: string;
 };
 
@@ -800,6 +976,26 @@ export async function runSamSegmentationBySource(payload: {
   return response.json();
 }
 
+export async function runSam3ConceptSegmentation(payload: {
+  stoneId?: string;
+  imageUri?: string;
+  imageBase64?: string;
+  textPrompt: string;
+  threshold?: number;
+  maxResults?: number;
+}): Promise<SamSegmentationResponse> {
+  const response = await fetch("/ai/sam3", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+  if (!response.ok) {
+    const text = await response.text().catch(() => "");
+    throw new Error(`SAM3 概念分割失败：${response.status}${text ? `：${text}` : ""}`);
+  }
+  return response.json();
+}
+
 // 通用 YOLO 检测：优先 imageUri > stoneId (pic/ 高清图) > imageBase64 (截图)。
 // 后端会按 confThreshold 与 maxDetections 过滤；class_filter 仅保留你关心的标签。
 export async function runYoloDetection(payload: {
@@ -834,7 +1030,7 @@ export async function runCannyLine(payload: { imageBase64: string; low: number; 
 }
 
 export async function fetchAssemblyPlans(): Promise<AssemblyPlanRecord[]> {
-  const response = await fetch("/api/assembly-plans");
+  const response = await fetchWithStartupRetry("/api/assembly-plans");
   if (!response.ok) {
     throw new Error(`获取拼接方案失败：${response.status}`);
   }
@@ -842,7 +1038,7 @@ export async function fetchAssemblyPlans(): Promise<AssemblyPlanRecord[]> {
 }
 
 export async function fetchAssemblyPlan(id: string): Promise<AssemblyPlanRecord> {
-  const response = await fetch(`/api/assembly-plans/${encodeURIComponent(id)}`);
+  const response = await fetchWithStartupRetry(`/api/assembly-plans/${encodeURIComponent(id)}`);
   if (!response.ok) {
     throw new Error(`读取拼接方案失败：${response.status}`);
   }

@@ -34,6 +34,10 @@ const STRUCTURAL_LEVELS_V8 = new Set([
   "unknown"
 ]);
 
+const ANNOTATION_QUALITY_TIERS = new Set(["weak", "silver", "gold"]);
+const GEOMETRY_INTENTS = new Set(["visible_trace", "semantic_extent", "reconstructed_extent"]);
+const TRAINING_ROLES = new Set(["train", "validation", "holdout"]);
+
 export type TrainingValidationResult = {
   /** 进训练池 = 所有 errors 为空 */
   ready: boolean;
@@ -53,10 +57,20 @@ export type TrainingValidationResult = {
 export function validateAnnotationForTraining(
   ann: IimlAnnotation,
   // 保留参数以便后续做跨条校验（如关系成对存在、frame 与 alignment 状态匹配）
-  _doc?: IimlDocument
+  doc?: IimlDocument
 ): TrainingValidationResult {
   const errors: string[] = [];
   const warnings: string[] = [];
+
+  // 0. 与后端 A2 导出对齐：frame=model 需要等价正射或 4 点对齐，才能反投影进 image frame。
+  const frame = ann.frame ?? "model";
+  if (frame === "model") {
+    const isEquivalentOrtho = isEquivalentOrthophotoResource(ann.resourceId, doc);
+    const hasAlignment = hasDocumentAlignment(doc);
+    if (!isEquivalentOrtho && !hasAlignment) {
+      errors.push("frame-model-no-alignment");
+    }
+  }
 
   // 1. 几何字段非空且无自相交（自相交检查交给 polygon-clipping 兜底）
   const geometryError = validateGeometry(ann.target);
@@ -77,18 +91,34 @@ export function validateAnnotationForTraining(
     errors.push("motif-too-long");
   }
 
+  const quality = getAnnotationQuality(ann);
+  if (!ANNOTATION_QUALITY_TIERS.has(quality)) {
+    errors.push("bad-annotation-quality");
+  }
+
+  const geometryIntent = ann.geometryIntent ?? "semantic_extent";
+  if (!GEOMETRY_INTENTS.has(geometryIntent)) {
+    errors.push("bad-geometry-intent");
+  }
+
+  const trainingRole = ann.trainingRole ?? "train";
+  if (!TRAINING_ROLES.has(trainingRole)) {
+    errors.push("bad-training-role");
+  }
+
   // 5. terms.length >= 1
   const termCount = ann.semantics?.terms?.length ?? 0;
   if (termCount < 1) {
     errors.push("no-terms");
   }
 
-  // 6. sources >= 1，且 ≥ 1 条 kind ∈ {metadata, reference}
+  // 6. sources 是学术溯源质量项，不再作为视觉训练准入硬门槛。
+  //    缺失时进入训练池但保留 warning，避免批量 SAM3 候选被来源字段挡住。
   const sources = ann.sources ?? [];
   if (sources.length < 1) {
-    errors.push("no-sources");
+    warnings.push("no-sources");
   } else if (!sources.some((s) => s.kind === "metadata" || s.kind === "reference")) {
-    errors.push("no-evidence-source");
+    warnings.push("no-evidence-source");
   }
 
   // 7. preIconographic ≥ 10 字
@@ -135,7 +165,44 @@ export function validateAnnotationForTraining(
     warnings.push("missing-motif-for-narrative");
   }
 
+  if (quality === "weak") {
+    warnings.push("annotation-quality-weak");
+  }
+  if (geometryIntent === "reconstructed_extent") {
+    warnings.push("geometry-intent-reconstructed");
+  }
+  if (trainingRole === "validation") {
+    warnings.push("training-role-validation");
+  }
+  if (trainingRole === "holdout") {
+    warnings.push("training-role-holdout");
+  }
+
   return { ready: errors.length === 0, errors, warnings };
+}
+
+function getAnnotationQuality(ann: IimlAnnotation): string {
+  if (ann.annotationQuality) return ann.annotationQuality;
+  if (ann.target?.type === "BBox" || ann.target?.type === "Point" || ann.target?.type === "LineString") {
+    return "weak";
+  }
+  return "silver";
+}
+
+function isEquivalentOrthophotoResource(resourceId: string | undefined, doc: IimlDocument | undefined): boolean {
+  if (!resourceId || !doc?.resources) return false;
+  const raw = doc.resources.find((resource) => resource.id === resourceId) as Record<string, unknown> | undefined;
+  const transform = raw?.transform as Record<string, unknown> | undefined;
+  if (!transform || transform.kind !== "orthographic-from-model") return false;
+  if (transform.equivalentToModel === true) return true;
+  const view = transform.view;
+  const frustumScale = typeof transform.frustumScale === "number" ? transform.frustumScale : undefined;
+  return view === "front" && typeof frustumScale === "number" && Math.abs(frustumScale - 1) < 1e-3;
+}
+
+function hasDocumentAlignment(doc: IimlDocument | undefined): boolean {
+  const alignment = (doc?.culturalObject as { alignment?: { controlPoints?: unknown[] } } | undefined)?.alignment;
+  return Array.isArray(alignment?.controlPoints) && alignment.controlPoints.length >= 4;
 }
 
 /**

@@ -1,10 +1,15 @@
+--extra-index-url https://download.pytorch.org/whl/cu128
 fastapi
 uvicorn[standard]
-numpy
+numpy==1.26.4
 pillow
-opencv-python
-torch
+opencv-python==4.10.0.84
+torch==2.11.0+cu128
+torchvision==0.26.0+cu128
 ultralytics
+sam3 @ git+https://github.com/facebookresearch/sam3.git
+ftfy==6.1.1
+triton-windows; platform_system == "Windows"
 # MobileSAM 的 TinyViT backbone 依赖 timm 但官方 pyproject 没列，需要手动装。
 timm
 mobile-sam @ git+https://github.com/ChaoningZhang/MobileSAM.git

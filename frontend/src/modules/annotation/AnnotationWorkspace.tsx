@@ -32,10 +32,12 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { StoneListItem } from "../../api/client";
-import { lineartMethodOptions, type LineartMethod } from "../../api/client";
+import type { PicBinding, StoneListItem } from "../../api/client";
+import { fetchPicList, getSourceImageUrl, lineartMethodOptions, type LineartMethod } from "../../api/client";
 import { SourceImageView, type CannyOptions, type SourceImageLayer } from "../viewer/SourceImageView";
 import { StoneViewer, type ScreenProjection } from "../viewer/StoneViewer";
+import type { ViewCubeView } from "../shared/ViewCube";
+import { formatFaceLabel } from "../shared/pic-face";
 import { AnnotationCanvas, type CalibrationDraftView } from "./AnnotationCanvas";
 import type { UV } from "./geometry";
 import { getAlignment, getRelations } from "./store";
@@ -159,6 +161,9 @@ export function AnnotationWorkspace({
   const [lineartLow, setLineartLow] = useState<number>(60);
   const [lineartHigh, setLineartHigh] = useState<number>(140);
   const [lineartOpacity, setLineartOpacity] = useState<number>(0.85);
+  const [picBindings, setPicBindings] = useState<PicBinding[]>([]);
+  const [activePicFace, setActivePicFace] = useState<string>("");
+  const [modelCubeView, setModelCubeView] = useState<ViewCubeView>("front");
   const cannyOptions = useMemo<CannyOptions>(
     () => ({ method: lineartMethod, low: lineartLow, high: lineartHigh, opacity: lineartOpacity }),
     [lineartMethod, lineartLow, lineartHigh, lineartOpacity]
@@ -170,9 +175,48 @@ export function AnnotationWorkspace({
   // 切换资源时 SourceImageView 会重置 fit；Canny 线图只能叠加在 pic/ 原图上
   // （后端 canny 管线只处理 pic/ 原图），所以切到非默认资源时强制关掉线图。
   const [activeImageResourceId, setActiveImageResourceId] = useState<string | undefined>(undefined);
+  useEffect(() => {
+    if (!active) return;
+    let cancelled = false;
+    fetchPicList()
+      .then((list) => {
+        if (!cancelled) setPicBindings(list.bindings);
+      })
+      .catch(() => {
+        if (!cancelled) setPicBindings([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [active, stone.id]);
+
+  const picFaceOptions = useMemo(() => {
+    const bindings = picBindings
+      .filter((binding) => binding.stoneId === stone.id)
+      .sort((a, b) => (a.face ?? "").localeCompare(b.face ?? ""));
+    if (bindings.length === 0) {
+      return [{ face: "", label: formatFaceLabel("") }];
+    }
+    return bindings.map((binding) => ({
+      face: binding.face ?? "",
+      label: formatFaceLabel(binding.face)
+    }));
+  }, [picBindings, stone.id]);
+
+  useEffect(() => {
+    setActivePicFace("");
+    setActiveImageResourceId(undefined);
+  }, [stone.id]);
+
+  useEffect(() => {
+    if (!picFaceOptions.some((option) => option.face === activePicFace)) {
+      setActivePicFace(picFaceOptions[0]?.face ?? "");
+    }
+  }, [activePicFace, picFaceOptions]);
   // doc.resources 里可以作为底图的 image 类资源（有 URI 的 Orthophoto / Rubbing /
-  // NormalMap / LineDrawing / OriginalImage / RTI）
-  const imageLikeResources = useMemo(() => {
+  // NormalMap / LineDrawing / OriginalImage / RTI）。OriginalImage 是默认“原图”，
+  // 不再放进右上资源切换，避免出现两个“原图”按钮。
+  const allImageLikeResources = useMemo(() => {
     if (!doc?.resources) return [] as Array<{ id: string; label: string; uri: string; type: string }>;
     const imageTypes = new Set([
       "Orthophoto",
@@ -192,6 +236,10 @@ export function AnnotationWorkspace({
         label: buildResourceLabel(r)
       }));
   }, [doc?.resources]);
+  const imageLikeResources = useMemo(
+    () => allImageLikeResources.filter((resource) => resource.type !== "OriginalImage"),
+    [allImageLikeResources]
+  );
 
   // 切换 stone 或资源列表变动时，清掉无效的 activeImageResourceId
   useEffect(() => {
@@ -203,15 +251,19 @@ export function AnnotationWorkspace({
 
   // 若切到非 pic/ 资源，强制关掉 Canny 叠加避免错位
   useEffect(() => {
-    if (activeImageResourceId && imageLayer === "canny") {
+    if ((activeImageResourceId || activePicFace) && imageLayer === "canny") {
       setImageLayer("source");
     }
-  }, [activeImageResourceId, imageLayer]);
+  }, [activeImageResourceId, activePicFace, imageLayer]);
 
   const activeImageUrl = useMemo(() => {
-    if (!activeImageResourceId) return undefined;
-    return imageLikeResources.find((r) => r.id === activeImageResourceId)?.uri;
-  }, [activeImageResourceId, imageLikeResources]);
+    if (activeImageResourceId) {
+      return imageLikeResources.find((r) => r.id === activeImageResourceId)?.uri;
+    }
+    // A 面在 UI 中用 "" 表示，但 source-image 默认 face 也正是 A 面。
+    // 不能用 activePicFace 的 truthy 判断，否则主面高清图会被错误清空。
+    return getSourceImageUrl(stone.id, 4096, activePicFace || undefined);
+  }, [activeImageResourceId, activePicFace, imageLikeResources, stone.id]);
 
   // I4 v0.8.0 J：当前底图资源是否"与 3D 模型 UV 等价"——典型场景是 view=front +
   // frustumScale=1.0 的正射图，它的图像归一化坐标与 modelBox UV 完全 1:1 对应。
@@ -247,11 +299,12 @@ export function AnnotationWorkspace({
   // model 模式仍走 :model；image 模式但没有 OriginalImage（如老 doc 未迁移）则
   // 兜底到第 0 个 image-like 资源；都没有再退回 :model。
   const defaultImageResource = useMemo(
-    () => imageLikeResources.find((r) => r.type === "OriginalImage") ?? imageLikeResources[0],
-    [imageLikeResources]
+    () => allImageLikeResources.find((r) => r.type === "OriginalImage") ?? allImageLikeResources[0],
+    [allImageLikeResources]
   );
   const resourceId =
     activeImageResourceId ??
+    (sourceMode === "image" && activePicFace ? `${stone.id}:original:${activePicFace}` : undefined) ??
     (sourceMode === "image" ? defaultImageResource?.id : undefined) ??
     doc?.resources[0]?.id ??
     `${stone.id}:model`;
@@ -263,7 +316,20 @@ export function AnnotationWorkspace({
   // 图像，不能直接喂 3D 模型）。
   useEffect(() => {
     if (!onActiveImageResourceChange) return;
-    if (sourceMode === "model" || !activeImageResourceId || !activeImageUrl) {
+    if (sourceMode === "model") {
+      onActiveImageResourceChange(undefined);
+      return;
+    }
+    if (!activeImageResourceId && activeImageUrl) {
+      onActiveImageResourceChange({
+        id: activePicFace ? `${stone.id}:original:${activePicFace}` : `${stone.id}:original`,
+        uri: activeImageUrl,
+        type: "OriginalImage",
+        equivalentToModel: false
+      });
+      return;
+    }
+    if (!activeImageResourceId || !activeImageUrl) {
       onActiveImageResourceChange(undefined);
       return;
     }
@@ -277,10 +343,12 @@ export function AnnotationWorkspace({
   }, [
     sourceMode,
     activeImageResourceId,
+    activePicFace,
     activeImageUrl,
     activeResourceEquivalentToModel,
     imageLikeResources,
-    onActiveImageResourceChange
+    onActiveImageResourceChange,
+    stone.id
   ]);
   // B3 关系连线需要的 relations 列表（与 RelationsEditor 用同一份 store 读出）
   const relations = useMemo(() => getRelations(doc), [doc]);
@@ -437,14 +505,15 @@ export function AnnotationWorkspace({
         <StoneViewer
           active={active}
           background={background}
-          cubeView="front"
+          cubeView={modelCubeView}
           fitToken={fitToken}
           measureToken={0}
           measuring={false}
+          showCubeIn2d
           stone={stone}
           viewMode="2d"
           hideHud
-          onCubeViewChange={() => undefined}
+          onCubeViewChange={setModelCubeView}
           onMeasureChange={() => undefined}
           onScreenProjectionChange={handleProjectionChange}
         />
@@ -462,6 +531,7 @@ export function AnnotationWorkspace({
       )}
       <AnnotationCanvas
         activeTool={activeTool}
+        activeFaceResourceId={sourceMode === "image" && activePicFace ? resourceId : undefined}
         activeImageUri={activeImageUrl}
         alignment={alignment}
         annotations={doc?.annotations ?? []}
@@ -501,6 +571,25 @@ export function AnnotationWorkspace({
           高清图
         </button>
       </div>
+      {sourceMode === "image" && (picFaceOptions.length > 1 || activePicFace) ? (
+        <div className="annotation-face-switch" role="group" aria-label="画像石面">
+          <span className="annotation-resource-switch-label">面</span>
+          {picFaceOptions.map((option) => (
+            <button
+              key={option.face || "primary"}
+              type="button"
+              className={activePicFace === option.face ? "active" : ""}
+              onClick={() => {
+                setActivePicFace(option.face);
+                setActiveImageResourceId(undefined);
+              }}
+              title={`查看${option.label}关联图片`}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+      ) : null}
       {sourceMode === "image" ? (
         <>
           {imageLikeResources.length > 0 ? (
@@ -555,10 +644,10 @@ export function AnnotationWorkspace({
               type="button"
               className={imageLayer === "canny" ? "active" : ""}
               onClick={() => setImageLayer("canny")}
-              disabled={Boolean(activeImageResourceId)}
+              disabled={Boolean(activeImageResourceId || activePicFace)}
               title={
-                activeImageResourceId
-                  ? "切到 pic/ 原图底图才能叠线图（Canny 基于 pic/ 原图生成）"
+                activeImageResourceId || activePicFace
+                  ? "切到 A 面 pic/ 原图底图才能叠线图（Canny 基于 A 面原图生成）"
                   : "原图 + 半透明线图叠加，辅助辨识浅浮雕轮廓"
               }
             >

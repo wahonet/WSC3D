@@ -4,7 +4,7 @@
  * dev 启动时通过 `concurrently` 与后端、AI 服务并排起来；端口分配：
  * - `:5173`  前端 dev server
  * - `:3100`  后端 Express
- * - `:8000`  AI FastAPI
+ * - `:8010`  AI FastAPI
  *
  * 前端代码里所有 fetch 都用相对路径（如 `/api/stones`），由本配置的 `proxy`
  * 字段在 dev 阶段把 `/api` `/assets` 透传到后端、`/ai` 透传到 AI 服务。生产
@@ -24,11 +24,11 @@ export default defineConfig({
   plugins: [react()],
   server: {
     port: 5173,
-    strictPort: false,
+    strictPort: true,
     proxy: {
       "/api": "http://127.0.0.1:3100",
       "/assets": "http://127.0.0.1:3100",
-      "/ai": "http://127.0.0.1:8000"
+      "/ai": "http://127.0.0.1:8010"
     }
   },
   build: {

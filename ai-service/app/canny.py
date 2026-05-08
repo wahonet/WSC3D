@@ -33,7 +33,7 @@ from typing import Literal, Optional
 import cv2
 import numpy as np
 
-from .sam import get_source_image_png
+from .resources import get_source_image_png
 from .utils import decode_image, encode_png
 
 # 线图 PNG 落盘缓存目录：与高清图转码缓存同 parent，命名按 stoneId 数字前缀 +

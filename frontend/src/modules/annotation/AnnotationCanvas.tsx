@@ -85,6 +85,8 @@ type AnnotationCanvasProps = {
   // v0.8.0 J：当前底图对应的资源 URI（正射图 / 拓片 / 法线图等）。传了则 SAM
   // 调用会用这个 URI 作为输入图像，而不是 stoneId → pic/ 原图。
   activeImageUri?: string;
+  // 当前图片工作面对应的资源 id。A 面为空时不筛；B/C 面用于让图片模式只显示同面标注。
+  activeFaceResourceId?: string;
   // 可选：modelUv ↔ imageUv 的 4 点单应性标定，用于跨 frame 显示。
   alignment?: IimlAlignment;
   // 标定流程态；activeTool === "calibrate" 时画布按此渲染已收集的对应点。
@@ -180,6 +182,7 @@ export function AnnotationCanvas({
   projection,
   sourceMode,
   activeImageUri,
+  activeFaceResourceId,
   alignment,
   calibrationDraft,
   onCreate,
@@ -193,7 +196,7 @@ export function AnnotationCanvas({
   const stageRef = useRef<Konva.Stage | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [draftRect, setDraftRect] = useState<DraftRect>(undefined);
-  const [penPoints, setPenPoints] = useState<Array<{ x: number; y: number }>>([]);
+  const [penPoints, setPenPoints] = useState<UV[]>([]);
   // SAM 请求期间禁掉画布点击并提示 wait 光标，避免重复点出多个候选。
   const [isSamPending, setIsSamPending] = useState(false);
   // SAM 多 prompt 工作流：用户左键加正点、右键加负点、Shift+左键拖动 box，
@@ -339,6 +342,12 @@ export function AnnotationCanvas({
   const displayAnnotations = useMemo<DisplayAnnotation[]>(() => {
     return annotations
       .filter(isVisible)
+      .filter((annotation) => {
+        if (!activeFaceResourceId) {
+          return !annotation.resourceId.includes(":original:");
+        }
+        return annotation.resourceId === activeFaceResourceId;
+      })
       .map((annotation): DisplayAnnotation | undefined => {
         const annotationFrame: IimlAnnotationFrame = annotation.frame ?? "model";
         if (annotationFrame === sourceMode) {
@@ -353,15 +362,21 @@ export function AnnotationCanvas({
         return { source: annotation, displayGeometry: transformed, isCrossFrame: true };
       })
       .filter((entry): entry is DisplayAnnotation => Boolean(entry));
-  }, [alignmentMatrices, annotations, sourceMode]);
+  }, [activeFaceResourceId, alignmentMatrices, annotations, sourceMode]);
 
   // 跨 frame 但 alignment 还没建立时，统计漏掉的标注数，给画布做一个温和的提示。
   const hiddenCrossFrameCount = useMemo(() => {
     if (alignmentMatrices.modelToImage && alignmentMatrices.imageToModel) {
       return 0;
     }
-    return annotations.filter((annotation) => isVisible(annotation) && (annotation.frame ?? "model") !== sourceMode).length;
-  }, [alignmentMatrices.imageToModel, alignmentMatrices.modelToImage, annotations, sourceMode]);
+    return annotations.filter((annotation) => {
+      if (!isVisible(annotation) || (annotation.frame ?? "model") === sourceMode) return false;
+      if (!activeFaceResourceId) {
+        return !annotation.resourceId.includes(":original:");
+      }
+      return annotation.resourceId === activeFaceResourceId;
+    }).length;
+  }, [activeFaceResourceId, alignmentMatrices.imageToModel, alignmentMatrices.modelToImage, annotations, sourceMode]);
 
   const interactive = Boolean(projection);
   const stageWidth = projection?.canvasWidth ?? 1;
@@ -374,13 +389,12 @@ export function AnnotationCanvas({
 
   const newColor = () => annotationPalette[annotations.length % annotationPalette.length];
 
-  const finishPenPolygon = (points: Array<{ x: number; y: number }>) => {
+  const finishPenPolygon = (points: UV[]) => {
     if (!projection || points.length < 3) {
       setPenPoints([]);
       return;
     }
-    const uvs = points.map((point) => screenToUV(point, projection));
-    const geometry = polygonFromUVs(uvs);
+    const geometry = polygonFromUVs(points);
     const annotation = createAnnotationFromGeometry({ geometry, resourceId, color: newColor(), frame: sourceMode });
     onCreate(annotation, true);
     onToolChange("select");
@@ -576,7 +590,15 @@ export function AnnotationCanvas({
 
     if (activeTool === "point") {
       const uv = screenToUV(point, projection);
-      const annotation = createAnnotationFromGeometry({ geometry: pointFromUV(uv), resourceId, color: newColor(), frame: sourceMode });
+      const annotation = createAnnotationFromGeometry({
+        geometry: pointFromUV(uv),
+        resourceId,
+        color: newColor(),
+        frame: sourceMode,
+        label: "弱标注点",
+        annotationQuality: "weak",
+        geometryIntent: "semantic_extent"
+      });
       onCreate(annotation, true);
       onToolChange("select");
       return;
@@ -604,14 +626,15 @@ export function AnnotationCanvas({
         return;
       }
       if (penPoints.length >= 3) {
-        const first = penPoints[0];
+        const first = uvToScreen(penPoints[0], projection);
         const distance = Math.hypot(point.x - first.x, point.y - first.y);
         if (distance <= 8) {
           finishPenPolygon(penPoints);
           return;
         }
       }
-      setPenPoints((points) => [...points, point]);
+      const uv = screenToUV(point, projection);
+      setPenPoints((points) => [...points, uv]);
     }
   };
 
@@ -690,7 +713,15 @@ export function AnnotationCanvas({
     const startUV = screenToUV(draftRect.start, projection);
     const endUV = screenToUV(draftRect.end, projection);
     const geometry = activeTool === "ellipse" ? ellipsePolygonFromUV(startUV, endUV) : bboxFromUV(startUV, endUV);
-    const annotation = createAnnotationFromGeometry({ geometry, resourceId, color: newColor(), frame: sourceMode });
+    const annotation = createAnnotationFromGeometry({
+      geometry,
+      resourceId,
+      color: newColor(),
+      frame: sourceMode,
+      label: activeTool === "rect" ? "弱标注框" : undefined,
+      annotationQuality: activeTool === "rect" ? "weak" : undefined,
+      geometryIntent: "semantic_extent"
+    });
     setDraftRect(undefined);
     onCreate(annotation, true);
     onToolChange("select");
@@ -742,6 +773,7 @@ export function AnnotationCanvas({
   const showSelectionHandles = Boolean(
     selectedDisplay && projection && !isLocked(selectedDisplay.source) && !selectedDisplay.isCrossFrame
   );
+  const penScreenPoints = projection ? penPoints.map((point) => uvToScreen(point, projection)) : [];
 
   return (
     <div
@@ -798,15 +830,15 @@ export function AnnotationCanvas({
               <DraftRect start={draftRect.start} end={draftRect.end} />
             )
           ) : null}
-          {penPoints.length > 0 ? (
+          {penScreenPoints.length > 0 ? (
             <Group>
               <Line
-                points={penPoints.flatMap((point) => [point.x, point.y])}
+                points={penScreenPoints.flatMap((point) => [point.x, point.y])}
                 stroke="#f3a712"
                 strokeWidth={2}
                 dash={[5, 4]}
               />
-              {penPoints.map((point, index) => (
+              {penScreenPoints.map((point, index) => (
                 <Circle
                   fill="#f3a712"
                   key={`pen-${index}`}

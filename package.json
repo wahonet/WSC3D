@@ -4,14 +4,15 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "concurrently \"npm:dev:backend\" \"npm:dev:frontend\" \"npm:dev:ai\"",
+    "dev": "concurrently -n backend,frontend,ai -p \"[dev:{name}]\" --restart-tries 3 --restart-after 1000 \"tsx watch backend/src/server.ts\" \"vite --config frontend/vite.config.ts --host 127.0.0.1\" \"cd ai-service && .venv\\Scripts\\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8010 --reload --reload-dir app\"",
     "dev:backend": "tsx watch backend/src/server.ts",
     "dev:frontend": "vite --config frontend/vite.config.ts --host 127.0.0.1",
-    "dev:ai": "cd ai-service && python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload",
+    "dev:ai": "cd ai-service && .venv\\Scripts\\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8010 --reload --reload-dir app",
     "build": "npm run build:backend && npm run build:frontend",
     "build:backend": "tsc -p backend/tsconfig.json",
     "build:frontend": "tsc -p frontend/tsconfig.json && vite build --config frontend/vite.config.ts",
     "scan": "tsx backend/src/scripts/scan.ts",
+    "setup:sam3": "powershell -ExecutionPolicy Bypass -File ai-service/scripts/setup-sam3.ps1",
     "migrate:iiml-frame": "tsx backend/src/scripts/migrate-iiml-frame.ts",
     "start:backend": "node dist/backend/server.js",
     "typecheck": "tsc -p backend/tsconfig.json --noEmit && tsc -p frontend/tsconfig.json --noEmit"

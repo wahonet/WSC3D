@@ -60,8 +60,10 @@ type StoneViewerProps = {
   measureToken?: number;
   cubeView?: ViewCubeView;
   hideHud?: boolean;
+  showCubeIn2d?: boolean;
   // 值变化就把相机 fit 回当前 cubeView；给 SAM 场景用来提供稳定输入视角。
   fitToken?: number;
+  projectionFace?: "front" | "back";
   onCubeViewChange?: (view: ViewCubeView) => void;
   onMeasureChange?: (result: MeasurementResult | undefined) => void;
   onProjectionReady?: (projection: ProjectionState) => void;
@@ -86,7 +88,9 @@ export function StoneViewer({
   measureToken = 0,
   cubeView = "front",
   hideHud = false,
+  showCubeIn2d = false,
   fitToken = 0,
+  projectionFace = "front",
   onCubeViewChange,
   onMeasureChange,
   onProjectionReady,
@@ -108,6 +112,7 @@ export function StoneViewer({
   const clickStartRef = useRef<{ x: number; y: number } | undefined>(undefined);
   const measuringRef = useRef(measuring);
   const cubeViewRef = useRef(cubeView);
+  const projectionFaceRef = useRef(projectionFace);
   const viewModeRef = useRef(viewMode);
   const onCubeViewChangeRef = useRef(onCubeViewChange);
   const onMeasureChangeRef = useRef(onMeasureChange);
@@ -129,6 +134,10 @@ export function StoneViewer({
   useEffect(() => {
     cubeViewRef.current = cubeView;
   }, [cubeView]);
+
+  useEffect(() => {
+    projectionFaceRef.current = projectionFace;
+  }, [projectionFace]);
 
   useEffect(() => {
     viewModeRef.current = viewMode;
@@ -176,12 +185,20 @@ export function StoneViewer({
     }
     const canvasWidth = renderer.domElement.clientWidth || renderer.domElement.width;
     const canvasHeight = renderer.domElement.clientHeight || renderer.domElement.height;
-    const cornersWorld: Array<[number, number]> = [
-      [box.min.x, box.min.y],
-      [box.max.x, box.min.y],
-      [box.max.x, box.max.y],
-      [box.min.x, box.max.y]
-    ];
+    const cornersWorld: Array<[number, number]> =
+      projectionFaceRef.current === "back"
+        ? [
+            [box.max.x, box.min.y],
+            [box.min.x, box.min.y],
+            [box.min.x, box.max.y],
+            [box.max.x, box.max.y]
+          ]
+        : [
+            [box.min.x, box.min.y],
+            [box.max.x, box.min.y],
+            [box.max.x, box.max.y],
+            [box.min.x, box.max.y]
+          ];
     const screen = cornersWorld.map(([x, y]) => {
       const ndc = new THREE.Vector3(x, y, 0).project(camera);
       return {
@@ -212,6 +229,11 @@ export function StoneViewer({
       pointB: points[1].toArray() as [number, number, number]
     });
   }, [realScale]);
+
+  useEffect(() => {
+    projectionFaceRef.current = projectionFace;
+    emitScreenProjection();
+  }, [emitScreenProjection, projectionFace]);
 
   const refreshMeasurementVisuals = useCallback(() => {
     const group = measurementGroupRef.current;
@@ -354,7 +376,7 @@ export function StoneViewer({
           1
         );
         if (viewModeRef.current === "2d") {
-          snapCameraToView("front", perspectiveCamera, orthographicCamera, controls, modelBoxRef.current, "2d");
+          snapCameraToView(cubeViewRef.current, perspectiveCamera, orthographicCamera, controls, modelBoxRef.current, "2d");
         }
         emitProjection(modelBoxRef.current, renderer.domElement, onProjectionReadyRef.current);
         emitScreenProjection();
@@ -495,7 +517,7 @@ export function StoneViewer({
     }
 
     if (viewMode === "2d") {
-      snapCameraToView("front", perspective, orthographic, controls, modelBoxRef.current, "2d");
+      snapCameraToView(cubeViewRef.current, perspective, orthographic, controls, modelBoxRef.current, "2d");
     }
 
     controls.object = nextCamera;
@@ -564,7 +586,9 @@ export function StoneViewer({
           <span>{stone.hasMetadata ? "结构化数据已匹配" : "未匹配结构化数据"}</span>
         </div>
       ) : null}
-      {viewMode !== "2d" && onCubeViewChange ? <ViewCube activeView={cubeView} onSelect={onCubeViewChange} /> : null}
+      {(viewMode !== "2d" || showCubeIn2d) && onCubeViewChange ? (
+        <ViewCube activeView={cubeView} onSelect={onCubeViewChange} />
+      ) : null}
       {measuring ? (
         <div className="viewer-hud bottom-center measure-hint">
           <span>{pointCount === 0 ? "点击模型采第 1 个点" : pointCount === 1 ? "点击模型采第 2 个点" : "再次点击重新测量"}</span>
