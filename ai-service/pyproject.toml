@@ -3,6 +3,8 @@ name = "wsc3d-ai-service"
 version = "0.1.0"
 description = "FastAPI AI helpers for WSC3D annotation"
 requires-python = ">=3.10"
+# 与 requirements.txt（CPU 默认）保持一致。triton-windows 是 CUDA 编译相关，
+# CPU 路径不需要，故不在此列；CUDA 用户改用 requirements-cu128.txt。
 dependencies = [
   "fastapi",
   "uvicorn[standard]",
@@ -15,9 +17,16 @@ dependencies = [
   "ultralytics",
   "sam3 @ git+https://github.com/facebookresearch/sam3.git",
   "ftfy==6.1.1",
-  "triton-windows; platform_system == 'Windows'",
   "mobile-sam @ git+https://github.com/ChaoningZhang/MobileSAM.git"
 ]
 
 [tool.uv]
 package = false
+
+# 可选 CUDA 依赖：uv pip install 安装 requirements-cu128.txt 时启用 SAM3 GPU 提速。
+[project.optional-dependencies]
+cu128 = [
+  "torch==2.11.0+cu128",
+  "torchvision==0.26.0+cu128",
+  "triton-windows; platform_system == 'Windows'"
+]

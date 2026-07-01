@@ -317,6 +317,95 @@ type EditTabProps = AnnotationPanelProps & {
 // 默认透明度；与 AnnotationCanvas 的 defaultAnnotationAlpha 保持一致。
 const DEFAULT_OPACITY = 0.15;
 
+// P1 训练就绪度面板：编辑某条 annotation 时，顶部实时显示"能否进训练池 +
+// 卡在哪 + 一键修"。与 ListTab 的 TrainingBadge 不同，这里把 errors/warnings 展开成
+// 可见 chips（不只是 hover tooltip），并提供最高频两类问题的快捷修复按钮
+// （reviewStatus→reviewed、category→unknown）。校验复用 training.ts，无后端 round-trip。
+function TrainingReadinessSection({
+  annotation,
+  doc,
+  onUpdateAnnotation
+}: {
+  annotation: IimlAnnotation;
+  doc?: IimlDocument;
+  onUpdateAnnotation: (id: string, patch: Partial<IimlAnnotation>) => void;
+}) {
+  const result = useMemo(() => validateAnnotationForTraining(annotation, doc), [annotation, doc]);
+  const hasReviewIssue = result.errors.some((code) => code.startsWith("review-status-"));
+  const hasCategoryIssue = result.errors.includes("bad-category");
+
+  return (
+    <section className="training-readiness" aria-label="训练池就绪度">
+      <header className="training-readiness-head">
+        <TrainingBadge result={result} />
+        {result.ready ? (
+          result.warnings.length > 0 ? (
+            <span className="training-readiness-title training-readiness-title--warn">
+              进训练池 · {result.warnings.length} 项警告
+            </span>
+          ) : (
+            <span className="training-readiness-title training-readiness-title--ready">已就绪 · 进训练池</span>
+          )
+        ) : (
+          <span className="training-readiness-title training-readiness-title--blocked">
+            不进训练池 · {result.errors.length} 项未通过
+          </span>
+        )}
+      </header>
+      {result.errors.length > 0 ? (
+        <div className="training-reason-chips">
+          {result.errors.map((code) => (
+            <span
+              key={code}
+              className="training-reason-chip training-reason-chip--error"
+              title={`${code}: ${TRAINING_REASON_LABELS[code] ?? code}`}
+            >
+              {TRAINING_REASON_LABELS[code] ?? code}
+            </span>
+          ))}
+        </div>
+      ) : null}
+      {result.warnings.length > 0 ? (
+        <div className="training-reason-chips">
+          {result.warnings.map((code) => (
+            <span
+              key={code}
+              className="training-reason-chip training-reason-chip--warn"
+              title={`${code}: ${TRAINING_REASON_LABELS[code] ?? code}`}
+            >
+              {TRAINING_REASON_LABELS[code] ?? code}
+            </span>
+          ))}
+        </div>
+      ) : null}
+      {hasReviewIssue || hasCategoryIssue ? (
+        <div className="training-readiness-quickfixes">
+          {hasReviewIssue ? (
+            <button
+              type="button"
+              className="secondary-action small"
+              onClick={() => onUpdateAnnotation(annotation.id, { reviewStatus: "reviewed" })}
+              title="把 reviewStatus 设为 reviewed（人工已审），最常见的 SAM 候选升级动作"
+            >
+              设为已审核
+            </button>
+          ) : null}
+          {hasCategoryIssue ? (
+            <button
+              type="button"
+              className="secondary-action small"
+              onClick={() => onUpdateAnnotation(annotation.id, { category: "unknown" })}
+              title="category 缺失时先标 unknown 占位，进训练池后再细化分类"
+            >
+              设类别 unknown
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
 function EditTab({
   annotation,
   draftAnnotationId,
@@ -537,6 +626,11 @@ function EditTab({
 
   return (
     <div className="annotation-edit">
+      <TrainingReadinessSection
+        annotation={annotation}
+        doc={doc}
+        onUpdateAnnotation={onUpdateAnnotation}
+      />
       <div className="edit-head">
         <ColorPopover
           color={annotation.color ?? annotationPalette[0]}
@@ -1015,6 +1109,15 @@ function ListTab({
     setSelectedIds(new Set());
   };
 
+  // P1 批量修复：给所有选中标注统一设字段。典型流：SAM 批量产 N 条 candidate →
+  // 多选 → 批量设 category + reviewStatus=reviewed → 一键进训练池。每条都走
+  // onUpdateAnnotation，复用 undo 栈（每条产生一次 history 快照）。
+  const applyBatch = (patch: Partial<IimlAnnotation>) => {
+    for (const id of selectedIds) {
+      onUpdateAnnotation(id, patch);
+    }
+  };
+
   const selectedCount = selectedIds.size;
   const canMerge = selectedCount >= 2;
 
@@ -1042,6 +1145,74 @@ function ListTab({
               <Group size={13} /> 合并选中（{selectedCount}）
             </button>
           </div>
+        </div>
+      ) : null}
+      {selectedCount > 0 ? (
+        <div className="list-batch-fix" title="给所有选中标注批量设字段（每条进 undo 栈）">
+          <span className="list-batch-fix-label">批量设：</span>
+          <select
+            aria-label="批量设审核状态"
+            defaultValue=""
+            onChange={(event) => {
+              const value = event.target.value as IimlAnnotation["reviewStatus"];
+              if (value) applyBatch({ reviewStatus: value });
+              event.target.value = "";
+            }}
+          >
+            <option value="">审核状态…</option>
+            <option value="reviewed">已审核 reviewed</option>
+            <option value="approved">已通过 approved</option>
+            <option value="candidate">候选 candidate</option>
+            <option value="rejected">已拒绝 rejected</option>
+          </select>
+          <select
+            aria-label="批量设类别"
+            defaultValue=""
+            onChange={(event) => {
+              const value = event.target.value as IimlHanStoneCategory;
+              if (value) applyBatch({ category: value });
+              event.target.value = "";
+            }}
+          >
+            <option value="">类别…</option>
+            {hanStoneCategoryOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+          <select
+            aria-label="批量设质量"
+            defaultValue=""
+            onChange={(event) => {
+              const value = event.target.value as IimlAnnotationQualityTier;
+              if (value) applyBatch({ annotationQuality: value });
+              event.target.value = "";
+            }}
+          >
+            <option value="">质量…</option>
+            {annotationQualityOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+          <select
+            aria-label="批量设训练角色"
+            defaultValue=""
+            onChange={(event) => {
+              const value = event.target.value as IimlTrainingRole;
+              if (value) applyBatch({ trainingRole: value });
+              event.target.value = "";
+            }}
+          >
+            <option value="">训练角色…</option>
+            {trainingRoleOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
         </div>
       ) : null}
 

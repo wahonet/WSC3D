@@ -274,6 +274,12 @@ function updateDoc(
 }
 
 export function cloneDoc(doc: IimlDocument): IimlDocument {
+  // P3：structuredClone 比 JSON.parse(JSON.stringify()) 快约 2-5×，且保留 Date 等
+  // 非 JSON 类型。IIML doc 是纯 JSON 数据，两者等价。40 步 undo 栈高频深拷贝下
+  // 性能改善明显。fallback 保老环境（structuredClone 需 Node 17+ / 现代浏览器）。
+  if (typeof structuredClone === "function") {
+    return structuredClone(doc);
+  }
   return JSON.parse(JSON.stringify(doc)) as IimlDocument;
 }
 

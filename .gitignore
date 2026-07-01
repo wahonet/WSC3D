@@ -50,3 +50,6 @@ test-results/
 .env.*
 .DS_Store
 Thumbs.db
+
+# 归档：内部过程文档（计划/思路/旧工作日志），保留本地查阅，不入库
+_archive/

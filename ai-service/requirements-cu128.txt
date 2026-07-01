@@ -1,0 +1,21 @@
+# WSC3D AI 服务依赖（CUDA 12.8 变体，给 SAM3 GPU 提速）
+#
+# MobileSAM 仍在 CPU 上跑（sam.py 固定 device="cpu"），这份只影响 SAM3：
+# 有 NVIDIA GPU + CUDA 12.8 的用户用这个换掉 requirements.txt，SAM3 推理显著提速。
+# 无 CUDA 环境请用默认 requirements.txt（CPU），否则 torch 安装会失败。
+#
+# 安装：pip install -r requirements-cu128.txt
+--extra-index-url https://download.pytorch.org/whl/cu128
+fastapi
+uvicorn[standard]
+numpy==1.26.4
+pillow
+opencv-python==4.10.0.84
+torch==2.11.0+cu128
+torchvision==0.26.0+cu128
+ultralytics
+sam3 @ git+https://github.com/facebookresearch/sam3.git
+ftfy==6.1.1
+triton-windows; platform_system == "Windows"
+timm
+mobile-sam @ git+https://github.com/ChaoningZhang/MobileSAM.git

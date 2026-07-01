@@ -1,5 +1,5 @@
 ﻿"""
-WSC3D AI 服务入口（FastAPI，:8000）。
+WSC3D AI 服务入口（FastAPI，:8010）。
 
 入口层只负责应用生命周期和 router 装配；图像资源、质量分析、SAM、YOLO、线图
 逻辑分别位于独立模块。

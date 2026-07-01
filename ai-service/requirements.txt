@@ -1,15 +1,21 @@
---extra-index-url https://download.pytorch.org/whl/cu128
+# WSC3D AI 服务依赖（CPU 默认）
+#
+# MobileSAM 在 sam.py 里固定 device="cpu" 运行，CPU torch 足够且安装最轻
+# （不拉几个 GB 的 CUDA wheel）。这是推荐路径，pip install -r requirements.txt
+# 即可。SAM3 也能在 CPU 上跑（慢）；有 CUDA 的用户想给 SAM3 提速用
+# requirements-cu128.txt。
+#
+# 注意：triton-windows 是 CUDA 编译相关，CPU 路径不需要，故不在此列。
+# MobileSAM 的 TinyViT backbone 依赖 timm 但官方 pyproject 没列，需要手动装。
 fastapi
 uvicorn[standard]
 numpy==1.26.4
 pillow
 opencv-python==4.10.0.84
-torch==2.11.0+cu128
-torchvision==0.26.0+cu128
+torch
+torchvision
 ultralytics
 sam3 @ git+https://github.com/facebookresearch/sam3.git
 ftfy==6.1.1
-triton-windows; platform_system == "Windows"
-# MobileSAM 的 TinyViT backbone 依赖 timm 但官方 pyproject 没列，需要手动装。
 timm
 mobile-sam @ git+https://github.com/ChaoningZhang/MobileSAM.git

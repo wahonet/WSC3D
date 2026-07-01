@@ -34,11 +34,39 @@ export type CatalogConfig = {
 };
 
 let cachedCatalog: Catalog | undefined;
+// P2 catalog 自动失效：缓存时记下三个核心目录的 mtime 签名，下次 getCatalog
+// 对比；任一目录 mtime 变化（加 / 删模型文件）→ 自动重建，不必手动 POST /scan/refresh。
+let cachedDirSignature: string | undefined;
+
+/**
+ * 三个核心目录（模型 / 档案 / 参考图）的 mtime 签名。
+ * 局限：目录 mtime 在"新增 / 删除直接子条目"时变化，但"原地替换同名文件内容"
+ * 不一定触发。对"加新模型"这个最常见场景足够；少数原地替换需手动 refresh。
+ */
+async function dirSignature(config: CatalogConfig): Promise<string> {
+  const dirs = [config.modelDir, config.metadataDir, config.referenceDir];
+  const parts: string[] = [];
+  for (const dir of dirs) {
+    try {
+      const st = await stat(dir);
+      parts.push(`${dir}:${st.mtimeMs}`);
+    } catch {
+      parts.push(`${dir}:missing`);
+    }
+  }
+  return parts.join("|");
+}
 
 export async function getCatalog(config: CatalogConfig, force = false): Promise<Catalog> {
-  if (!cachedCatalog || force) {
-    cachedCatalog = await buildCatalog(config);
+  if (!force && cachedCatalog) {
+    const sig = await dirSignature(config);
+    if (sig === cachedDirSignature) {
+      return cachedCatalog;
+    }
+    // 目录有变化 → 落到下面重建
   }
+  cachedCatalog = await buildCatalog(config);
+  cachedDirSignature = await dirSignature(config);
   return cachedCatalog;
 }
 

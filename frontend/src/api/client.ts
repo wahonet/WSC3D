@@ -288,6 +288,10 @@ export type IimlAnnotation = {
     prompt?: Record<string, unknown>;
     confidence?: number;
     reviewStatus?: IimlReviewStatus;
+    // P1 fallback 分级：Canny/轮廓 fallback 产物标记，processingRuns / 候选 UI 区分
+    isFallback?: boolean;
+    fallbackReason?: string;
+    qualityTier?: "weak" | "silver" | "gold";
   };
   reviewStatus?: IimlReviewStatus;
   createdBy?: string;
@@ -368,6 +372,10 @@ export type YoloDetectionResponse = {
   error?: string;
   // 后端诊断信息：用于前端 status / dialog 给用户更准确的提示
   debug?: YoloDetectionDebug;
+  // P1 fallback 分级：轮廓 fallback 时为 true（ultralytics 不可用或推理失败）。
+  isFallback?: boolean;
+  qualityTier?: "weak" | "silver" | "gold";
+  fallbackReason?: string;
 };
 
 // COCO 类别中"通常对汉画像石可用"的子集，UI 默认勾选这一组以减少噪声候选。
@@ -932,6 +940,11 @@ export type SamSegmentationResponse = {
   error?: string;
   detail?: string;
   warning?: string;
+  // P1 fallback 分级：Canny 轮廓 fallback 时为 true，confidence 不是神经网络置信度。
+  // 前端据此把候选标 annotationQuality=weak + 徽章区分；训练导出默认不进 gold/silver。
+  isFallback?: boolean;
+  qualityTier?: "weak" | "silver" | "gold";
+  fallbackReason?: string;
 };
 
 export async function runSamSegmentation(payload: {

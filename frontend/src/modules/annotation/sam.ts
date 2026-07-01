@@ -231,14 +231,19 @@ export async function requestSamCandidate({
     resourceId,
     color,
     frame,
-    label: "SAM 候选",
+    label: response.isFallback ? "SAM 候选（fallback）" : "SAM 候选",
     // 候选统一归到 figure，用户接受后再改层级；等 M3 关系图可做自动推断。
     structuralLevel: "figure",
     reviewStatus: "candidate",
+    // P1 fallback 分级：Canny fallback 候选默认 weak，人审升级 reviewStatus 后仍保留
+    // weak 标记，训练导出据此不进 gold/silver。
+    annotationQuality: response.isFallback ? "weak" : undefined,
     generation: {
       method: "sam",
       model: response.model,
       confidence: response.confidence,
+      isFallback: response.isFallback ?? false,
+      fallbackReason: response.fallbackReason,
       prompt: {
         ...promptDraftToGeneration(prompts),
         ...summary
@@ -334,13 +339,16 @@ export async function requestSamCandidateWithSource({
     resourceId,
     color,
     frame,
-    label: "SAM 候选（高清）",
+    label: response.isFallback ? "SAM 候选（高清·fallback）" : "SAM 候选（高清）",
     structuralLevel: "figure",
     reviewStatus: "candidate",
+    annotationQuality: response.isFallback ? "weak" : undefined,
     generation: {
       method: "sam",
       model: response.model,
       confidence: response.confidence,
+      isFallback: response.isFallback ?? false,
+      fallbackReason: response.fallbackReason,
       prompt: {
         ...promptDraftToGeneration(prompts),
         ...summary,

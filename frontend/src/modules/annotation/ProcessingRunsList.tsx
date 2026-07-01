@@ -101,11 +101,19 @@ function ProcessingRunRow({
   const time = formatRelativeTime(run.endedAt ?? run.startedAt);
   const methodLabel = methodLabels[run.method] ?? run.method;
   const inputSummary = formatInput(run.input);
+  // P1 fallback 分级：model 名含 fallback（Canny/轮廓降级）→ 显示醒目徽章，
+  // 提醒该 run 的 confidence 非神经网络置信度，产物默认 weak 质量。
+  const isFallback = (run.input?.isFallback === true) || /fallback/i.test(run.model);
   return (
     <li className={failed ? "processing-runs-item is-failed" : "processing-runs-item"}>
       <div className="processing-runs-item-head">
         <span className="processing-runs-method">{methodLabel}</span>
         <span className="muted-text processing-runs-model">{run.model}</span>
+        {isFallback ? (
+          <span className="processing-runs-fallback-badge" title="降级 fallback：轮廓/Canny 启发式，confidence 非神经网络置信度，产物默认 weak">
+            fallback
+          </span>
+        ) : null}
         <span className="muted-text">{time}</span>
         {typeof run.confidence === "number" ? (
           <span className="processing-runs-confidence">{Math.round(run.confidence * 100)}%</span>

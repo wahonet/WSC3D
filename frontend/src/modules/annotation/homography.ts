@@ -182,6 +182,52 @@ export function buildAlignmentMatrices(alignment?: IimlAlignment): AlignmentMatr
 }
 
 /**
+ * 对齐重投影误差（UV 单位，[0,1] 区间）。
+ *
+ * 对每对控制点，用 modelToImage 矩阵把 modelUv 投到 image 系，与 imageUv 比，
+ * 取欧氏距离。返回 meanError / maxError / ready。
+ *
+ * **4 点局限**：4 点 DLT 必过控制点（精确解），所以 4 点时 meanError ≈ 数值噪声
+ * （< 1e-9）。该指标在 **>4 控制点**（最小二乘）时才真正反映标定质量。当前流程
+ * 严格 4 点，所以这里主要作为：(1) 矩阵健康度信号（退化时返回 undefined）；
+ * (2) 未来支持 >4 点时的真实残差。UI 应如实展示数值，不要对 4 点声称"高精度"。
+ *
+ * ready 阈值 0.02 UV（≈ 1500px 长边图上的 30px）——超过说明标定点错位严重。
+ */
+export type AlignmentErrorReport = {
+  meanError: number;
+  maxError: number;
+  pointCount: number;
+  ready: boolean;
+};
+
+export function computeAlignmentError(
+  alignment?: IimlAlignment,
+  matrices?: AlignmentMatrices
+): AlignmentErrorReport | undefined {
+  if (!alignment || alignment.controlPoints.length < 4) return undefined;
+  const m = matrices ?? buildAlignmentMatrices(alignment);
+  if (!m.modelToImage) return undefined;
+  let sum = 0;
+  let max = 0;
+  for (const cp of alignment.controlPoints) {
+    const projected = applyHomography(m.modelToImage, cp.modelUv as Pt2);
+    const dx = projected[0] - cp.imageUv[0];
+    const dy = projected[1] - cp.imageUv[1];
+    const d = Math.sqrt(dx * dx + dy * dy);
+    sum += d;
+    if (d > max) max = d;
+  }
+  const meanError = sum / alignment.controlPoints.length;
+  return {
+    meanError,
+    maxError: max,
+    pointCount: alignment.controlPoints.length,
+    ready: meanError < 0.02
+  };
+}
+
+/**
  * 把单个 UV 从 source frame 映射到 target frame。同 frame 直接返回原值。
  */
 export function transformUv(

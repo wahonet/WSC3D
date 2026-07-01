@@ -16,11 +16,20 @@
 cd ai-service
 python -m venv .venv
 .venv\Scripts\activate
-pip install -r requirements.txt
+pip install -r requirements.txt        # CPU 默认（MobileSAM 本就跑 CPU，安装最轻）
 uvicorn app.main:app --host 127.0.0.1 --port 8010 --reload
 ```
 
 根目录 `npm run dev` 会通过 `python -m uvicorn app.main:app --port 8010 --reload` 一并启动该服务。
+
+### CPU vs CUDA 依赖
+
+- **CPU 默认**（`requirements.txt`）：MobileSAM 在 `sam.py` 里固定 `device="cpu"`，
+  CPU torch 足够，安装最轻（不拉几个 GB 的 CUDA wheel）。SAM3 也能在 CPU 跑（较慢）。
+- **CUDA 12.8 变体**（`requirements-cu128.txt`）：有 NVIDIA GPU 时换用
+  `pip install -r requirements-cu128.txt`，给 SAM3 推理提速。MobileSAM 仍在 CPU。
+- 两个文件 + `pyproject.toml` 现已对齐：默认不含 `triton-windows`（CUDA 编译相关），
+  无 CUDA 环境不再装无用包。
 
 ## SAM 模型与权重
 
@@ -35,7 +44,7 @@ uvicorn app.main:app --host 127.0.0.1 --port 8010 --reload
 
 - `/ai/sam3` 使用官方 `sam3` 包，适合文本概念分割，例如“horse”“person”“bird”。
 - SAM3 懒加载：只有第一次调用 `/ai/sam3` 时才加载/下载模型，不影响 `/ai/sam` 的 MobileSAM 交互式点选/框选。
-- Windows 需要 `triton-windows`；`requirements.txt` 已用平台条件声明，并固定 `torch==2.11.0+cu128` / `torchvision==0.26.0+cu128`。
+- Windows + CUDA 跑 SAM3 时需要 `triton-windows` 与 `torch==2.11.0+cu128` / `torchvision==0.26.0+cu128`，用 `requirements-cu128.txt` 安装；CPU 默认路径（`requirements.txt`）不含这些，SAM3 降级到 CPU 跑。
 - 默认优先读取 `ai-service/weights/sam3/sam3.pt`；也可设置 `WSC3D_SAM3_CHECKPOINT` 指向其它本地 checkpoint。
 - 若本地 checkpoint 不存在，服务会走 Hugging Face 下载。`facebook/sam3` 是 gated repo，需要先在 Hugging Face 通过访问审批并完成 `hf auth login`。
 - 若 Hugging Face 在当前网络下超时，可先手动把 `sam3.pt` 放入 `ai-service/weights/sam3/`；或设置 `WSC3D_SAM3_HF_ENDPOINT` / 系统代理后重启服务再试。

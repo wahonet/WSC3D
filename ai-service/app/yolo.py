@@ -296,6 +296,11 @@ def _fallback_contour_detections(
         "model": "yolo-fallback-contour",
         "imageSize": [width, height],
         "coordinateSystem": "image-normalized",
+        # P1 fallback 分级：轮廓候选非 YOLO 神经检测，标记 isFallback + weak，
+        # 前端候选徽章区分，训练导出默认不进 gold/silver。
+        "isFallback": True,
+        "qualityTier": "weak",
+        "fallbackReason": "ultralytics-unavailable-or-predict-failed",
         "debug": {
             "rawDetections": len(detections),
             "classDistribution": {"contour-candidate": len(detections)},

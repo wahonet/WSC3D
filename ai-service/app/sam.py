@@ -188,8 +188,31 @@ def _uv_to_pixel_prompt(prompt: dict, width: int, height: int) -> dict:
 # SAM 核心 predictor 调用
 # --------------------------------------------------------------
 
+# P2 image embedding 缓存：MobileSAM SamPredictor 在 set_image 后缓存 ViT embedding，
+# 后续 predict() 复用。批量标注同一块石头时，每次 prompt 都重跑 set_image（ViT 前向）
+# 是最大瓶颈。这里按 cache_key + 图像 shape 命中时跳过 set_image，第二次 prompt 起
+# 只做轻量 mask decode。
+# 命中条件：同 cache_key（stoneId / uri）且图像 shape 不变。load_source_image 已对
+# 同 stoneId 返回同一数组对象，shape 比对极便宜。pic/ 内容在会话内不变，可信任。
+_embedding_cache: dict[str, Any] = {"key": None, "image": None}
 
-def _run_predictor(image: np.ndarray, prompts_px: list[dict], fallback_source: str) -> dict:
+
+def _set_image_cached(image: np.ndarray, cache_key: Optional[str]) -> None:
+    cached_image = _embedding_cache.get("image")
+    if (
+        cache_key is not None
+        and _embedding_cache.get("key") == cache_key
+        and cached_image is not None
+        and getattr(cached_image, "shape", None) == image.shape
+    ):
+        # 命中：predictor 里仍持有上次 set_image 的 embedding，直接复用
+        return
+    _predictor.set_image(image)
+    _embedding_cache["key"] = cache_key
+    _embedding_cache["image"] = image
+
+
+def _run_predictor(image: np.ndarray, prompts_px: list[dict], fallback_source: str, cache_key: Optional[str] = None) -> dict:
     """
     输入 RGB numpy 图 + 像素坐标 prompts，返回归一化 polygon（y 向下 / 图像坐标系）。
 
@@ -241,7 +264,7 @@ def _run_predictor(image: np.ndarray, prompts_px: list[dict], fallback_source: s
 
     try:
         with _predictor_lock:
-            _predictor.set_image(image)
+            _set_image_cached(image, cache_key)
             masks, scores, _ = _predictor.predict(
                 point_coords=point_coords,
                 point_labels=point_labels_arr,
@@ -393,7 +416,18 @@ def _run_fallback(image: np.ndarray, prompts_px: list[dict]) -> dict:
         approx = cv2.approxPolyDP(best, epsilon, True)
         polygon = contour_to_polygon(approx, width, height)
 
-    return {"polygons": [polygon], "confidence": 0.62, "model": "mobile-sam-fallback-contour"}
+    # P1 fallback 分级：这不是神经网络置信度（Canny 轮廓启发式），用 isFallback +
+    # qualityTier=weak 显式标记，前端 processingRuns / 候选用不同徽章，训练导出
+    # 默认不进 gold/silver。confidence 保留一个名义值用于排序，但不能与 SAM
+    # 真置信度混用——以 isFallback 为准。
+    return {
+        "polygons": [polygon],
+        "confidence": 0.3,
+        "model": "mobile-sam-fallback-contour",
+        "isFallback": True,
+        "qualityTier": "weak",
+        "fallbackReason": "model-unavailable-or-predict-failed",
+    }
 
 
 # --------------------------------------------------------------
@@ -410,7 +444,7 @@ def sam_segment(image_base64: str, prompts: list[dict]) -> dict:
         image = decode_image(image_base64)
     except Exception as exc:  # noqa: BLE001
         return {"polygons": [], "confidence": 0.0, "model": "error", "error": f"decode-failed: {exc}"}
-    result = _run_predictor(image, prompts, fallback_source="screenshot")
+    result = _run_predictor(image, prompts, fallback_source="screenshot", cache_key=None)
     result.setdefault("sourceMode", "screenshot")
     result["coordinateSystem"] = "image-normalized"
     return result
@@ -433,7 +467,7 @@ def sam_segment_by_stone(stone_id: str, prompts_uv: list[dict]) -> dict:
     image, name = loaded
     height, width = image.shape[:2]
     prompts_px = [_uv_to_pixel_prompt(p, width, height) for p in prompts_uv]
-    result = _run_predictor(image, prompts_px, fallback_source="source")
+    result = _run_predictor(image, prompts_px, fallback_source="source", cache_key=f"stone:{stone_id}")
     # _run_predictor 内部 contour_to_polygon 已输出 [x/W, y/H, 0]，
     # 与前端 modelBox UV (v 向下) 约定一致，前端直接当 UV 用，无需再翻 y。
     result["coordinateSystem"] = "modelbox-uv"
@@ -473,7 +507,7 @@ def sam_segment_by_uri(uri: str, prompts_uv: list[dict]) -> dict:
     image, name = loaded
     height, width = image.shape[:2]
     prompts_px = [_uv_to_pixel_prompt(p, width, height) for p in prompts_uv]
-    result = _run_predictor(image, prompts_px, fallback_source="resource-uri")
+    result = _run_predictor(image, prompts_px, fallback_source="resource-uri", cache_key=f"uri:{uri}")
     result["coordinateSystem"] = "image-uv"
     result["sourceMode"] = "resource-uri"
     result["sourceImage"] = name

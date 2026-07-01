@@ -497,10 +497,7 @@ async function splitByStone(
     else if (override.val.has(stone.stoneId)) splitMap.set(stone.stoneId, "val");
     else if (override.test.has(stone.stoneId)) splitMap.set(stone.stoneId, "test");
     else {
-      const h = djb2Hash01(stone.stoneId);
-      if (h < 0.7) splitMap.set(stone.stoneId, "train");
-      else if (h < 0.85) splitMap.set(stone.stoneId, "val");
-      else splitMap.set(stone.stoneId, "test");
+      splitMap.set(stone.stoneId, bucketForStoneId(stone.stoneId));
     }
   }
   const train: AcceptedAnn[] = [];
@@ -657,12 +654,25 @@ function projectGeometry(
   }
 }
 
-function djb2Hash01(input: string): number {
+export function djb2Hash01(input: string): number {
   let hash = 5381;
   for (let i = 0; i < input.length; i += 1) {
     hash = ((hash << 5) + hash + input.charCodeAt(i)) >>> 0;
   }
   return (hash % 1000) / 1000;
+}
+
+/**
+ * 单个 stoneId → split 桶的纯函数（不含 override，override 在 splitByStone 里前置）。
+ * 抽出来单独导出是为了可测：防泄漏的核心保证是"同一 stoneId 恒定映射到同一桶"，
+ * 这条不变量必须被测试锁定。阈值与 splitByStone 完全一致：[0,0.7)→train、
+ * [0.7,0.85)→val、[0.85,1)→test。
+ */
+export function bucketForStoneId(stoneId: string): "train" | "val" | "test" {
+  const h = djb2Hash01(stoneId);
+  if (h < 0.7) return "train";
+  if (h < 0.85) return "val";
+  return "test";
 }
 
 async function writeAllOutputs(args: {

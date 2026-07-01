@@ -23,7 +23,7 @@
 
 import * as Ajv2020Module from "ajv/dist/2020.js";
 import type { AnySchema } from "ajv";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import {
   ANNOTATION_ISSUES,
@@ -32,9 +32,10 @@ import {
   HAN_STONE_CATEGORIES,
   TRAINING_ROLES
 } from "../domain/han-stone.js";
+import { parseMarkdownMetadata } from "../parsers/markdownParser.js";
 import type { CatalogConfig, getCatalog } from "./catalog.js";
-import type { StoneRecord } from "../types.js";
-import { findPicForStone, getPicDir } from "./pic.js";
+import type { StoneMetadata, StoneRecord } from "../types.js";
+import { findPicForStone, getPicDir, stoneIdToNumericKey } from "./pic.js";
 
 type CatalogLoader = typeof getCatalog;
 
@@ -162,6 +163,10 @@ export type IimlAnnotation = {
     prompt?: Record<string, unknown>;
     confidence?: number;
     reviewStatus?: "candidate" | "reviewed" | "approved" | "rejected";
+    // P1 fallback 分级：Canny/轮廓 fallback 产物标记
+    isFallback?: boolean;
+    fallbackReason?: string;
+    qualityTier?: "weak" | "silver" | "gold";
   };
   reviewStatus?: "candidate" | "reviewed" | "approved" | "rejected";
   createdBy?: string;
@@ -395,6 +400,43 @@ async function backupExistingIimlDoc(
   }
 }
 
+/**
+ * 从 metadataDir 按 stoneId 数字前缀找结构化档案 .md 并解析。
+ *
+ * catalog 在 v0.8.x 起不再读 markdown layers（`createEmptyMetadata` 返回空 layers，
+ * 避免旧档案标题错位导致画像石列表乱序——那个配对决策是对的，不动）。但
+ * `import-md` 接口依赖 layers，所以这里走独立路径：按数字前缀找 .md → 用
+ * markdownParser 直接解析。找不到 / 解析出空 layers → 返回 undefined，调用方
+ * 抛 `metadata_not_found`（这样接口行为明确：没档案就报错，而不是静默导入 0 条）。
+ *
+ * 与 pic.ts 的 `stoneIdToNumericKey` 复用同一数字 key 算法，保证 stoneId ↔ 文件
+ * 前缀匹配口径一致。同 numericKey 多份 md 取字典序首个（确定性）。
+ */
+async function loadStoneMetadataFromMarkdown(
+  metadataDir: string,
+  stoneId: string
+): Promise<StoneMetadata | undefined> {
+  const key = stoneIdToNumericKey(stoneId);
+  if (!key) return undefined;
+  let entries: string[];
+  try {
+    entries = await readdir(metadataDir);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
+    throw error;
+  }
+  const match = entries
+    .filter((name) => path.extname(name).toLowerCase() === ".md")
+    .sort((a, b) => a.localeCompare(b, "zh-Hans-CN", { numeric: true }))
+    .find((name) => {
+      const m = name.match(/^(\d+)/);
+      if (!m) return false;
+      return (m[1].replace(/^0+/, "") || "0") === key;
+    });
+  if (!match) return undefined;
+  return parseMarkdownMetadata(path.join(metadataDir, match));
+}
+
 export async function importMarkdownIntoIiml(
   projectRoot: string,
   catalogConfig: CatalogConfig,
@@ -404,14 +446,20 @@ export async function importMarkdownIntoIiml(
   const id = sanitizeIimlId(stoneId);
   const catalog = await getCatalogImpl(catalogConfig);
   const stone = catalog.stones.find((item) => item.id === id);
-  if (!stone?.metadata) {
+  if (!stone) {
+    throw new Error("stone_not_found");
+  }
+  // catalog 不再带 layers（防标题错位），这里独立从 metadataDir 解析 markdown。
+  // 解析失败 / 无 layers → 抛 metadata_not_found，避免旧的"静默导入 0 条"陷阱。
+  const metadata = await loadStoneMetadataFromMarkdown(catalogConfig.metadataDir, id);
+  if (!metadata || metadata.layers.length === 0) {
     throw new Error("metadata_not_found");
   }
 
   const baseDoc = await loadIimlDoc(projectRoot, catalogConfig, getCatalogImpl, id);
   const now = new Date().toISOString();
   const resourceId = baseDoc.resources[0]?.id ?? `${id}:model`;
-  const imported = stone.metadata.layers.flatMap((layer) => {
+  const imported = metadata.layers.flatMap((layer) => {
     const panels = layer.panels.length > 0 ? layer.panels : [{ panel_index: 0, position: layer.title, content: layer.content, source: layer.source }];
     return panels.map((panel) => ({
       id: `${id}:md:l${layer.layer_index}:p${panel.panel_index || 0}`,

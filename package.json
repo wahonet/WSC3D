@@ -15,6 +15,9 @@
     "setup:sam3": "powershell -ExecutionPolicy Bypass -File ai-service/scripts/setup-sam3.ps1",
     "migrate:iiml-frame": "tsx backend/src/scripts/migrate-iiml-frame.ts",
     "start:backend": "node dist/backend/server.js",
+    "test": "tsx --test backend/src/test/*.test.ts frontend/src/test/*.test.ts",
+    "test:backend": "tsx --test backend/src/test/*.test.ts",
+    "test:frontend": "tsx --test frontend/src/test/*.test.ts",
     "typecheck": "tsc -p backend/tsconfig.json --noEmit && tsc -p frontend/tsconfig.json --noEmit"
   },
   "dependencies": {

@@ -4486,6 +4486,116 @@ button {
   line-height: 1;
 }
 
+/* P1 训练就绪度面板（编辑 tab 顶部）。把 SOP §11 校验结果展开成可见 chips + 快捷修复。 */
+.training-readiness {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px;
+  margin: 0 0 10px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid #3a342d;
+  border-radius: 8px;
+}
+
+.training-readiness-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.training-readiness-title {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.training-readiness-title--ready {
+  color: #9ec380;
+}
+
+.training-readiness-title--warn {
+  color: #d49b35;
+}
+
+.training-readiness-title--blocked {
+  color: #c97d6e;
+}
+
+.training-reason-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.training-reason-chip {
+  font-size: 11px;
+  line-height: 1.4;
+  padding: 2px 7px;
+  border-radius: 999px;
+  cursor: help;
+  white-space: nowrap;
+}
+
+.training-reason-chip--error {
+  color: #c97d6e;
+  background: rgba(201, 125, 110, 0.12);
+  border: 1px solid rgba(201, 125, 110, 0.25);
+}
+
+.training-reason-chip--warn {
+  color: #d49b35;
+  background: rgba(212, 155, 53, 0.10);
+  border: 1px solid rgba(212, 155, 53, 0.22);
+}
+
+.training-readiness-quickfixes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* P1 列表 tab 批量修复栏：多选后给选中标注统一设字段 */
+.list-batch-fix {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  margin-bottom: 8px;
+  background: rgba(58, 134, 255, 0.06);
+  border: 1px solid rgba(58, 134, 255, 0.18);
+  border-radius: 8px;
+}
+
+.list-batch-fix-label {
+  font-size: 12px;
+  color: #b3a99a;
+  font-weight: 600;
+}
+
+.list-batch-fix select {
+  font-size: 12px;
+  padding: 2px 6px;
+  background: #2a2622;
+  color: #e8dfd1;
+  border: 1px solid #463f37;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+/* P1 fallback 徽章（processingRuns + 候选用）：灰色虚线，区别于真神经网络候选 */
+.processing-runs-fallback-badge,
+.training-candidate-fallback-badge {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  color: #b3a99a;
+  background: rgba(179, 169, 154, 0.10);
+  border: 1px dashed rgba(179, 169, 154, 0.45);
+}
+
 /* === 色板 popover === */
 .color-popover-wrap {
   position: relative;
