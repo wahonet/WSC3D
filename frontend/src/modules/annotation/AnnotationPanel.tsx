@@ -1,62 +1,46 @@
 /**
- * 标注侧栏面板 `AnnotationPanel`
+ * 标注侧栏面板 `AnnotationPanel`（P3 重构为"摘要栏 + 标注卡片"）
  *
- * 标注模式右侧的多 tab 信息面板：
- * - **编辑**：当前选中标注的详情编辑（结构层级、ICON 三层、受控术语、证据源、
- *   备注、关系编辑器、AI 处理记录、多解释对比、删除按钮）
- * - **候选**：SAM / YOLO 产生的待审标注集中区，按类别 chip 过滤、批量
- *   接受 / 拒绝、几何并集合并
- * - **列表**：所有已确认的标注列表，带颜色 / 名称 / 可见性 / 锁定 / 删除等操作
- *   面板底部还有 IIML / CSV / COCO / IIIF / .hpsml 五种格式的导出按钮
- * - **图谱**：cytoscape 知识图谱（4 种中心性 + MCL 群组检测 + top-N 排行榜）
- * - **资源**：IIML resources[] + 后端落盘资源 + 一键生成正射图（v0.8.0 新增）
+ * 右侧窄栏不再承担全部 IIML 字段——普通标注 10 秒内可保存，完整的形象学解释
+ * 在宽标注卡片（`AnnotationCard`）里慢慢补。窄栏 tab：
+ * - **标注（摘要）**：选中标注的最小集合——名称 / 类别 / 审核状态 / 训练徽章 /
+ *   小预览图 + "打开详情卡片"入口
+ * - **候选**：SAM3 产生的待审标注集中区，按类别 chip 过滤、批量接受 / 拒绝、
+ *   mask 级合并
+ * - **列表**：全部标注，带颜色 / 可见性 / 锁定 / 删除；底部训练池导出 + 下载
+ * - **图谱**：cytoscape 知识图谱
+ * - **资源**：IIML resources[] + 一键生成正射图
  *
  * 设计要点：
- * - 各 tab 共享同一份 IIML doc，但独占滚动条，避免长列表互相干扰
- * - 编辑 tab 的"确定 / 取消"仅对草稿生效；非草稿改动靠 reducer 的 autosave 写盘
- * - 候选 tab 的合并按钮调 `merge.ts:mergePolygonAnnotations`，做 polygon-clipping
- *   union 后只保留外环
- * - 关系编辑器（B1）+ 空间关系自动推导（B2）只在编辑 tab 当前选中标注时显示
+ * - 摘要 tab 的"确定 / 取消"仅对草稿生效；非草稿改动靠 reducer 的 autosave 写盘
+ * - 宽卡片是模态浮层（AnnotationCard），5 页签分层承载 IIML 解释字段
+ * - 合并按钮走 App 层的 mask 级合并（AI 服务不可用时回退矢量并集）
  */
 
-import { AlertTriangle, Check, CircleAlert, Download, Eye, EyeOff, FolderOpen, Group, Layers, Lock, Network, Package, RotateCcw, Save, Trash2, Unlock, Wand2, X } from "lucide-react";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { Check, Download, Eye, EyeOff, FolderOpen, Group, Layers, Lock, Maximize2, Network, Package, RotateCcw, Save, Trash2, Unlock, Wand2, X } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import type {
   IimlAnnotation,
-  IimlAnnotationIssue,
   IimlAnnotationQualityTier,
-  IimlDocument,
-  IimlGeometryIntent,
   IimlHanStoneCategory,
-  IimlSource,
-  IimlStructuralLevel,
-  IimlTermRef,
+  IimlReviewStatus,
   IimlTrainingRole,
   StoneListItem,
   StoneMetadata,
   VocabularyCategory,
   VocabularyTerm
 } from "../../api/client";
-import { AlternativeInterpretationsView } from "./AlternativeInterpretationsView";
-import { ColorPopover } from "./ColorPopover";
+import { AnnotationCard } from "./AnnotationCard";
 import { KnowledgeGraphView } from "./KnowledgeGraphView";
-import { ProcessingRunsList } from "./ProcessingRunsList";
-import { RelationsEditor } from "./RelationsEditor";
 import { ResourcesEditor } from "./ResourcesEditor";
-import { SourcesEditor } from "./SourcesEditor";
-import { TermPicker } from "./TermPicker";
 import { annotationPalette } from "./store";
-import {
-  allMotifSuggestions,
-  hanStoneCategoryOptions,
-  motifSuggestionsByCategory,
-  narrativeCategoriesNeedMotif
-} from "./categories";
+import { hanStoneCategoryOptions } from "./categories";
 import { validateAnnotationForTraining } from "./training";
+import { TrainingBadge } from "./training-ui";
 import { recommendCooccurringTerms } from "./cooccurrence";
 
 type AnnotationPanelProps = {
-  doc?: IimlDocument;
+  doc?: import("./types").IimlDocument;
   selectedAnnotation?: IimlAnnotation;
   draftAnnotationId?: string;
   saveState?: {
@@ -79,91 +63,60 @@ type AnnotationPanelProps = {
   onConfirmDraft: (id: string) => void;
   onExportIiml: () => void;
   onExportCsv: () => void;
-  // SAM 候选审核相关：单条 / 批量操作，都由 App 层实现
+  // SAM3 候选审核相关：单条 / 批量操作，都由 App 层实现
   onAcceptCandidate: (id: string) => void;
   onRejectCandidate: (id: string) => void;
   onRetryCandidate: (id: string) => void;
   onBulkAcceptCandidates: () => void;
   onBulkRejectCandidates: () => void;
-  // F3：YOLO 候选 → SAM 精修。单条用 onRefineWithSam(id)；批量用 onBulkRefineYoloWithSam()
-  onRefineWithSam?: (id: string) => void;
-  onBulkRefineYoloWithSam?: () => void;
   // D7 / D8 学术导出
   onExportCoco?: () => void;
   onExportIiif?: () => void;
   // G2 .hpsml 自定义研究包导出（IIML + 拼接方案 + 词表 + 关系网络快照）
   onExportHpsml?: () => void;
-  // M5 Phase 1 A2 主动学习闭环：把 data/iiml/*.iiml.json 跨石头聚合 + 校验 +
-  // 70/15/15 划分 + 写 data/datasets/wsc-han-stone-v0/ 整套目录（COCO + IIML 双轨）
+  // M5 Phase 1 A2 主动学习闭环：训练池导出
   onExportTraining?: () => void;
   onRevealTrainingDataset?: () => void;
   // D 阶段：上线前预检（pic 配对 / IIML 完整度 / 训练池估算 / 类别均衡）
   onPreflight?: () => void;
-  // I3 v0.8.0：.hpsml 研究包解包 / 导入（文件选择 → POST /api/hpsml/import）
+  // I3 v0.8.0：.hpsml 研究包解包 / 导入
   onImportHpsml?: () => void;
   onManualSave?: () => void;
-  // G1 多资源版本管理：增 / 删 / 改 doc.resources。v0.7.0 独立 tab，
-  // 可从三维模型生成正射图自动落盘 + 关联到 IIML。
+  // G1 多资源版本管理：增 / 删 / 改 doc.resources
   onAddResource?: (resource: import("./types").IimlResourceEntry) => void;
   onUpdateResource?: (id: string, patch: Partial<import("./types").IimlResourceEntry>) => void;
   onDeleteResource?: (id: string) => void;
   // 资源 tab 需要用 stone 来取 modelUrl（正射渲染）和 stoneId（上传端点）
   stone?: StoneListItem;
-  // 资源 tab 内部操作要能更新全局 status（如"正射生成中…"）
   onStatusMessage?: (status: string) => void;
-  // 把多个候选做几何并集合并成一个新候选（保留外环、丢孔洞）。
-  // 由 App 层调用 mergePolygonAnnotations，并替换 store 中的旧条目。
+  // P2：mask 级合并（App 层实现，AI 不可用时回退矢量并集）
   onMergeCandidates: (ids: string[]) => void;
-  // 标注间关系：B1 引入。relations 已在 store getRelations 过滤后传入；
-  // spatialCandidates 由 App 层调 deriveSpatialRelations 实时算出（不入库）。
   relations: import("./types").IimlRelation[];
   spatialCandidates?: import("./RelationsEditor").SpatialRelationCandidate[];
   onAddRelation: (relation: import("./types").IimlRelation) => void;
   onUpdateRelation: (id: string, patch: Partial<import("./types").IimlRelation>) => void;
   onDeleteRelation: (id: string) => void;
-  // D3 + D4 AI 处理记录；store getProcessingRuns 过滤后传入
   processingRuns?: import("./types").IimlProcessingRun[];
 };
 
-// 结构层级：按 IIML schema 顺序排列；label 使用纯中文，视觉更克制。
-const structuralLevelOptions: Array<{ value: IimlStructuralLevel; label: string }> = [
-  { value: "whole", label: "整体" },
-  { value: "scene", label: "场景" },
-  { value: "figure", label: "形象" },
-  { value: "component", label: "构件" },
-  { value: "trace", label: "痕迹" },
-  { value: "inscription", label: "题刻" },
-  { value: "damage", label: "病害" },
-  { value: "unknown", label: "未定" }
+// 摘要栏用的紧凑选项（宽卡片里有带说明的完整版）。
+const reviewStatusOptions: Array<{ value: IimlReviewStatus; label: string }> = [
+  { value: "candidate", label: "候选" },
+  { value: "reviewed", label: "已审核" },
+  { value: "approved", label: "已通过" },
+  { value: "rejected", label: "已拒绝" }
 ];
 
-const annotationQualityOptions: Array<{ value: IimlAnnotationQualityTier; label: string; title: string }> = [
-  { value: "weak", label: "weak", title: "框、点、涂鸦、局部线索；用于覆盖和弱监督" },
-  { value: "silver", label: "silver", title: "AI 或人工快速修正的 polygon/mask；可训练但需统计噪声" },
-  { value: "gold", label: "gold", title: "专家精修；用于验证集、测试集或论文评估" }
-];
-
-const geometryIntentOptions: Array<{ value: IimlGeometryIntent; label: string; title: string }> = [
-  { value: "visible_trace", label: "可见刻痕", title: "只标图像上可见的雕刻/痕迹区域" },
-  { value: "semantic_extent", label: "语义范围", title: "标专家判定该对象在画面中的整体范围" },
-  { value: "reconstructed_extent", label: "复原范围", title: "包含磨损、遮挡后的专家推断完整形态" }
+const annotationQualityOptions: Array<{ value: IimlAnnotationQualityTier; label: string }> = [
+  { value: "weak", label: "weak · 粗略" },
+  { value: "silver", label: "silver · 可用" },
+  { value: "gold", label: "gold · 精确" }
 ];
 
 const trainingRoleOptions: Array<{ value: IimlTrainingRole; label: string; title: string }> = [
   { value: "train", label: "训练", title: "常规训练候选" },
   { value: "validation", label: "验证/评估", title: "gold 子集，优先留作验证或论文评估" },
   { value: "holdout", label: "暂存", title: "保留在 IIML 中，但导出报告会单独标记" }
-];
-
-const annotationIssueOptions: Array<{ value: IimlAnnotationIssue; label: string }> = [
-  { value: "low_contrast", label: "低对比" },
-  { value: "texture_confusion", label: "纹理混淆" },
-  { value: "ambiguous_boundary", label: "边界歧义" },
-  { value: "occluded_or_worn", label: "遮挡/风化" },
-  { value: "oversegmented", label: "过分割" },
-  { value: "undersegmented", label: "欠分割" },
-  { value: "class_uncertain", label: "类别不确定" },
-  { value: "needs_expert_review", label: "需专家复核" }
 ];
 
 type TabKey = "edit" | "review" | "list" | "graph" | "resources";
@@ -176,9 +129,22 @@ export function AnnotationPanel(props: AnnotationPanelProps) {
     [annotations]
   );
   const [tab, setTab] = useState<TabKey>("edit");
+  // P3：宽标注卡片开关。选中标注消失（删除 / 切石头）时自动关闭。
+  const [cardOpen, setCardOpen] = useState(false);
+  useEffect(() => {
+    if (!selectedAnnotation) {
+      setCardOpen(false);
+    }
+  }, [selectedAnnotation]);
 
-  // 新建草稿时自动切到"标注"tab；产出 SAM 候选时自动切到"候选"tab；
-  // 选中已有标注不强制跳转，避免在列表里操作被打断。
+  // D6 共现术语推荐：基于全文档统计 + 当前 annotation 已有 terms（传给宽卡片）。
+  const suggestedTerms = useMemo(() => {
+    if (!selectedAnnotation || props.vocabularyTerms.length === 0) return [];
+    const currentTermIds = selectedAnnotation.semantics?.terms?.map((term) => term.id) ?? [];
+    return recommendCooccurringTerms(doc?.annotations ?? [], currentTermIds, props.vocabularyTerms);
+  }, [selectedAnnotation, doc?.annotations, props.vocabularyTerms]);
+
+  // 新建草稿时自动切到"标注"tab；选中已有标注不强制跳转。
   useEffect(() => {
     if (draftAnnotationId) {
       setTab("edit");
@@ -279,7 +245,7 @@ export function AnnotationPanel(props: AnnotationPanelProps) {
 
       <div className="annotation-tab-body" role="tabpanel">
         {tab === "edit" ? (
-          <EditTab annotation={selectedAnnotation} {...props} />
+          <SummaryTab {...props} annotation={selectedAnnotation} onOpenCard={() => setCardOpen(true)} />
         ) : tab === "review" ? (
           <ReviewTab {...props} onPickCandidate={handlePickCandidate} />
         ) : tab === "graph" ? (
@@ -306,438 +272,179 @@ export function AnnotationPanel(props: AnnotationPanelProps) {
           <ListTab {...props} />
         )}
       </div>
+
+      {cardOpen && selectedAnnotation ? (
+        <AnnotationCard
+          annotation={selectedAnnotation}
+          doc={doc}
+          metadata={props.metadata}
+          vocabularyCategories={props.vocabularyCategories}
+          vocabularyTerms={props.vocabularyTerms}
+          relations={relations}
+          spatialCandidates={props.spatialCandidates}
+          processingRuns={props.processingRuns}
+          suggestedTerms={suggestedTerms}
+          onUpdateAnnotation={props.onUpdateAnnotation}
+          onDeleteAnnotation={props.onDeleteAnnotation}
+          onSelectAnnotation={onSelectAnnotation}
+          onAddRelation={props.onAddRelation}
+          onUpdateRelation={props.onUpdateRelation}
+          onDeleteRelation={props.onDeleteRelation}
+          onClose={() => setCardOpen(false)}
+        />
+      ) : null}
     </div>
   );
 }
 
-type EditTabProps = AnnotationPanelProps & {
+// ============================================================
+//  SummaryTab：右侧窄栏只保留最小字段（P3）
+// ============================================================
+
+type SummaryTabProps = AnnotationPanelProps & {
   annotation?: IimlAnnotation;
+  onOpenCard: () => void;
 };
 
-// 默认透明度；与 AnnotationCanvas 的 defaultAnnotationAlpha 保持一致。
-const DEFAULT_OPACITY = 0.15;
-
-// P1 训练就绪度面板：编辑某条 annotation 时，顶部实时显示"能否进训练池 +
-// 卡在哪 + 一键修"。与 ListTab 的 TrainingBadge 不同，这里把 errors/warnings 展开成
-// 可见 chips（不只是 hover tooltip），并提供最高频两类问题的快捷修复按钮
-// （reviewStatus→reviewed、category→unknown）。校验复用 training.ts，无后端 round-trip。
-function TrainingReadinessSection({
+function SummaryTab({
   annotation,
   doc,
-  onUpdateAnnotation
-}: {
-  annotation: IimlAnnotation;
-  doc?: IimlDocument;
-  onUpdateAnnotation: (id: string, patch: Partial<IimlAnnotation>) => void;
-}) {
-  const result = useMemo(() => validateAnnotationForTraining(annotation, doc), [annotation, doc]);
-  const hasReviewIssue = result.errors.some((code) => code.startsWith("review-status-"));
-  const hasCategoryIssue = result.errors.includes("bad-category");
-
-  return (
-    <section className="training-readiness" aria-label="训练池就绪度">
-      <header className="training-readiness-head">
-        <TrainingBadge result={result} />
-        {result.ready ? (
-          result.warnings.length > 0 ? (
-            <span className="training-readiness-title training-readiness-title--warn">
-              进训练池 · {result.warnings.length} 项警告
-            </span>
-          ) : (
-            <span className="training-readiness-title training-readiness-title--ready">已就绪 · 进训练池</span>
-          )
-        ) : (
-          <span className="training-readiness-title training-readiness-title--blocked">
-            不进训练池 · {result.errors.length} 项未通过
-          </span>
-        )}
-      </header>
-      {result.errors.length > 0 ? (
-        <div className="training-reason-chips">
-          {result.errors.map((code) => (
-            <span
-              key={code}
-              className="training-reason-chip training-reason-chip--error"
-              title={`${code}: ${TRAINING_REASON_LABELS[code] ?? code}`}
-            >
-              {TRAINING_REASON_LABELS[code] ?? code}
-            </span>
-          ))}
-        </div>
-      ) : null}
-      {result.warnings.length > 0 ? (
-        <div className="training-reason-chips">
-          {result.warnings.map((code) => (
-            <span
-              key={code}
-              className="training-reason-chip training-reason-chip--warn"
-              title={`${code}: ${TRAINING_REASON_LABELS[code] ?? code}`}
-            >
-              {TRAINING_REASON_LABELS[code] ?? code}
-            </span>
-          ))}
-        </div>
-      ) : null}
-      {hasReviewIssue || hasCategoryIssue ? (
-        <div className="training-readiness-quickfixes">
-          {hasReviewIssue ? (
-            <button
-              type="button"
-              className="secondary-action small"
-              onClick={() => onUpdateAnnotation(annotation.id, { reviewStatus: "reviewed" })}
-              title="把 reviewStatus 设为 reviewed（人工已审），最常见的 SAM 候选升级动作"
-            >
-              设为已审核
-            </button>
-          ) : null}
-          {hasCategoryIssue ? (
-            <button
-              type="button"
-              className="secondary-action small"
-              onClick={() => onUpdateAnnotation(annotation.id, { category: "unknown" })}
-              title="category 缺失时先标 unknown 占位，进训练池后再细化分类"
-            >
-              设类别 unknown
-            </button>
-          ) : null}
-        </div>
-      ) : null}
-    </section>
-  );
-}
-
-function EditTab({
-  annotation,
   draftAnnotationId,
-  doc,
-  metadata,
-  relations,
-  spatialCandidates,
-  processingRuns = [],
-  vocabularyCategories,
-  vocabularyTerms,
-  onAddRelation,
-  onDeleteRelation,
   onUpdateAnnotation,
-  onUpdateRelation,
   onDeleteAnnotation,
   onConfirmDraft,
-  onSelectAnnotation
-}: EditTabProps) {
+  onOpenCard
+}: SummaryTabProps) {
   const [labelDraft, setLabelDraft] = useState("");
-  const [motifDraft, setMotifDraft] = useState("");
-  const [preIconographicDraft, setPreIconographicDraft] = useState("");
-  const [iconographicDraft, setIconographicDraft] = useState("");
-  const [iconologicalDraft, setIconologicalDraft] = useState("");
-  const [notesDraft, setNotesDraft] = useState("");
-  const [transcriptionDraft, setTranscriptionDraft] = useState("");
-  const [translationDraft, setTranslationDraft] = useState("");
-  const [readingNoteDraft, setReadingNoteDraft] = useState("");
-  // immediateDirty 是 dirty 状态的唯一来源：用户在任何字段做过改动就置 true，
-  // 直到点保存或切换到别的标注才清掉。这样即使 textarea onBlur 已经把 draft
-  // commit 到 store（导致 draft == annotation），保存按钮也仍然亮，避免出现
-  // "在屏幕上方编辑文本，滚动下来想点保存却发现按钮是灰的" 这种迷惑情况。
-  const [immediateDirty, setImmediateDirty] = useState(false);
-
-  // D6 共现术语推荐：基于全文档统计 + 当前 annotation 已有 terms
-  const suggestedTerms = useMemo(() => {
-    if (!annotation || vocabularyTerms.length === 0) return [];
-    const currentTermIds = annotation.semantics?.terms?.map((term) => term.id) ?? [];
-    return recommendCooccurringTerms(
-      doc?.annotations ?? [],
-      currentTermIds,
-      vocabularyTerms
-    );
-  }, [annotation, doc?.annotations, vocabularyTerms]);
-
   useEffect(() => {
     setLabelDraft(annotation?.label ?? "");
-    setMotifDraft(annotation?.motif ?? "");
-    setPreIconographicDraft(annotation?.semantics?.preIconographic ?? "");
-    setIconographicDraft(annotation?.semantics?.iconographicMeaning ?? "");
-    setIconologicalDraft(annotation?.semantics?.iconologicalMeaning ?? "");
-    setNotesDraft(annotation?.notes ?? "");
-    setTranscriptionDraft(annotation?.semantics?.inscription?.transcription ?? "");
-    setTranslationDraft(annotation?.semantics?.inscription?.translation ?? "");
-    setReadingNoteDraft(annotation?.semantics?.inscription?.readingNote ?? "");
-    setImmediateDirty(false);
-  }, [annotation?.id]);
+  }, [annotation?.id, annotation?.label]);
+
+  const trainingResult = useMemo(
+    () => (annotation ? validateAnnotationForTraining(annotation, doc) : undefined),
+    [annotation, doc]
+  );
 
   if (!annotation) {
-    return <p className="annotation-empty">选择或新建一条标注以编辑。</p>;
+    return (
+      <div className="annotation-summary-empty">
+        <p className="annotation-empty">选择或新建一条标注。</p>
+        <p className="muted-text annotation-summary-hint">
+          工作流：SAM3 生成候选 → 在候选 tab 审阅 → 选中后这里填名称与类别（10 秒即可保存）→
+          需要深入解释时打开"详情卡片"分层补充。
+        </p>
+      </div>
+    );
   }
 
   const isDraft = annotation.id === draftAnnotationId;
-  const structuralLevel = annotation.structuralLevel ?? "unknown";
-  const showInscription = structuralLevel === "inscription";
-
-  const patchSemantics = (
-    key: "preIconographic" | "iconographicMeaning" | "iconologicalMeaning",
-    nextValue: string,
-    previousValue: string
-  ) => {
-    if (nextValue === previousValue) return;
-    onUpdateAnnotation(annotation.id, {
-      semantics: { ...(annotation.semantics ?? {}), [key]: nextValue }
-    });
-  };
-
-  const patchInscription = (
-    key: "transcription" | "translation" | "readingNote",
-    nextValue: string,
-    previousValue: string
-  ) => {
-    if (nextValue === previousValue) return;
-    const inscription = { ...(annotation.semantics?.inscription ?? {}) };
-    inscription[key] = nextValue;
-    onUpdateAnnotation(annotation.id, {
-      semantics: { ...(annotation.semantics ?? {}), inscription }
-    });
-  };
+  const confidence = annotation.generation?.confidence;
+  const thumbnail = annotation.appearance?.thumbnailUri ?? annotation.appearance?.cutoutUri;
 
   const commitLabel = () => {
     if (labelDraft !== (annotation.label ?? "")) {
       onUpdateAnnotation(annotation.id, { label: labelDraft });
     }
   };
-  const commitMotif = () => {
-    const trimmed = motifDraft.trim();
-    const current = annotation.motif ?? "";
-    if (trimmed !== current) {
-      // 空字符串 → 清字段。Partial<IimlAnnotation> 不支持 undefined 区分，
-      // 这里写空字符串"等价于无 motif"；A2 训练池准入会把空当作未填。
-      onUpdateAnnotation(annotation.id, { motif: trimmed });
-    }
-  };
-  const commitNotes = () => {
-    if (notesDraft !== (annotation.notes ?? "")) {
-      onUpdateAnnotation(annotation.id, { notes: notesDraft });
-    }
-  };
-  const commitPreIconographic = () =>
-    patchSemantics("preIconographic", preIconographicDraft, annotation.semantics?.preIconographic ?? "");
-  const commitIconographic = () =>
-    patchSemantics("iconographicMeaning", iconographicDraft, annotation.semantics?.iconographicMeaning ?? "");
-  const commitIconological = () =>
-    patchSemantics("iconologicalMeaning", iconologicalDraft, annotation.semantics?.iconologicalMeaning ?? "");
-  const commitTranscription = () =>
-    patchInscription("transcription", transcriptionDraft, annotation.semantics?.inscription?.transcription ?? "");
-  const commitTranslation = () =>
-    patchInscription("translation", translationDraft, annotation.semantics?.inscription?.translation ?? "");
-  const commitReadingNote = () =>
-    patchInscription("readingNote", readingNoteDraft, annotation.semantics?.inscription?.readingNote ?? "");
-
-  const markDirty = () => setImmediateDirty(true);
-
-  const handleLevelChange = (value: IimlStructuralLevel) => {
-    onUpdateAnnotation(annotation.id, { structuralLevel: value });
-    markDirty();
-  };
-  const handleCategoryChange = (value: IimlHanStoneCategory | "") => {
-    // 空字符串 = 选回"未填"占位项 → 等同于清字段（写空串保留兼容，A2 跳过）
-    const next = value === "" ? undefined : value;
-    onUpdateAnnotation(annotation.id, { category: next });
-    markDirty();
-  };
-  const handleQualityChange = (value: IimlAnnotationQualityTier) => {
-    onUpdateAnnotation(annotation.id, { annotationQuality: value });
-    markDirty();
-  };
-  const handleGeometryIntentChange = (value: IimlGeometryIntent) => {
-    onUpdateAnnotation(annotation.id, { geometryIntent: value });
-    markDirty();
-  };
-  const handleTrainingRoleChange = (value: IimlTrainingRole) => {
-    onUpdateAnnotation(annotation.id, { trainingRole: value });
-    markDirty();
-  };
-  const handleIssueToggle = (issue: IimlAnnotationIssue) => {
-    const current = new Set(annotation.annotationIssues ?? []);
-    if (current.has(issue)) {
-      current.delete(issue);
-    } else {
-      current.add(issue);
-    }
-    onUpdateAnnotation(annotation.id, { annotationIssues: Array.from(current) });
-    markDirty();
-  };
-  const handleColorChange = (color: string) => {
-    onUpdateAnnotation(annotation.id, { color });
-    markDirty();
-  };
-  const handleOpacityChange = (value: number) => {
-    onUpdateAnnotation(annotation.id, { opacity: value });
-    markDirty();
-  };
-  const handleTermsChange = (nextTerms: IimlTermRef[]) => {
-    onUpdateAnnotation(annotation.id, {
-      semantics: { ...(annotation.semantics ?? {}), terms: nextTerms }
-    });
-    markDirty();
-  };
-  const handleSourcesChange = (nextSources: IimlSource[]) => {
-    onUpdateAnnotation(annotation.id, { sources: nextSources });
-    markDirty();
-  };
-
-  const opacityValue = annotation.opacity ?? DEFAULT_OPACITY;
-
-  // 文本字段基于 draft 与 annotation 的差异判定，即时字段靠 immediateDirty 标记。
-  const isDirty =
-    immediateDirty ||
-    labelDraft !== (annotation.label ?? "") ||
-    motifDraft.trim() !== (annotation.motif ?? "") ||
-    preIconographicDraft !== (annotation.semantics?.preIconographic ?? "") ||
-    iconographicDraft !== (annotation.semantics?.iconographicMeaning ?? "") ||
-    iconologicalDraft !== (annotation.semantics?.iconologicalMeaning ?? "") ||
-    notesDraft !== (annotation.notes ?? "") ||
-    (showInscription &&
-      (transcriptionDraft !== (annotation.semantics?.inscription?.transcription ?? "") ||
-        translationDraft !== (annotation.semantics?.inscription?.translation ?? "") ||
-        readingNoteDraft !== (annotation.semantics?.inscription?.readingNote ?? "")));
-  const canSave = isDraft || isDirty;
-
-  const handleSave = () => {
-    commitLabel();
-    commitMotif();
-    commitNotes();
-    commitPreIconographic();
-    commitIconographic();
-    commitIconological();
-    if (showInscription) {
-      commitTranscription();
-      commitTranslation();
-      commitReadingNote();
-    }
-    setImmediateDirty(false);
-    if (isDraft) {
-      onConfirmDraft(annotation.id);
-    }
-  };
-
-  // SOP §1.6：故事类 category 缺 motif 时给出 warning（不阻塞）。
-  const motifSuggestions = annotation.category
-    ? motifSuggestionsByCategory[annotation.category]
-    : allMotifSuggestions;
-  const motifMissingWarning =
-    annotation.category &&
-    narrativeCategoriesNeedMotif.has(annotation.category) &&
-    motifDraft.trim() === "";
 
   return (
-    <div className="annotation-edit">
-      <TrainingReadinessSection
-        annotation={annotation}
-        doc={doc}
-        onUpdateAnnotation={onUpdateAnnotation}
-      />
-      <div className="edit-head">
-        <ColorPopover
-          color={annotation.color ?? annotationPalette[0]}
-          onChange={handleColorChange}
-          title="更改颜色"
-          size={20}
+    <div className="annotation-summary">
+      <div className="annotation-summary-head">
+        <span
+          className="annotation-color-dot annotation-color-dot--static"
+          style={{ background: annotation.color ?? annotationPalette[0] }}
+          aria-hidden
         />
-        <label className="edit-level">
-          <span>层级</span>
+        <TrainingBadge result={trainingResult} />
+        {isDraft ? <span className="edit-draft-tag">草稿</span> : null}
+        {typeof confidence === "number" ? (
+          <span className="review-card-confidence" title={`模型：${annotation.generation?.model ?? "?"}`}>
+            {Math.round(confidence * 100)}%
+          </span>
+        ) : null}
+        <span className="annotation-summary-type muted-text">{annotation.target.type}</span>
+      </div>
+
+      {thumbnail ? (
+        <button type="button" className="annotation-summary-thumb" onClick={onOpenCard} title="打开详情卡片查看资产">
+          <img src={thumbnail} alt="标注抠图预览" />
+        </button>
+      ) : null}
+
+      <label className="summary-field">
+        <span>名称</span>
+        <input
+          autoFocus={isDraft}
+          type="text"
+          value={labelDraft}
+          placeholder="例如：执笏人物"
+          onChange={(event) => setLabelDraft(event.target.value)}
+          onBlur={commitLabel}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              (event.target as HTMLInputElement).blur();
+            }
+          }}
+        />
+      </label>
+
+      <label className="summary-field">
+        <span>类别</span>
+        <select
+          value={annotation.category ?? ""}
+          onChange={(event) =>
+            onUpdateAnnotation(annotation.id, {
+              category: event.target.value === "" ? undefined : (event.target.value as IimlHanStoneCategory)
+            })
+          }
+        >
+          <option value="">— 未填 —</option>
+          {hanStoneCategoryOptions.map((option) => (
+            <option key={option.value} value={option.value} title={option.description}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <div className="summary-field-row">
+        <label className="summary-field">
+          <span>审核</span>
           <select
-            value={structuralLevel}
-            onChange={(event) => handleLevelChange(event.target.value as IimlStructuralLevel)}
+            value={annotation.reviewStatus ?? "reviewed"}
+            onChange={(event) =>
+              onUpdateAnnotation(annotation.id, { reviewStatus: event.target.value as IimlReviewStatus })
+            }
           >
-            {structuralLevelOptions.map((option) => (
+            {reviewStatusOptions.map((option) => (
               <option key={option.value} value={option.value}>
                 {option.label}
               </option>
             ))}
           </select>
         </label>
-        <label className="edit-level edit-category" title="汉画像石领域类别（SOP §1，13 类 + 未识别）">
-          <span>类别</span>
+        <label className="summary-field">
+          <span>边界质量</span>
           <select
-            value={annotation.category ?? ""}
-            onChange={(event) => handleCategoryChange(event.target.value as IimlHanStoneCategory | "")}
+            value={annotation.annotationQuality ?? getAnnotationQuality(annotation)}
+            onChange={(event) =>
+              onUpdateAnnotation(annotation.id, { annotationQuality: event.target.value as IimlAnnotationQualityTier })
+            }
           >
-            <option value="">— 未填 —</option>
-            {hanStoneCategoryOptions.map((option) => (
-              <option key={option.value} value={option.value} title={option.description}>
+            {annotationQualityOptions.map((option) => (
+              <option key={option.value} value={option.value}>
                 {option.label}
               </option>
             ))}
           </select>
         </label>
-        {isDraft ? <span className="edit-draft-tag">草稿</span> : null}
-      </div>
-
-      <Field label="标签">
-        <input
-          autoFocus={isDraft}
-          type="text"
-          value={labelDraft}
-          placeholder="例如：青龙"
-          onChange={(event) => {
-            setLabelDraft(event.target.value);
-            markDirty();
-          }}
-          onBlur={commitLabel}
-        />
-      </Field>
-
-      <Field label="母题 / 格套">
-        <input
-          type="text"
-          list={`motif-options-${annotation.id}`}
-          value={motifDraft}
-          placeholder={
-            annotation.category
-              ? `${motifSuggestions.length} 项建议，可自由填写`
-              : "先选类别可获得受控建议"
-          }
-          onChange={(event) => {
-            setMotifDraft(event.target.value);
-            markDirty();
-          }}
-          onBlur={commitMotif}
-        />
-        <datalist id={`motif-options-${annotation.id}`}>
-          {motifSuggestions.map((suggestion) => (
-            <option key={suggestion} value={suggestion} />
-          ))}
-        </datalist>
-        {motifMissingWarning ? (
-          <p className="edit-hint edit-hint--warn">
-            提示：故事类标注建议填具体母题（SOP 附录 A）；空值不阻塞但 A2 导出会标记。
-          </p>
-        ) : null}
-      </Field>
-
-      <Field label="训练质量">
-        <div className="edit-row">
-          <select
-            value={annotation.annotationQuality ?? (annotation.target.type === "BBox" || annotation.target.type === "Point" || annotation.target.type === "LineString" ? "weak" : "silver")}
-            onChange={(event) => handleQualityChange(event.target.value as IimlAnnotationQualityTier)}
-            title="weak/silver/gold 分层，导出报告和 stats 会单独统计"
-          >
-            {annotationQualityOptions.map((option) => (
-              <option key={option.value} value={option.value} title={option.title}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-          <select
-            value={annotation.geometryIntent ?? "semantic_extent"}
-            onChange={(event) => handleGeometryIntentChange(event.target.value as IimlGeometryIntent)}
-            title="区分可见刻痕、语义范围和专家复原范围"
-          >
-            {geometryIntentOptions.map((option) => (
-              <option key={option.value} value={option.value} title={option.title}>
-                {option.label}
-              </option>
-            ))}
-          </select>
+        <label className="summary-field">
+          <span>训练</span>
           <select
             value={annotation.trainingRole ?? "train"}
-            onChange={(event) => handleTrainingRoleChange(event.target.value as IimlTrainingRole)}
-            title="gold 子集可标 validation，争议或暂不用样本可标 holdout"
+            onChange={(event) =>
+              onUpdateAnnotation(annotation.id, { trainingRole: event.target.value as IimlTrainingRole })
+            }
           >
             {trainingRoleOptions.map((option) => (
               <option key={option.value} value={option.value} title={option.title}>
@@ -745,213 +452,43 @@ function EditTab({
               </option>
             ))}
           </select>
-        </div>
-        <p className="edit-hint">
-          weak 用于框/点/涂鸦覆盖，silver 用于可训练粗 mask，gold 优先留作验证与论文评估。
-        </p>
-      </Field>
+        </label>
+      </div>
 
-      <Field label="问题标签">
-        <div className="issue-chip-list">
-          {annotationIssueOptions.map((option) => {
-            const checked = (annotation.annotationIssues ?? []).includes(option.value);
-            return (
-              <label key={option.value} className={checked ? "issue-chip is-on" : "issue-chip"}>
-                <input
-                  type="checkbox"
-                  checked={checked}
-                  onChange={() => handleIssueToggle(option.value)}
-                />
-                {option.label}
-              </label>
-            );
-          })}
-        </div>
-        <p className="edit-hint">用于记录 SAM 失败原因，并进入主动学习队列排序。</p>
-      </Field>
-
-      <Field label="透明度">
-        <div className="edit-opacity">
-          <input
-            type="range"
-            min={0}
-            max={1}
-            step={0.05}
-            value={opacityValue}
-            onChange={(event) => handleOpacityChange(Number(event.target.value))}
-          />
-          <span className="edit-opacity-value">{Math.round(opacityValue * 100)}%</span>
-        </div>
-      </Field>
-
-      <Field label="前图像志">
-        <textarea
-          rows={2}
-          value={preIconographicDraft}
-          placeholder="看得见的对象，如：长身有角的四足生物…"
-          onChange={(event) => {
-            setPreIconographicDraft(event.target.value);
-            markDirty();
-          }}
-          onBlur={commitPreIconographic}
-        />
-      </Field>
-
-      <Field label="图像志">
-        <textarea
-          rows={2}
-          value={iconographicDraft}
-          placeholder="主题识别，如：青龙，四象之一…"
-          onChange={(event) => {
-            setIconographicDraft(event.target.value);
-            markDirty();
-          }}
-          onBlur={commitIconographic}
-        />
-      </Field>
-
-      <Field label="图像学">
-        <textarea
-          rows={2}
-          value={iconologicalDraft}
-          placeholder="文化解释，如：象征东方与春…"
-          onChange={(event) => {
-            setIconologicalDraft(event.target.value);
-            markDirty();
-          }}
-          onBlur={commitIconological}
-        />
-      </Field>
-
-      <Field label="受控术语">
-        <TermPicker
-          value={annotation.semantics?.terms}
-          categories={vocabularyCategories}
-          terms={vocabularyTerms}
-          suggestedTerms={suggestedTerms}
-          onChange={handleTermsChange}
-        />
-      </Field>
-
-      <Field label="证据源">
-        <SourcesEditor value={annotation.sources} metadata={metadata} onChange={handleSourcesChange} />
-      </Field>
-
-      {showInscription ? (
-        <>
-          <Field label="题刻释文">
-            <textarea
-              rows={2}
-              value={transcriptionDraft}
-              placeholder="原文释读…"
-              onChange={(event) => {
-                setTranscriptionDraft(event.target.value);
-                markDirty();
-              }}
-              onBlur={commitTranscription}
-            />
-          </Field>
-          <Field label="题刻翻译">
-            <textarea
-              rows={2}
-              value={translationDraft}
-              placeholder="今译 / 外文翻译…"
-              onChange={(event) => {
-                setTranslationDraft(event.target.value);
-                markDirty();
-              }}
-              onBlur={commitTranslation}
-            />
-          </Field>
-          <Field label="释读注">
-            <textarea
-              rows={2}
-              value={readingNoteDraft}
-              placeholder="释读难点、异体字、残损…"
-              onChange={(event) => {
-                setReadingNoteDraft(event.target.value);
-                markDirty();
-              }}
-              onBlur={commitReadingNote}
-            />
-          </Field>
-        </>
-      ) : null}
-
-      <Field label="备注">
-        <textarea
-          rows={2}
-          value={notesDraft}
-          placeholder="研究思路、参考等…"
-          onChange={(event) => {
-            setNotesDraft(event.target.value);
-            markDirty();
-          }}
-          onBlur={commitNotes}
-        />
-      </Field>
-
-      <AlternativeInterpretationsView
-        annotation={annotation}
-        annotations={doc?.annotations ?? []}
-        relations={relations}
-        onSelectAnnotation={onSelectAnnotation}
-      />
-
-      <RelationsEditor
-        annotation={annotation}
-        annotations={doc?.annotations ?? []}
-        relations={relations}
-        spatialCandidates={spatialCandidates}
-        onAddRelation={onAddRelation}
-        onUpdateRelation={onUpdateRelation}
-        onDeleteRelation={onDeleteRelation}
-        onSelectAnnotation={onSelectAnnotation}
-      />
-
-      <ProcessingRunsList
-        annotation={annotation}
-        runs={processingRuns}
-        onSelectAnnotation={onSelectAnnotation}
-      />
+      <button type="button" className="primary-action annotation-summary-open" onClick={onOpenCard}>
+        <Maximize2 size={14} /> 打开详情卡片
+        <span className="muted-text">位置 / 视觉层 / 图像志 / 关系</span>
+      </button>
 
       <div className="edit-actions">
-        <button
-          type="button"
-          className="primary-action small"
-          onClick={handleSave}
-          disabled={!canSave}
-          title={canSave ? "保存改动" : "无待保存的改动"}
-        >
-          <Check size={14} /> 保存
-        </button>
-        <button
-          type="button"
-          className="secondary-action danger"
-          onClick={() => onDeleteAnnotation(annotation.id)}
-        >
-          <Trash2 size={14} /> 删除
-        </button>
         {isDraft ? (
-          <button
-            type="button"
-            className="secondary-action"
-            onClick={() => onDeleteAnnotation(annotation.id)}
-            title="放弃此次标注"
-          >
-            <X size={14} /> 取消
+          <>
+            <button
+              type="button"
+              className="primary-action small"
+              onClick={() => {
+                commitLabel();
+                onConfirmDraft(annotation.id);
+              }}
+              title="确认草稿为正式标注"
+            >
+              <Check size={14} /> 确定
+            </button>
+            <button
+              type="button"
+              className="secondary-action"
+              onClick={() => onDeleteAnnotation(annotation.id)}
+              title="放弃此次标注"
+            >
+              <X size={14} /> 取消
+            </button>
+          </>
+        ) : (
+          <button type="button" className="secondary-action danger" onClick={() => onDeleteAnnotation(annotation.id)}>
+            <Trash2 size={14} /> 删除
           </button>
-        ) : null}
+        )}
       </div>
-    </div>
-  );
-}
-
-function Field({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <div className="edit-field">
-      <label className="edit-field-label">{label}</label>
-      <div className="edit-field-body">{children}</div>
     </div>
   );
 }
@@ -1040,8 +577,7 @@ function ListTab({
 }: AnnotationPanelProps) {
   const annotations = doc?.annotations ?? [];
 
-  // M5 Phase 1 A2 子任务：训练池徽标。每条 annotation 实时算 ready/warned/blocked 状态
-  // + errors / warnings 列表，让标员一眼看到这条离训练池准入还差什么。
+  // M5 Phase 1 A2 子任务：训练池徽标。每条 annotation 实时算 ready/warned/blocked 状态。
   const trainingResultsById = useMemo(() => {
     const map = new Map<string, ReturnType<typeof validateAnnotationForTraining>>();
     if (!doc) return map;
@@ -1051,7 +587,7 @@ function ListTab({
     return map;
   }, [doc, annotations]);
 
-  // 训练池整体进度：进 / 警告 / 阻塞 三档计数，给"导出训练集"按钮做提示
+  // 训练池整体进度：进 / 警告 / 阻塞 三档计数
   const trainingStats = useMemo(() => {
     let ready = 0;
     let warned = 0;
@@ -1064,12 +600,9 @@ function ListTab({
     return { ready, warned, blocked };
   }, [trainingResultsById]);
 
-  // 多选合并：与候选 tab 同形态的状态。这里合并的对象不限于 candidate；
-  // 已 approved 的标注合并后跟着保持 approved（详见 merge.ts），不会被打回未审。
+  // 多选合并：合并对象不限于 candidate；已 approved 的标注合并后保持 approved。
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
 
-  // 列表外部变动（删除、接受、跨画像石切换）后剔除已不存在的 id，
-  // 避免 UI 卡在"已选 N 个"的死状态。
   useEffect(() => {
     setSelectedIds((prev) => {
       let changed = false;
@@ -1109,9 +642,7 @@ function ListTab({
     setSelectedIds(new Set());
   };
 
-  // P1 批量修复：给所有选中标注统一设字段。典型流：SAM 批量产 N 条 candidate →
-  // 多选 → 批量设 category + reviewStatus=reviewed → 一键进训练池。每条都走
-  // onUpdateAnnotation，复用 undo 栈（每条产生一次 history 快照）。
+  // P1 批量修复：给所有选中标注统一设字段。
   const applyBatch = (patch: Partial<IimlAnnotation>) => {
     for (const id of selectedIds) {
       onUpdateAnnotation(id, patch);
@@ -1140,7 +671,7 @@ function ListTab({
               className="primary-action small"
               disabled={!canMerge}
               onClick={handleMerge}
-              title="把选中的标注做几何并集，得到一条新的合并标注（保留最外侧轮廓）"
+              title="mask 级合并：栅格化 → 布尔并 → 清小碎片/保留洞 → 重新矢量化（AI 服务不可用时回退矢量并集）"
             >
               <Group size={13} /> 合并选中（{selectedCount}）
             </button>
@@ -1249,10 +780,10 @@ function ListTab({
               <Check size={12} /> {trainingStats.ready}
             </span>
             <span className="training-stat training-stat--warn" title="本石头进训练池但有 warning（如故事类缺 motif）">
-              <AlertTriangle size={12} /> {trainingStats.warned}
+              ⚠ {trainingStats.warned}
             </span>
             <span className="training-stat training-stat--blocked" title="本石头不进训练池（缺字段 / 几何无效 / 未审核等）">
-              <CircleAlert size={12} /> {trainingStats.blocked}
+              ✗ {trainingStats.blocked}
             </span>
           </div>
           <div className="training-export-actions">
@@ -1263,7 +794,7 @@ function ListTab({
                 onClick={onPreflight}
                 title="批量标注前预检：pic/ 配对 / IIML 缺字段 / 训练池估算 / 类别均衡。结果写入 status，详细 JSON 在浏览器 Console。"
               >
-                <CircleAlert size={14} /> 预检
+                预检
               </button>
             ) : null}
             <button
@@ -1305,7 +836,7 @@ function ListTab({
               className="secondary-action small"
               onClick={onExportCoco}
               disabled={!doc || annotations.length === 0}
-              title="导出 COCO JSON（单石头浏览器下载，含 structuralLevel 当 category；正式训练集请用上方「导出训练集」按钮）"
+              title="导出 COCO JSON（单石头浏览器下载；正式训练集请用上方「导出训练集」按钮）"
             >
               <Download size={14} /> COCO
             </button>
@@ -1365,8 +896,6 @@ function AnnotationRow({
   isSelected: boolean;
   // 是否被勾选用于"合并"。与 isSelected（编辑选中态）独立。
   isChecked: boolean;
-  // M5 Phase 1 A2：本条标注的训练池准入校验结果（SOP §11）。
-  // ready=true 且 warnings=[] → ✓；ready=true 但 warnings>0 → ⚠；ready=false → ✗
   trainingResult?: ReturnType<typeof validateAnnotationForTraining>;
   onDelete: () => void;
   onSelect: () => void;
@@ -1452,81 +981,8 @@ function getAnnotationQuality(annotation: IimlAnnotation): IimlAnnotationQuality
   return "silver";
 }
 
-// M5 Phase 1 A2 子任务：训练池徽标。把 SOP §11 校验结果可视化为 ✓/⚠/✗ 三档图标。
-// hover title 列出全部 errors / warnings 原因码，标员一眼看到这条离 ready 还差什么。
-const TRAINING_REASON_LABELS: Record<string, string> = {
-  "geometry-missing": "几何为空",
-  "geometry-no-type": "几何缺 type",
-  "geometry-point-invalid": "Point 几何不合法",
-  "geometry-point-nan": "Point 坐标含 NaN",
-  "geometry-linestring-too-few-points": "LineString 顶点 < 2",
-  "geometry-polygon-no-ring": "Polygon 缺外环",
-  "geometry-polygon-too-few-vertices": "Polygon 顶点 < 6（SOP §3.2）",
-  "geometry-polygon-too-many-vertices": "Polygon 顶点 > 200（SOP §3.2，建议拆条）",
-  "geometry-multipolygon-empty": "MultiPolygon 为空",
-  "geometry-bbox-invalid": "BBox 不是 4 元组",
-  "geometry-bbox-nan": "BBox 坐标含 NaN",
-  "geometry-bbox-zero": "BBox 宽或高 ≤ 0",
-  "geometry-bbox-too-small": "BBox 面积 < 64 px²（SOP §11.11）",
-  "geometry-polygon-too-small": "Polygon 面积 < 64 px²（SOP §11.11）",
-  "geometry-multipolygon-too-small": "MultiPolygon 总面积 < 64 px²",
-  "geometry-unknown-type": "几何 type 不在受控集",
-  "frame-model-no-alignment": "frame=model 但缺少 4 点对齐或等价正射图",
-  "bad-structural-level": "structuralLevel 不在 8 档",
-  "bad-category": "category 缺失或不在 13 + unknown（SOP §1）",
-  "motif-too-long": "motif 超过 200 字符上限",
-  "bad-annotation-quality": "annotationQuality 不在 weak/silver/gold",
-  "bad-geometry-intent": "geometryIntent 不在三类边界语义",
-  "bad-training-role": "trainingRole 不在 train/validation/holdout",
-  "no-terms": "至少 1 个受控术语（terms[]）",
-  "no-sources": "未填写证据源；可进训练池，但发布/论文前建议补齐",
-  "no-evidence-source": "sources 中缺 metadata / reference；可进训练池，但溯源质量较弱",
-  "pre-iconographic-too-short": "preIconographic < 10 字（SOP §4.4）",
-  "iconographic-too-short": "iconographicMeaning < 10 字（SOP §4.4）",
-  "review-status-candidate": "未审核（reviewStatus=candidate）",
-  "review-status-reviewed": "需二次审核才能进训练池",
-  "review-status-rejected": "已被拒（reviewStatus=rejected）",
-  "inscription-no-transcription": "inscription 类必须有题刻 transcription",
-  "missing-motif-for-narrative": "故事类建议填 motif（SOP §11.12 warning）",
-  "annotation-quality-weak": "weak 标注：用于覆盖/弱监督，正式 mask 训练需谨慎",
-  "geometry-intent-reconstructed": "复原范围：含专家推断，建议单独评估",
-  "training-role-validation": "验证/评估子集：训练脚本应默认留出",
-  "training-role-holdout": "暂存样本：保留但默认不参与训练"
-};
-
-function describeTrainingReasons(codes: string[]): string {
-  return codes.map((code) => `${code}: ${TRAINING_REASON_LABELS[code] ?? code}`).join("\n");
-}
-
-function TrainingBadge({ result }: { result?: ReturnType<typeof validateAnnotationForTraining> }) {
-  if (!result) {
-    return <span className="training-badge training-badge--unknown" title="未计算" aria-hidden>·</span>;
-  }
-  if (!result.ready) {
-    const tooltip = `不进训练池（${result.errors.length} 项未通过）：\n${describeTrainingReasons(result.errors)}`;
-    return (
-      <span className="training-badge training-badge--blocked" title={tooltip} aria-label="不进训练池">
-        <CircleAlert size={13} />
-      </span>
-    );
-  }
-  if (result.warnings.length > 0) {
-    const tooltip = `进训练池但有警告：\n${describeTrainingReasons(result.warnings)}`;
-    return (
-      <span className="training-badge training-badge--warn" title={tooltip} aria-label="进训练池（有警告）">
-        <AlertTriangle size={13} />
-      </span>
-    );
-  }
-  return (
-    <span className="training-badge training-badge--ready" title="进训练池（SOP §11 全部通过）" aria-label="进训练池">
-      <Check size={13} />
-    </span>
-  );
-}
-
 // ============================================================
-//  ReviewTab：SAM 候选审阅
+//  ReviewTab：SAM3 候选审阅
 // ============================================================
 
 type ReviewTabProps = AnnotationPanelProps & {
@@ -1541,16 +997,14 @@ function ReviewTab({
   onRetryCandidate,
   onBulkAcceptCandidates,
   onBulkRejectCandidates,
-  onMergeCandidates,
-  onRefineWithSam,
-  onBulkRefineYoloWithSam
+  onMergeCandidates
 }: ReviewTabProps) {
   const candidates = useMemo(
     () => (doc?.annotations ?? []).filter((annotation) => annotation.reviewStatus === "candidate"),
     [doc?.annotations]
   );
 
-  // 多选合并：选中的候选 id 集合，操作完合并后或候选列表变化后会自动同步剔除已不存在的 id。
+  // 多选合并：选中的候选 id 集合，候选列表变化后自动剔除已不存在的 id。
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
 
   // C6 类别 chip 过滤：按候选 label 分组；过滤集合为空 = 不过滤。
@@ -1573,8 +1027,6 @@ function ReviewTab({
     return candidates.filter((annotation) => labelFilter.has(annotation.label?.trim() || "未命名"));
   }, [candidates, labelFilter]);
 
-  // 候选列表随外部操作（接受 / 拒绝 / 合并）实时变动；从已选集合里删掉不再存在的 id，
-  // 避免合并完成后 UI 还显示"已选 N 个"。
   useEffect(() => {
     setSelectedIds((prev) => {
       let changed = false;
@@ -1591,7 +1043,6 @@ function ReviewTab({
     });
   }, [candidates]);
 
-  // 类别过滤集合：剔除已不在 labelGroups 中的 label（合并 / 拒绝后某 label 可能消失）
   useEffect(() => {
     setLabelFilter((prev) => {
       let changed = false;
@@ -1659,16 +1110,6 @@ function ReviewTab({
           <strong>{candidates.length}</strong> 条 AI 候选待审
         </span>
         <div className="review-banner-actions">
-          {onBulkRefineYoloWithSam ? (
-            <button
-              type="button"
-              className="secondary-action small"
-              onClick={onBulkRefineYoloWithSam}
-              title="把所有 YOLO bbox 候选喂给 SAM 跑精修，bbox 升级为 polygon（串行，每条 1-2s）"
-            >
-              <Wand2 size={13} /> SAM 精修全部 YOLO
-            </button>
-          ) : null}
           <button type="button" className="secondary-action small" onClick={onBulkRejectCandidates} title="拒绝全部候选">
             全部拒绝
           </button>
@@ -1695,7 +1136,7 @@ function ReviewTab({
               className="primary-action small"
               disabled={!canMerge}
               onClick={handleMerge}
-              title="把选中的候选做几何并集，得到一条新的合并候选（保留最外侧轮廓）"
+              title="mask 级合并：栅格化 → 布尔并 → 清小碎片/保留洞 → 重新矢量化"
             >
               <Group size={13} /> 合并选中（{selectedCount}）
             </button>
@@ -1745,13 +1186,6 @@ function ReviewTab({
             onAccept={() => onAcceptCandidate(annotation.id)}
             onReject={() => onRejectCandidate(annotation.id)}
             onRetry={() => onRetryCandidate(annotation.id)}
-            onRefine={
-              onRefineWithSam &&
-              annotation.target.type === "BBox" &&
-              annotation.generation?.method === "yolo"
-                ? () => onRefineWithSam(annotation.id)
-                : undefined
-            }
           />
         ))}
       </ul>
@@ -1767,8 +1201,7 @@ function CandidateCard({
   onPick,
   onAccept,
   onReject,
-  onRetry,
-  onRefine
+  onRetry
 }: {
   annotation: IimlAnnotation;
   index: number;
@@ -1778,13 +1211,11 @@ function CandidateCard({
   onAccept: () => void;
   onReject: () => void;
   onRetry: () => void;
-  // F3：仅 YOLO bbox 候选才有 SAM 精修按钮，由父组件按 method/geometry 判定后传入或省略
-  onRefine?: () => void;
 }) {
   const color = annotation.color ?? annotationPalette[index % annotationPalette.length];
-  const label = annotation.label ?? "SAM 候选";
+  const label = annotation.label ?? "SAM3 候选";
   const confidence = annotation.generation?.confidence;
-  const model = annotation.generation?.model ?? "SAM";
+  const model = annotation.generation?.model ?? "SAM3";
 
   return (
     <li className={isSelected ? "review-card is-selected" : "review-card"}>
@@ -1808,17 +1239,7 @@ function CandidateCard({
         ) : null}
       </div>
       <div className="review-card-actions">
-        {onRefine ? (
-          <button
-            type="button"
-            className="secondary-action small"
-            onClick={onRefine}
-            title="把此 YOLO bbox 喂给 SAM 跑精修，bbox 升级为精确 polygon"
-          >
-            <Wand2 size={13} /> SAM 精修
-          </button>
-        ) : null}
-        <button type="button" className="secondary-action small" onClick={onRetry} title="重试：删除此候选并重新使用 SAM 工具">
+        <button type="button" className="secondary-action small" onClick={onRetry} title="重试：删除此候选，再用工具栏 SAM3 换概念词 / 阈值重新生成">
           <RotateCcw size={13} /> 重试
         </button>
         <button type="button" className="secondary-action danger small" onClick={onReject} title="拒绝并删除">

@@ -6,8 +6,8 @@
  * 文件只需要 import "./types"，无需关心字段是 IIML 协议字段还是 UI 派生字段。
  *
  * 主要内容：
- * - `AnnotationTool`：当前激活的工具（select / rect / ellipse / point / pen /
- *   sam / calibrate）
+ * - `AnnotationTool`：当前激活的工具（select / rect / ellipse / point / line /
+ *   pen / calibrate）。AI 候选生成不是"工具"，唯一入口是 SAM3 概念分割
  * - `ProjectionContext`：屏幕坐标 ↔ UV 投影上下文（4 角顶点 + 画布尺寸）
  * - `AnnotationState` / `AnnotationAction`：reducer 的状态机契约
  * - `IimlResourceTransform` / `IimlResourceEntry`：资源元信息扩展（与 IIML
@@ -36,7 +36,18 @@ import type {
   VocabularyTerm
 } from "../../api/client";
 
-export type AnnotationTool = "select" | "rect" | "ellipse" | "point" | "pen" | "sam" | "calibrate";
+// P0 收敛：AI 候选唯一入口是 SAM3（工具栏 launcher，不占画布工具位）。
+// 旧 MobileSAM 交互工具 "sam" 已从主流程移除（WSC3D_LEGACY_AI 时代遗留）。
+// P2：brush（补笔）/ erase（擦除）是对选中标注的 mask 级修正工具。
+export type AnnotationTool =
+  | "select"
+  | "rect"
+  | "ellipse"
+  | "point"
+  | "pen"
+  | "brush"
+  | "erase"
+  | "calibrate";
 
 export type ProjectionContext = {
   corners: [

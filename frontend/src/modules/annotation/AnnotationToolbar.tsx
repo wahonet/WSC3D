@@ -7,27 +7,28 @@
  * 3. 椭圆（E）
  * 4. 钢笔多边形（P）
  * 5. 点（N）
- * 6. SAM 智能分割（S，sam.ready 时可用）
- * 7. YOLO 批量扫描（弹 dialog）
- * 8. 4 点对齐校准（已校准时按钮右下角青色圆点）
+ * 6. SAM3 概念分割（唯一 AI 候选入口，弹概念词浮窗）
+ * 7. 4 点对齐校准（已校准时按钮右下角青色圆点）
  * --- 分隔 ---
- * 9. 撤销 / 重做（Ctrl+Z / Ctrl+Y）
- * 10. 删除当前选中
- * 11. 重置视角（F）
+ * 8. 撤销 / 重做（Ctrl+Z / Ctrl+Y）
+ * 9. 删除当前选中
+ * 10. 重置视角（F）
  *
- * 设计要点：
+ * 设计要点（P0 收敛后）：
+ * - **SAM3 是唯一 AI 标注方式**；旧 MobileSAM 点选与 YOLO 批量扫描已从主流程
+ *   移除（AI 服务端点由 WSC3D_LEGACY_AI 开关控制，默认 410）
+ * - 手工几何工具（rect / ellipse / point / pen）承担人工补正职责
  * - 全部按钮纯回调；状态由父级（App）持有
- * - SAM 按钮在 `samStatus` 未就绪时置灰，tooltip 反馈"加载中" / "失败"
  * - 标定按钮在 `calibrating` 时高亮 + 改 tooltip "取消校准"
- * - YOLO 扫描中显示 spinner，避免重复触发
  */
 
 import {
+  Brush,
   Circle,
   Crosshair,
+  Eraser,
   MousePointer2,
   PenLine,
-  Radar,
   Redo2,
   RotateCcw,
   Square,
@@ -54,28 +55,24 @@ type AnnotationToolbarProps = {
   canUndo: boolean;
   canRedo: boolean;
   canDelete: boolean;
-  // AI 服务状态；未获取到 / sam 未就绪时，SAM 按钮置灰并在 tooltip 里说明原因。
-  samStatus?: SamStatus;
+  // P2：mask 修正（补笔/擦除）是否可用——需要选中面状标注 + 高清图底图。
+  maskEditAvailable?: boolean;
   // SAM3 概念分割状态；pending 表示可点击后懒加载。
   sam3Status?: SamStatus;
   // 是否已配置 4 点标定，标定按钮 tooltip 会反映"已校准 / 未校准"。
   hasAlignment?: boolean;
   // 当前是否处于标定流程中（采点 / review）。
   calibrating?: boolean;
-  // YOLO 扫描进行中：按钮显示 spinner，避免重复触发。
-  yoloScanning?: boolean;
   sam3Scanning?: boolean;
   onToolChange: (tool: AnnotationTool) => void;
   onUndo: () => void;
   onRedo: () => void;
   onDeleteSelected: () => void;
-  // 复位视角到"画像石 fit 整个画面"，给 SAM 提供最稳的输入。
+  // 复位视角到"画像石 fit 整个画面"，给 SAM3 提供最稳的输入。
   onResetView: () => void;
   // 启动 / 停止 4 点标定流程。
   onStartCalibration: () => void;
   onCancelCalibration: () => void;
-  // 启动 YOLO 批量扫描（弹设置浮窗）。
-  onStartYoloScan: () => void;
   // 启动 SAM3 文本概念分割。
   onStartSam3: (input: Sam3ConceptInput) => void;
 };
@@ -97,28 +94,12 @@ const tools: Array<{ id: AnnotationTool; title: string; icon: React.ReactNode }>
   { id: "pen", title: "钢笔（多边形，双击闭合）", icon: <PenLine size={18} /> }
 ];
 
-// 根据 SAM 加载状态给出更具体的 tooltip 与按钮 disabled 状态。
-function describeSam(status?: SamStatus): { disabled: boolean; title: string } {
-  if (!status) {
-    return { disabled: true, title: "SAM（AI 服务未启动）" };
-  }
-  switch (status.status) {
-    case "ready":
-      return {
-        disabled: false,
-        title: `SAM 智能分割（${status.model}）· 左键正点 / 右键负点 / Shift+左键拖框 / Enter 提交`
-      };
-    case "downloading":
-      return { disabled: true, title: "SAM 模型下载中…" };
-    case "loading":
-      return { disabled: true, title: "SAM 模型加载中…" };
-    case "error":
-      return { disabled: true, title: `SAM 加载失败：${status.detail}` };
-    case "pending":
-    default:
-      return { disabled: true, title: "SAM 模型准备中…" };
-  }
-}
+// P2 mask 修正工具：对"选中的标注"做补笔 / 擦除，应用后走 mask 级合成。
+// 需要高清图底图（像素网格明确），由父级 maskEditAvailable 控制可用性。
+const maskTools: Array<{ id: AnnotationTool; title: string; icon: React.ReactNode }> = [
+  { id: "brush", title: "补笔：给选中标注补画遗漏区域（需高清图底图）", icon: <Brush size={18} /> },
+  { id: "erase", title: "擦除：扣掉选中标注的误标区域（需高清图底图）", icon: <Eraser size={18} /> }
+];
 
 function describeSam3(status?: SamStatus): { disabled: boolean; title: string } {
   if (!status) {
@@ -143,11 +124,10 @@ export function AnnotationToolbar({
   canUndo,
   canRedo,
   canDelete,
-  samStatus,
+  maskEditAvailable = false,
   sam3Status,
   hasAlignment,
   calibrating,
-  yoloScanning,
   sam3Scanning,
   onToolChange,
   onUndo,
@@ -156,10 +136,8 @@ export function AnnotationToolbar({
   onResetView,
   onStartCalibration,
   onCancelCalibration,
-  onStartYoloScan,
   onStartSam3
 }: AnnotationToolbarProps) {
-  const sam = describeSam(samStatus);
   const sam3 = describeSam3(sam3Status);
   const [sam3PanelOpen, setSam3PanelOpen] = useState(false);
   const [sam3CustomPrompt, setSam3CustomPrompt] = useState("");
@@ -184,14 +162,21 @@ export function AnnotationToolbar({
           {tool.icon}
         </button>
       ))}
-      <button
-        className={activeTool === "sam" ? "rail-button active" : "rail-button"}
-        disabled={sam.disabled || calibrating}
-        title={sam.title}
-        onClick={() => onToolChange("sam")}
-      >
-        <Wand2 size={18} />
-      </button>
+      {maskTools.map((tool) => (
+        <button
+          className={activeTool === tool.id ? "rail-button active" : "rail-button"}
+          key={tool.id}
+          title={
+            maskEditAvailable
+              ? tool.title
+              : `${tool.title} · 先切到高清图底图并选中一个面状标注`
+          }
+          disabled={calibrating || !maskEditAvailable}
+          onClick={() => onToolChange(tool.id)}
+        >
+          {tool.icon}
+        </button>
+      ))}
       <div className="sam3-launcher">
         <button
           className={`rail-button sam3-button${sam3Scanning || sam3PanelOpen ? " active" : ""}`}
@@ -292,18 +277,6 @@ export function AnnotationToolbar({
           </aside>
         )}
       </div>
-      <button
-        className={`rail-button${yoloScanning ? " active" : ""}`}
-        disabled={calibrating || yoloScanning}
-        title={
-          yoloScanning
-            ? "YOLO 扫描中…"
-            : "YOLO 批量扫描（通用模型，给候选 tab 喂一批 bbox 后用 SAM 二次精修）"
-        }
-        onClick={onStartYoloScan}
-      >
-        <Radar size={18} />
-      </button>
       <div className="rail-divider" aria-hidden />
       <button
         className={`rail-button${calibrating ? " active" : ""}${hasAlignment ? " has-alignment" : ""}`}
@@ -314,7 +287,7 @@ export function AnnotationToolbar({
       </button>
       <button
         className="rail-button"
-        title="重置视角：复位到画像石 fit 整个画面（SAM 识别前建议执行）"
+        title="重置视角：复位到画像石 fit 整个画面（SAM3 识别前建议执行）"
         onClick={onResetView}
         disabled={calibrating}
       >

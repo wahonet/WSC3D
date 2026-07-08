@@ -8,22 +8,24 @@
  * - 维护当前底图来源（3D 模型 / 高清图）与高清图模式下的资源切换（pic 原图 /
  *   生成的正射图 / 拓片 / 法线图等 8 类资源）
  * - 提供 4 点对齐校准的状态机（idle / collect / review / done）
- * - 接管 SAM / YOLO 的入口与 AI 线图叠加图层
- * - 把当前底图资源回传父级（App 层据此决定 YOLO / SAM 应该跑哪个 imageUri）
+ * - AI 线图叠加图层
+ * - 把当前底图资源回传父级（App 层据此决定 SAM3 应该跑哪个 imageUri）
  *
  * 视觉布局：
  * ```
  * .annotation-workspace
  *   ├─ StoneViewer           （3D 模式时可见）
- *   ├─ SourceImageView       （高清图模式时可见，带 pan / zoom）
- *   ├─ AnnotationCanvas      （绝对定位铺满，pointer-events 受工具状态控制）
+ *   ├─ AnnotationCanvas      （绝对定位铺满；高清图模式下自带底图 + pan/zoom）
  *   ├─ source-switch         （右上：3D / 高清）
  *   ├─ resource-switch       （右上：底图资源切换）
  *   ├─ layer-switch          （右上：原图 / +线图）
- *   └─ calibration-hud / sam-prompt-hud / yolo-dialog（按需弹）
+ *   └─ calibration-hud（按需弹）
  * ```
  *
  * 设计要点：
+ * - **P1 漂移修复**：高清图模式下底图与标注层进同一个 Konva Stage transform
+ *   （不再是 SourceImageView + overlay 双组件各管一套变换），从结构上消除
+ *   标注相对底图的漂移
  * - 父级把 `active` 设为 false 时只是 CSS 隐藏，组件仍然 mount，避免 Three.js
  *   场景 / Konva 舞台被销毁重建造成 gizmo 丢状态
  * - 资源切换不进 IIML 持久化，仅是临时视图状态，刷新会回到默认 pic/ 原图
@@ -33,13 +35,28 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { PicBinding, StoneListItem } from "../../api/client";
-import { fetchPicList, getSourceImageUrl, lineartMethodOptions, type LineartMethod } from "../../api/client";
-import { SourceImageView, type CannyOptions, type SourceImageLayer } from "../viewer/SourceImageView";
+import {
+  composeMask,
+  fetchPicList,
+  getLineartUrl,
+  getSourceImageUrl,
+  lineartMethodOptions,
+  uploadAnnotationAssets,
+  type IimlEditOperation,
+  type LineartMethod,
+  type MaskStrokeInput
+} from "../../api/client";
 import { StoneViewer, type ScreenProjection } from "../viewer/StoneViewer";
 import type { ViewCubeView } from "../shared/ViewCube";
 import { formatFaceLabel } from "../shared/pic-face";
-import { AnnotationCanvas, type CalibrationDraftView } from "./AnnotationCanvas";
+import {
+  AnnotationCanvas,
+  type CalibrationDraftView,
+  type CanvasBaseImage,
+  type MaskStrokeDraft
+} from "./AnnotationCanvas";
 import type { UV } from "./geometry";
+import { geometryFromMaskPolygons } from "./merge";
 import { getAlignment, getRelations } from "./store";
 import type {
   AnnotationTool,
@@ -47,14 +64,32 @@ import type {
   IimlAnnotation,
   IimlAnnotationFrame,
   IimlDocument,
-  IimlProcessingRun,
   ProjectionContext
 } from "./types";
-import { YoloScanDialog, type YoloScanOptions } from "./YoloScanDialog";
 
 // 标注底图来源：默认 3D 模型（modelBox UV 坐标），也可切到高清图原图（图自身归一化）。
-// 高清图模式下 SAM 候选与显示天然在同一坐标系下。
+// 高清图模式下 SAM3 候选与显示天然在同一坐标系下。
 export type AnnotationSourceMode = IimlAnnotationFrame;
+
+// 高清图模式可叠加的图像层。"source" 仅显示原图；"canny" 在原图之上叠半透明
+// 线图（同一 Stage transform，像素严格对齐），便于辨识浅浮雕轮廓。
+type SourceImageLayer = "source" | "canny";
+
+type CannyOptions = {
+  // 双阈值 0-255。低阈值越大边越少；高阈值越大主干线越突出。
+  // morph 方法时 low 当 blockSize 用（11~31 推荐，强制奇数）。
+  low: number;
+  high: number;
+  // 线图叠加在原图之上的不透明度 0..1。
+  opacity: number;
+  method?: LineartMethod;
+};
+
+const imageBackgroundColors: Record<"black" | "gray" | "white", string> = {
+  black: "#141312",
+  gray: "#6f6a62",
+  white: "#f2eee8"
+};
 
 type AnnotationWorkspaceProps = {
   // 父级以 CSS 隐藏时传 false，向下传递给 StoneViewer 暂停 Three.js render loop。
@@ -76,17 +111,12 @@ type AnnotationWorkspaceProps = {
   onSourceModeChange: (mode: AnnotationSourceMode) => void;
   // 4 点对齐校准结果保存到 IIML doc.culturalObject.alignment。
   onSaveAlignment: (alignment: IimlAlignment | undefined) => void;
-  // YOLO 扫描 dialog：状态由 App 层持有（与 SAM 候选审定相邻），结果通过回调返回。
-  yoloDialogOpen?: boolean;
-  yoloScanning?: boolean;
-  onYoloSubmit?: (options: YoloScanOptions) => void;
-  onYoloCancel?: () => void;
-  // D3 学术溯源：每次 SAM 调用追加一条 processingRun
-  onProcessingRun?: (run: IimlProcessingRun) => void;
-  // J v0.8.0：活动底图资源变化时通知父级。父级据此让 YOLO 批量扫描 / SAM 精修
-  // 走正确的 imageUri（而不是默认 pic/ 原图），并决定候选标注的 frame /
-  // resourceId 绑定。undefined = 默认 pic/ 原图。
+  // J v0.8.0：活动底图资源变化时通知父级。父级据此让 SAM3 概念分割走正确的
+  // imageUri（而不是默认 pic/ 原图），并决定候选标注的 frame / resourceId 绑定。
+  // undefined = 默认 pic/ 原图。
   onActiveImageResourceChange?: (info: ActiveImageResourceInfo | undefined) => void;
+  // P2：mask 编辑与状态反馈（写入 App 的 status 条）。
+  onStatusMessage?: (status?: string) => void;
 };
 
 export type ActiveImageResourceInfo = {
@@ -144,12 +174,8 @@ export function AnnotationWorkspace({
   onToolChange,
   onSourceModeChange,
   onSaveAlignment,
-  yoloDialogOpen = false,
-  yoloScanning = false,
-  onYoloSubmit,
-  onYoloCancel,
-  onProcessingRun,
-  onActiveImageResourceChange
+  onActiveImageResourceChange,
+  onStatusMessage
 }: AnnotationWorkspaceProps) {
   const [projection, setProjection] = useState<ProjectionContext | undefined>(undefined);
   const [calibration, setCalibration] = useState<CalibrationDraft | undefined>(undefined);
@@ -172,7 +198,7 @@ export function AnnotationWorkspace({
   // I1 v0.8.0 多资源画布切换：高清图模式下选哪张图作为底图。
   // - undefined（默认）= pic/ 原图（走 /ai/source-image/{stoneId}）
   // - resource.id = doc.resources 里的 image 类资源（如生成的正射图 / 拓片）
-  // 切换资源时 SourceImageView 会重置 fit；Canny 线图只能叠加在 pic/ 原图上
+  // 切换资源时画布会重置 fit；Canny 线图只能叠加在 pic/ 原图上
   // （后端 canny 管线只处理 pic/ 原图），所以切到非默认资源时强制关掉线图。
   const [activeImageResourceId, setActiveImageResourceId] = useState<string | undefined>(undefined);
   useEffect(() => {
@@ -499,6 +525,167 @@ export function AnnotationWorkspace({
       }
     : undefined;
 
+  // ---------------- P2 mask 编辑会话 ----------------
+  const [maskStrokes, setMaskStrokes] = useState<MaskStrokeDraft[]>([]);
+  const [maskStrokeWidth, setMaskStrokeWidth] = useState(12);
+  const [maskApplying, setMaskApplying] = useState(false);
+  const isMaskTool = activeTool === "brush" || activeTool === "erase";
+  const selectedAnnotation = useMemo(
+    () => doc?.annotations.find((annotation) => annotation.id === selectedAnnotationId),
+    [doc?.annotations, selectedAnnotationId]
+  );
+  // mask 编辑的前置条件：高清图底图（像素网格明确）+ 选中一个面状标注。
+  const maskEditReady =
+    sourceMode === "image" &&
+    Boolean(selectedAnnotation) &&
+    (selectedAnnotation?.target.type === "Polygon" ||
+      selectedAnnotation?.target.type === "MultiPolygon" ||
+      selectedAnnotation?.target.type === "BBox");
+
+  // 会话失效：离开画笔工具 / 换标注 / 换石头 / 换底图 → 清空未应用笔画
+  useEffect(() => {
+    if (!isMaskTool) {
+      setMaskStrokes([]);
+    }
+  }, [isMaskTool]);
+  useEffect(() => {
+    setMaskStrokes([]);
+  }, [selectedAnnotationId, stone.id, activeImageUrl]);
+
+  const handleMaskStroke = useCallback((stroke: MaskStrokeDraft) => {
+    setMaskStrokes((prev) => [...prev, stroke]);
+  }, []);
+
+  const handleMaskUndoStroke = useCallback(() => {
+    setMaskStrokes((prev) => prev.slice(0, -1));
+  }, []);
+
+  const handleMaskCancel = useCallback(() => {
+    setMaskStrokes([]);
+    onToolChange("select");
+  }, [onToolChange]);
+
+  const handleMaskApply = useCallback(async () => {
+    if (!selectedAnnotation || !activeImageUrl || maskStrokes.length === 0 || maskApplying) {
+      return;
+    }
+    setMaskApplying(true);
+    onStatusMessage?.("mask 合成中（栅格化 + 清理 + 重新矢量化）…");
+    try {
+      const strokes: MaskStrokeInput[] = maskStrokes.map((stroke) => ({
+        mode: stroke.mode,
+        pointsUv: stroke.pointsUv,
+        widthPx: stroke.widthPx
+      }));
+      const response = await composeMask({
+        imageUri: activeImageUrl,
+        baseGeometries: [selectedAnnotation.target],
+        strokes,
+        returnMask: true,
+        returnCutout: true
+      });
+      if (!response.ok || !response.polygons || response.polygons.length === 0) {
+        onStatusMessage?.(`mask 合成失败：${response.error ?? "空结果"}（擦除笔是否把区域全部擦掉了？）`);
+        return;
+      }
+      const geometry = geometryFromMaskPolygons(response.polygons);
+      if (!geometry) {
+        onStatusMessage?.("mask 合成失败：矢量化结果为空");
+        return;
+      }
+
+      // 资产落盘（失败不阻塞几何更新，appearance 保持旧值）
+      let appearance = selectedAnnotation.appearance;
+      try {
+        const uris = await uploadAnnotationAssets(stone.id, selectedAnnotation.id, {
+          maskPngBase64: response.maskPngBase64,
+          cutoutPngBase64: response.cutoutPngBase64,
+          thumbnailPngBase64: response.thumbnailPngBase64
+        });
+        appearance = {
+          ...selectedAnnotation.appearance,
+          ...uris,
+          imageSizePx: response.imageSizePx
+            ? { width: response.imageSizePx[0], height: response.imageSizePx[1] }
+            : selectedAnnotation.appearance?.imageSizePx,
+          areaPx: response.areaPx
+        };
+      } catch (assetError) {
+        console.warn("annotation asset upload failed:", assetError);
+      }
+
+      const additiveCount = maskStrokes.filter((stroke) => stroke.mode === "add").length;
+      const subtractiveCount = maskStrokes.length - additiveCount;
+      const editOperation: IimlEditOperation = {
+        type: "mask-compose",
+        at: new Date().toISOString(),
+        strokeCount: maskStrokes.length,
+        strokeWidthPx: maskStrokeWidth,
+        params: { additive: additiveCount, subtractive: subtractiveCount }
+      };
+      onUpdate(selectedAnnotation.id, {
+        target: geometry,
+        appearance,
+        editOperations: [...(selectedAnnotation.editOperations ?? []), editOperation],
+        // mask 修正过的几何至少 silver；专家已定 gold 的不降级
+        annotationQuality: selectedAnnotation.annotationQuality === "gold" ? "gold" : "silver"
+      });
+      setMaskStrokes([]);
+      onToolChange("select");
+      onStatusMessage?.(
+        `mask 修正完成：补 ${additiveCount} 笔 / 擦 ${subtractiveCount} 笔，面积 ${response.areaPx ?? "?"} px²${appearance?.cutoutUri ? "，已生成 mask + cutout" : ""}`
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      onStatusMessage?.(`mask 合成出错：${message}（AI 服务是否在运行？）`);
+    } finally {
+      setMaskApplying(false);
+    }
+  }, [
+    activeImageUrl,
+    maskApplying,
+    maskStrokeWidth,
+    maskStrokes,
+    onStatusMessage,
+    onToolChange,
+    onUpdate,
+    selectedAnnotation,
+    stone.id
+  ]);
+
+  // P1：高清图模式的底图配置。底图与标注在 AnnotationCanvas 内共享同一个
+  // Stage transform，平移缩放不会再造成标注漂移。线图叠加层走同一 transform。
+  const canvasBaseImage = useMemo<CanvasBaseImage | undefined>(() => {
+    if (sourceMode !== "image" || !activeImageUrl) {
+      return undefined;
+    }
+    const overlayUrl =
+      imageLayer === "canny" && !activeImageResourceId && !activePicFace
+        ? getLineartUrl(stone.id, {
+            method: cannyOptions.method ?? "canny-plus",
+            low: cannyOptions.low,
+            high: cannyOptions.high
+          })
+        : undefined;
+    return {
+      url: activeImageUrl,
+      overlayUrl,
+      overlayOpacity: cannyOptions.opacity,
+      background: imageBackgroundColors[background],
+      fitToken
+    };
+  }, [
+    sourceMode,
+    activeImageUrl,
+    imageLayer,
+    activeImageResourceId,
+    activePicFace,
+    stone.id,
+    cannyOptions,
+    background,
+    fitToken
+  ]);
+
   return (
     <div className="annotation-workspace">
       {sourceMode === "model" ? (
@@ -517,36 +704,26 @@ export function AnnotationWorkspace({
           onMeasureChange={() => undefined}
           onScreenProjectionChange={handleProjectionChange}
         />
-      ) : (
-        <SourceImageView
-          active={active}
-          background={background}
-          cannyOptions={cannyOptions}
-          fitToken={fitToken}
-          imageUrl={activeImageUrl}
-          layer={imageLayer}
-          stoneId={stone.id}
-          onScreenProjectionChange={handleProjectionChange}
-        />
-      )}
+      ) : null}
       <AnnotationCanvas
         activeTool={activeTool}
         activeFaceResourceId={sourceMode === "image" && activePicFace ? resourceId : undefined}
-        activeImageUri={activeImageUrl}
         alignment={alignment}
         annotations={doc?.annotations ?? []}
+        baseImage={canvasBaseImage}
         calibrationDraft={calibrationDraftView}
         draftAnnotationId={draftAnnotationId}
-        projection={projection}
+        maskStrokes={isMaskTool ? maskStrokes : []}
+        maskStrokeWidthPx={maskStrokeWidth}
+        projection={sourceMode === "model" ? projection : undefined}
         relations={relations}
         resourceId={resourceId}
-        stoneId={stone.id}
         selectedAnnotationId={selectedAnnotationId}
         sourceMode={effectiveSourceMode}
         onCalibrationPoint={handleAddCalibrationPoint}
         onCreate={onCreate}
         onDelete={onDelete}
-        onProcessingRun={onProcessingRun}
+        onMaskStroke={isMaskTool && maskEditReady ? handleMaskStroke : undefined}
         onSelect={onSelect}
         onToolChange={onToolChange}
         onUpdate={onUpdate}
@@ -731,12 +908,128 @@ export function AnnotationWorkspace({
           onSourceModeChange={onSourceModeChange}
         />
       ) : null}
-      <YoloScanDialog
-        open={yoloDialogOpen}
-        scanning={yoloScanning}
-        onSubmit={(options) => onYoloSubmit?.(options)}
-        onCancel={() => onYoloCancel?.()}
-      />
+      {isMaskTool ? (
+        <MaskEditHud
+          mode={activeTool === "erase" ? "erase" : "add"}
+          ready={maskEditReady}
+          sourceMode={sourceMode}
+          hasSelection={Boolean(selectedAnnotation)}
+          strokeCount={maskStrokes.length}
+          strokeWidth={maskStrokeWidth}
+          applying={maskApplying}
+          onStrokeWidthChange={setMaskStrokeWidth}
+          onUndoStroke={handleMaskUndoStroke}
+          onClearStrokes={() => setMaskStrokes([])}
+          onApply={() => void handleMaskApply()}
+          onCancel={handleMaskCancel}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * P2 mask 编辑浮窗：底部居中，与 calibration-hud 同视觉。
+ * 显示当前模式（补上 / 擦除）、笔宽滑杆、笔画计数与应用 / 撤销 / 取消操作。
+ */
+function MaskEditHud({
+  mode,
+  ready,
+  sourceMode,
+  hasSelection,
+  strokeCount,
+  strokeWidth,
+  applying,
+  onStrokeWidthChange,
+  onUndoStroke,
+  onClearStrokes,
+  onApply,
+  onCancel
+}: {
+  mode: "add" | "erase";
+  ready: boolean;
+  sourceMode: AnnotationSourceMode;
+  hasSelection: boolean;
+  strokeCount: number;
+  strokeWidth: number;
+  applying: boolean;
+  onStrokeWidthChange: (width: number) => void;
+  onUndoStroke: () => void;
+  onClearStrokes: () => void;
+  onApply: () => void;
+  onCancel: () => void;
+}) {
+  let prompt: React.ReactNode;
+  if (sourceMode !== "image") {
+    prompt = (
+      <span>
+        mask 修正需要<strong>高清图底图</strong>——请先在右上角切换到"高清图"
+      </span>
+    );
+  } else if (!hasSelection) {
+    prompt = (
+      <span>
+        先<strong>选中一个标注</strong>（SAM3 候选或手工区域），再用笔画修正它的边界
+      </span>
+    );
+  } else if (!ready) {
+    prompt = <span>选中的标注不是面状几何（点 / 折线暂不支持 mask 修正）</span>;
+  } else if (applying) {
+    prompt = <span>正在合成 mask（栅格化 → 形态学清理 → 重新矢量化）…</span>;
+  } else if (strokeCount === 0) {
+    prompt = (
+      <span>
+        {mode === "erase" ? "按住左键涂抹要扣掉的区域" : "按住左键补画遗漏的区域"}
+        <span className="muted-text"> · 笔画有宽度，松开即记一笔</span>
+      </span>
+    );
+  } else {
+    prompt = (
+      <span>
+        已画 <strong>{strokeCount}</strong> 笔 · 点"应用"合成新边界
+        <span className="muted-text"> · 会自动清小碎片 / 填小洞 / 平滑</span>
+      </span>
+    );
+  }
+
+  return (
+    <div className="calibration-hud mask-edit-hud" role="dialog" aria-label="mask 修正">
+      <div className="calibration-hud-row">
+        <span className={`calibration-hud-step${mode === "erase" ? " mask-hud-erase" : " mask-hud-add"}`}>
+          {mode === "erase" ? "擦除" : "补上"}
+        </span>
+        <div className="calibration-hud-prompt">{prompt}</div>
+      </div>
+      <div className="calibration-hud-actions mask-edit-hud-actions">
+        <label className="mask-width-field" title="笔宽（底图像素）">
+          <span>笔宽 {strokeWidth}px</span>
+          <input
+            type="range"
+            min={2}
+            max={80}
+            step={2}
+            value={strokeWidth}
+            onChange={(event) => onStrokeWidthChange(Number(event.target.value))}
+          />
+        </label>
+        <button type="button" className="ghost-cta" onClick={onUndoStroke} disabled={applying || strokeCount === 0}>
+          撤销一笔
+        </button>
+        <button type="button" className="ghost-cta" onClick={onClearStrokes} disabled={applying || strokeCount === 0}>
+          清空
+        </button>
+        <button type="button" className="ghost-cta" onClick={onCancel} disabled={applying}>
+          取消
+        </button>
+        <button
+          type="button"
+          className="primary-cta"
+          onClick={onApply}
+          disabled={applying || !ready || strokeCount === 0}
+        >
+          {applying ? "合成中…" : `应用（${strokeCount} 笔）`}
+        </button>
+      </div>
     </div>
   );
 }
@@ -833,8 +1126,10 @@ function toolHint(tool: AnnotationTool) {
       return "单击图像放置一个点标注";
     case "pen":
       return "依次点击添加节点，双击或回车闭合多边形";
-    case "sam":
-      return "左键正点 / 右键负点 / Shift+左键拖动出框 → Enter 提交，AI 一次返回精修候选";
+    case "brush":
+      return "选中标注后，按住左键补画遗漏区域；应用后合成新边界";
+    case "erase":
+      return "选中标注后，按住左键涂抹误标区域；应用后合成新边界";
     case "calibrate":
       return "在 3D 模型 / 高清图各点 4 对对应点完成对齐";
     case "select":

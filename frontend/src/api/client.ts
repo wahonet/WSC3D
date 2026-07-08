@@ -234,11 +234,55 @@ export type IimlSource =
   | { kind: "resource"; resourceId: string; note?: string }
   | { kind: "other"; text: string };
 
+// P4：空间锚点。后端保存时自动派生——canonical frame（正射基准 / 本地图像）、
+// 归一化 bbox / 质心、栅格尺寸与物理位置（cm）。前端只读展示，不手工编辑。
+export type IimlAnnotationAnchor = {
+  canonicalFrame: "orthophoto" | "image-local";
+  bboxUv: [number, number, number, number];
+  centroidUv: [number, number];
+  imageSizePx?: { width: number; height: number };
+  physical?: {
+    unit: "cm";
+    origin: "orthophoto-top-left";
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    pxPerCmX?: number;
+    pxPerCmY?: number;
+  };
+};
+
+// P2：标注外观资产。mask 与底图整图对齐（跨分辨率可迁移），cutout / thumbnail
+// 裁到 bbox。由 /ai/mask/compose 生成、backend 落盘后回填 URI。
+export type IimlAnnotationAppearance = {
+  maskUri?: string;
+  cutoutUri?: string;
+  thumbnailUri?: string;
+  // 生成 mask 时的栅格尺寸；跨分辨率迁移时用于换算
+  imageSizePx?: { width: number; height: number };
+  areaPx?: number;
+};
+
+// P2：mask 级编辑操作记录（学术溯源：这条几何是怎么被修出来的）。
+export type IimlEditOperation = {
+  type: "mask-compose" | "additive-brush" | "subtractive-brush" | "vector-union" | string;
+  at?: string;
+  strokeCount?: number;
+  strokeWidthPx?: number;
+  params?: Record<string, unknown>;
+};
+
 export type IimlAnnotation = {
   id: string;
   type?: "Annotation";
   resourceId: string;
   target: IimlGeometry;
+  // P4：后端保存时自动派生的空间锚点
+  anchor?: IimlAnnotationAnchor;
+  // P2：mask 级编辑产物与操作历史
+  appearance?: IimlAnnotationAppearance;
+  editOperations?: IimlEditOperation[];
   // 标注几何坐标所在的参考系。缺省视作 "model"，与历史数据兼容。
   frame?: IimlAnnotationFrame;
   structuralLevel: IimlStructuralLevel;
@@ -1028,6 +1072,90 @@ export async function runYoloDetection(payload: {
     throw new Error(`YOLO 检测失败：${response.status}`);
   }
   return response.json();
+}
+
+// ----- P2：mask 级合成（补笔 / 擦除 / 合并 / 清理 / 重新矢量化） -----
+
+export type MaskStrokeInput = {
+  mode: "add" | "erase";
+  // 归一化 UV 折线（与标注同坐标系）
+  pointsUv: Array<[number, number]>;
+  // 笔宽（底图像素）
+  widthPx: number;
+};
+
+export type MaskCleanupInput = {
+  closePx?: number;
+  openPx?: number;
+  minIslandPx?: number;
+  fillHolePx?: number;
+  simplifyTolerancePx?: number;
+};
+
+export type MaskComposeResponse = {
+  ok: boolean;
+  error?: string;
+  model?: string;
+  // ring[0] 外环，其余是洞；坐标是 [u, v, 0]
+  polygons?: Array<{ rings: IimlPoint[][] }>;
+  areaPx?: number;
+  bboxUv?: [number, number, number, number];
+  centroidUv?: [number, number];
+  imageSizePx?: [number, number];
+  maskPngBase64?: string;
+  cutoutPngBase64?: string;
+  thumbnailPngBase64?: string;
+  cutoutBboxPx?: [number, number, number, number];
+};
+
+export async function composeMask(payload: {
+  stoneId?: string;
+  imageUri?: string;
+  imageSize?: [number, number];
+  baseGeometries: IimlGeometry[];
+  strokes?: MaskStrokeInput[];
+  cleanup?: MaskCleanupInput;
+  returnMask?: boolean;
+  returnCutout?: boolean;
+}): Promise<MaskComposeResponse> {
+  const response = await fetch("/ai/mask/compose", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+  if (!response.ok) {
+    const text = await response.text().catch(() => "");
+    throw new Error(`mask 合成失败：${response.status}${text ? `：${text}` : ""}`);
+  }
+  return response.json();
+}
+
+// P2：把 mask / cutout / thumbnail base64 交给后端落盘，返回可引用 URI。
+export type AnnotationAssetUris = {
+  maskUri?: string;
+  cutoutUri?: string;
+  thumbnailUri?: string;
+};
+
+export async function uploadAnnotationAssets(
+  stoneId: string,
+  annotationId: string,
+  assets: { maskPngBase64?: string; cutoutPngBase64?: string; thumbnailPngBase64?: string }
+): Promise<AnnotationAssetUris> {
+  const response = await fetch(
+    `/api/stones/${encodeURIComponent(stoneId)}/annotations/${encodeURIComponent(annotationId)}/assets`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(assets)
+    }
+  );
+  if (!response.ok) {
+    const text = await response.text().catch(() => "");
+    throw new Error(`标注资产保存失败：${response.status}${text ? `：${text}` : ""}`);
+  }
+  const data = (await response.json()) as { uris?: AnnotationAssetUris };
+  return data.uris ?? {};
 }
 
 export async function runCannyLine(payload: { imageBase64: string; low: number; high: number }): Promise<{ imageBase64: string; resourceId: string; model: string }> {

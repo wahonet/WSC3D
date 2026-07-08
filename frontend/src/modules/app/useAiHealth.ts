@@ -14,7 +14,9 @@ export function useAiHealth(): AiHealthResponse | undefined {
         const health = await fetchAiHealth();
         if (!alive) return;
         setHealth(health);
-        if (!health.sam || health.sam.ready || health.sam.status === "error") return;
+        // P0 收敛：主流程只关心 SAM3。ready / error 是终态，停止轮询；
+        // pending（懒加载未触发）/ loading（加载中）继续低频轮询保持 UI 同步。
+        if (health.sam3?.ready || health.sam3?.status === "error") return;
       } catch {
         if (!alive) return;
         setHealth(undefined);

@@ -1,29 +1,37 @@
 /**
  * 标注画布 `AnnotationCanvas`
  *
- * 标注模块的核心交互层，承载所有几何标注的绘制、选取、编辑与 AI 候选交互。
+ * 标注模块的核心交互层，承载所有几何标注的绘制、选取与编辑。
  *
  * 主要职责：
  * - 用 Konva 画 Bounding Box / Polygon / Ellipse / Point / LineString 五种几何
- * - 处理工具栏当前工具（select / rect / ellipse / pen / point / sam / calibrate）
+ * - 处理工具栏当前工具（select / rect / ellipse / pen / point / calibrate）
  *   下的鼠标交互，把屏幕坐标转换为对应坐标系的 UV
  * - 跨 frame（model ↔ image）的标注用 4 点单应性矩阵投影显示，未校准时给出
  *   温和的 hint
- * - SAM 多 prompt 浮窗：左键正点、右键负点、Shift+左键拖框，回车提交一次推理
  * - 4 点对齐校准的"乒乓采集 + review"流程
  *
+ * 坐标架构（P1 修复标注漂移后）：
+ * - **高清图模式（internal viewport）**：底图 `KonvaImage` 与标注层放进同一个
+ *   Stage transform（x / y / scale）。标注顶点以"图像像素"为局部坐标绘制，
+ *   底图怎么平移缩放，标注都跟着同一个矩阵走——漂移在数学上不可能发生。
+ *   pan / zoom 由本组件直接处理（滚轮缩放围绕光标、中/右键拖动平移）。
+ * - **3D 模型模式（external viewport）**：Three.js canvas 无法进 Konva，维持
+ *   "投影四角 + 屏幕坐标"的旧方案；滚轮 / 平移事件转发给底层 OrbitControls。
+ *
  * 设计要点：
- * - 画布始终绝对定位铺满父容器；通过 `pointer-events` 与 sourceMode 双重控制，
- *   不抢占下层 3D / 高清图视图的相机操作
- * - 坐标系切换：父级 `AnnotationWorkspace` 切换 sourceMode 时，画布按 frame
- *   重新投影所有标注；与父级 `projection` 字段共同决定屏幕 ↔ UV 转换
- * - 跨 frame 标注用稀疏虚线 + 半透明显示（"投影态"），仅可点选不可拖拽
+ * - AI 候选生成唯一入口是工具栏的 SAM3 概念分割（App 层处理），画布只负责
+ *   人工几何工具与结果展示
+ * - 画布始终绝对定位铺满父容器；通过 `pointer-events` 与 sourceMode 双重控制
+ * - 内部视口下所有描边 `strokeScaleEnabled=false`、控制点尺寸按 1/scale 反缩，
+ *   保证任意缩放级别下线宽与手柄的屏幕尺寸恒定
  */
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Circle, Group, Layer, Line, Rect, Stage, Text } from "react-konva";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Circle, Group, Image as KonvaImage, Layer, Line, Rect, Shape, Stage, Text } from "react-konva";
 import type { KonvaEventObject } from "konva/lib/Node";
 import type Konva from "konva";
+import type { Context as KonvaContext } from "konva/lib/Context";
 import {
   bboxCornersOnScreen,
   bboxFromUV,
@@ -43,11 +51,6 @@ import {
   type UV
 } from "./geometry";
 import { applyHomography, buildAlignmentMatrices, solveHomography, transformUv, type AlignmentMatrices } from "./homography";
-import {
-  requestSamCandidate,
-  requestSamCandidateWithSource,
-  type SamPromptDraft
-} from "./sam";
 import { annotationPalette } from "./store";
 import type {
   AnnotationTool,
@@ -55,7 +58,6 @@ import type {
   IimlAnnotation,
   IimlAnnotationFrame,
   IimlGeometry,
-  IimlProcessingRun,
   IimlRelation,
   ProjectionContext
 } from "./types";
@@ -67,11 +69,39 @@ export type CalibrationDraftView = {
   phase: "collect" | "review";
 };
 
+// P1：高清图模式的底图配置。传了就启用"内部视口"——底图与标注同 Stage。
+export type CanvasBaseImage = {
+  url: string;
+  // 线图叠加层（半透明白线）；与底图共享同一 transform，天然像素对齐。
+  overlayUrl?: string;
+  overlayOpacity?: number;
+  // 视口背景色（与全局背景切换联动）
+  background?: string;
+  // 父级递增触发 fit 到容器（工具栏"重置视角"）
+  fitToken?: number;
+};
+
+// P2：mask 编辑笔画（画布视图态）。UV 折线 + 底图像素笔宽。
+export type MaskStrokeDraft = {
+  mode: "add" | "erase";
+  pointsUv: Array<[number, number]>;
+  widthPx: number;
+};
+
+// 内部视口变换：offset 是 Stage 平移（CSS px），scale 应用于图像像素坐标系。
+type ImageViewport = {
+  scale: number;
+  tx: number;
+  ty: number;
+};
+
+// 用户手动缩放的范围（相对 fit 比例）与单次滚轮步长；与旧 SourceImageView 一致。
+const minZoomMultiplier = 0.5;
+const maxZoomMultiplier = 30;
+const wheelZoomStep = 1.18;
+
 type AnnotationCanvasProps = {
   resourceId: string;
-  // 当前画像石 id；SAM 高清图路径用它去 pic/ 找原图。从 resourceId.split(":") 反推
-  // 在自定义 resource id（如 `resource-ortho-front-xxx`）下会失效，所以显式传。
-  stoneId: string;
   annotations: IimlAnnotation[];
   // B1 引入：显式传 doc.relations，让画布在选中标注时画关联连线。
   // 缺省 [] 等同于无关系，不破坏向后兼容。
@@ -79,12 +109,12 @@ type AnnotationCanvasProps = {
   selectedAnnotationId?: string;
   draftAnnotationId?: string;
   activeTool: AnnotationTool;
+  // 3D 模型模式（external viewport）下的投影四角；高清图模式传 undefined。
   projection?: ProjectionContext;
   // 当前底图坐标系：3D 模型 modelBox UV 或高清图自身 UV。
   sourceMode: IimlAnnotationFrame;
-  // v0.8.0 J：当前底图对应的资源 URI（正射图 / 拓片 / 法线图等）。传了则 SAM
-  // 调用会用这个 URI 作为输入图像，而不是 stoneId → pic/ 原图。
-  activeImageUri?: string;
+  // P1：高清图底图。传了就启用内部视口（底图与标注同 Stage transform）。
+  baseImage?: CanvasBaseImage;
   // 当前图片工作面对应的资源 id。A 面为空时不筛；B/C 面用于让图片模式只显示同面标注。
   activeFaceResourceId?: string;
   // 可选：modelUv ↔ imageUv 的 4 点单应性标定，用于跨 frame 显示。
@@ -98,8 +128,10 @@ type AnnotationCanvasProps = {
   onToolChange: (tool: AnnotationTool) => void;
   // 标定采点回调；UV 已是当前 sourceMode 坐标系下的归一化点。
   onCalibrationPoint?: (uv: UV) => void;
-  // D3 学术溯源：每次 SAM 调用后追加一条 processingRun（成功 / 失败都报）
-  onProcessingRun?: (run: IimlProcessingRun) => void;
+  // P2 mask 编辑：已提交的笔画（用于回显）+ 当前笔宽 + 笔画完成回调。
+  maskStrokes?: MaskStrokeDraft[];
+  maskStrokeWidthPx?: number;
+  onMaskStroke?: (stroke: MaskStrokeDraft) => void;
 };
 
 // 视图态：annotation 自身（保留原 frame）+ 当前画布要渲染的 geometry +
@@ -149,39 +181,25 @@ function hexToRgba(hex: string, alpha: number): string {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
-// 找到同一个 .annotation-workspace 里的"底图交互目标"。
-// - 3D 模型模式：Three.js 的 canvas，事件交给 OrbitControls 处理 pan/zoom
-// - 高清图模式：.source-image-stage 容器，事件交给 SourceImageView 自带的 pan/zoom 处理
-// 两者对外行为一致（滚轮缩放、中键/右键 pan），AnnotationCanvas 不需要区分。
+// 3D 模型模式下的"底图交互目标"：Three.js 的 canvas，事件交给 OrbitControls
+// 处理 pan/zoom。高清图模式（内部视口）不再需要事件转发。
 function findViewportTarget(host: HTMLElement | null): HTMLElement | null {
   if (!host) return null;
   const workspace = host.closest(".annotation-workspace");
   if (!workspace) return null;
-  const threeCanvas = workspace.querySelector(".three-stage canvas") as HTMLCanvasElement | null;
-  if (threeCanvas) return threeCanvas;
-  const sourceStage = workspace.querySelector(".source-image-stage") as HTMLElement | null;
-  return sourceStage;
-}
-
-// SAM 截图回退只在 3D 模型模式下走得通（要用 canvas.toDataURL 取图），
-// 单独一个 helper 避免与通用 viewport 转发目标混淆。
-function findStoneCanvas(host: HTMLElement | null): HTMLCanvasElement | null {
-  if (!host) return null;
-  const workspace = host.closest(".annotation-workspace");
-  return (workspace?.querySelector(".three-stage canvas") as HTMLCanvasElement | null) ?? null;
+  return (workspace.querySelector(".three-stage canvas") as HTMLCanvasElement | null) ?? null;
 }
 
 export function AnnotationCanvas({
   resourceId,
-  stoneId,
   annotations,
   relations = [],
   selectedAnnotationId,
   draftAnnotationId,
   activeTool,
-  projection,
+  projection: externalProjection,
   sourceMode,
-  activeImageUri,
+  baseImage,
   activeFaceResourceId,
   alignment,
   calibrationDraft,
@@ -191,43 +209,215 @@ export function AnnotationCanvas({
   onSelect,
   onToolChange,
   onCalibrationPoint,
-  onProcessingRun
+  maskStrokes = [],
+  maskStrokeWidthPx = 12,
+  onMaskStroke
 }: AnnotationCanvasProps) {
   const stageRef = useRef<Konva.Stage | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [draftRect, setDraftRect] = useState<DraftRect>(undefined);
   const [penPoints, setPenPoints] = useState<UV[]>([]);
-  // SAM 请求期间禁掉画布点击并提示 wait 光标，避免重复点出多个候选。
-  const [isSamPending, setIsSamPending] = useState(false);
-  // SAM 多 prompt 工作流：用户左键加正点、右键加负点、Shift+左键拖动 box，
-  // Enter 提交、Esc 清空。draft 是单一来源，hud 与画布 overlay 都基于它渲染。
-  const [samPromptDraft, setSamPromptDraft] = useState<SamPromptDraft>({ points: [] });
-  // box 拖动期间的"实时框"：mousedown 记 anchor，mousemove 跟着鼠标变 endUv，
-  // mouseup 时距离够大才落到 samPromptDraft.box，否则视为取消（防误触）。
-  const [samBoxLive, setSamBoxLive] = useState<{ start: UV; end: UV } | undefined>(undefined);
+  // P2：正在绘制中的笔画（UV 折线）；mouseup 时通过 onMaskStroke 提交给父级。
+  const [liveStroke, setLiveStroke] = useState<UV[] | undefined>(undefined);
   const draggingRef = useRef<DraggingState>(undefined);
+
+  // ---------------- P1 内部视口（高清图模式） ----------------
+  const isInternalViewport = Boolean(baseImage);
+  const internalRef = useRef(isInternalViewport);
+  useEffect(() => {
+    internalRef.current = isInternalViewport;
+  }, [isInternalViewport]);
+
+  const [containerSize, setContainerSize] = useState<{ width: number; height: number } | undefined>(undefined);
+  const [imageEl, setImageEl] = useState<HTMLImageElement | undefined>(undefined);
+  const [imageStatus, setImageStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
+  const [overlayEl, setOverlayEl] = useState<HTMLImageElement | undefined>(undefined);
+  const [viewport, setViewport] = useState<ImageViewport | undefined>(undefined);
+  const viewportRef = useRef<ImageViewport | undefined>(undefined);
+  const fitScaleRef = useRef(1);
+
+  const applyViewport = useCallback((next: ImageViewport) => {
+    viewportRef.current = next;
+    setViewport(next);
+  }, []);
+
+  // 底图加载：url 变化（切画像石 / 切资源 / 切面）重置视口等待重新 fit。
+  useEffect(() => {
+    if (!baseImage?.url) {
+      setImageEl(undefined);
+      setImageStatus("idle");
+      viewportRef.current = undefined;
+      setViewport(undefined);
+      return;
+    }
+    let cancelled = false;
+    setImageStatus("loading");
+    setImageEl(undefined);
+    viewportRef.current = undefined;
+    setViewport(undefined);
+    const img = new window.Image();
+    img.onload = () => {
+      if (cancelled) return;
+      setImageEl(img);
+      setImageStatus("ready");
+    };
+    img.onerror = () => {
+      if (cancelled) return;
+      setImageStatus("error");
+    };
+    img.src = baseImage.url;
+    return () => {
+      cancelled = true;
+    };
+  }, [baseImage?.url]);
+
+  // 线图叠加层加载：独立于底图，失败静默（叠加层是可选视觉辅助）。
+  useEffect(() => {
+    if (!baseImage?.overlayUrl) {
+      setOverlayEl(undefined);
+      return;
+    }
+    let cancelled = false;
+    const img = new window.Image();
+    img.onload = () => {
+      if (!cancelled) setOverlayEl(img);
+    };
+    img.onerror = () => {
+      if (!cancelled) setOverlayEl(undefined);
+    };
+    img.src = baseImage.overlayUrl;
+    return () => {
+      cancelled = true;
+    };
+  }, [baseImage?.overlayUrl]);
+
+  // 容器尺寸跟踪：Stage 元素始终等于容器大小；resize 不重置用户视口。
+  useEffect(() => {
+    const host = containerRef.current;
+    if (!host) {
+      return;
+    }
+    const update = () => {
+      const width = host.clientWidth;
+      const height = host.clientHeight;
+      if (width > 0 && height > 0) {
+        setContainerSize((prev) => (prev && prev.width === width && prev.height === height ? prev : { width, height }));
+      }
+    };
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(host);
+    return () => observer.disconnect();
+  }, []);
+
+  const fitViewport = useCallback(() => {
+    const img = imageEl;
+    const size = containerSize;
+    if (!img || !size || !img.naturalWidth || !img.naturalHeight) {
+      return;
+    }
+    const fitScale = Math.min(size.width / img.naturalWidth, size.height / img.naturalHeight);
+    if (!Number.isFinite(fitScale) || fitScale <= 0) {
+      return;
+    }
+    fitScaleRef.current = fitScale;
+    applyViewport({
+      scale: fitScale,
+      tx: (size.width - img.naturalWidth * fitScale) / 2,
+      ty: (size.height - img.naturalHeight * fitScale) / 2
+    });
+  }, [applyViewport, containerSize, imageEl]);
+  const fitViewportRef = useRef(fitViewport);
+  useEffect(() => {
+    fitViewportRef.current = fitViewport;
+  }, [fitViewport]);
+
+  // 图片就绪且尚无视口（首次加载 / 切资源）→ 自动 fit 居中。
+  useEffect(() => {
+    if (isInternalViewport && imageEl && containerSize && !viewport) {
+      fitViewport();
+    }
+  }, [containerSize, fitViewport, imageEl, isInternalViewport, viewport]);
+
+  // 父级 fitToken 递增（工具栏"重置视角"）→ 重新 fit。仅依赖 token，避免
+  // resize / 换图触发意外重置。
+  useEffect(() => {
+    if (!isInternalViewport || baseImage?.fitToken === undefined) {
+      return;
+    }
+    fitViewportRef.current();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [baseImage?.fitToken]);
+
+  // 内部视口的投影上下文是"常量图像矩形"：UV ↔ 图像像素的换算不随视口变化，
+  // 平移缩放全部交给 Stage transform。这正是漂移不可能发生的原因。
+  const internalProjection = useMemo<ProjectionContext | undefined>(() => {
+    if (!isInternalViewport || !imageEl || !imageEl.naturalWidth || !imageEl.naturalHeight) {
+      return undefined;
+    }
+    const width = imageEl.naturalWidth;
+    const height = imageEl.naturalHeight;
+    return {
+      canvasWidth: width,
+      canvasHeight: height,
+      // 顺序与 StoneViewer 保持一致：[左下, 右下, 右上, 左上]
+      corners: [
+        { x: 0, y: height },
+        { x: width, y: height },
+        { x: width, y: 0 },
+        { x: 0, y: 0 }
+      ]
+    };
+  }, [imageEl, isInternalViewport]);
+
+  // 下游所有几何换算走同一个 projection：内部视口用常量图像矩形，
+  // 3D 模型模式用外部投影四角。
+  const projection = isInternalViewport ? internalProjection : externalProjection;
+
+  // 当前"图像像素 → 屏幕像素"的比例：内部视口取 Stage scale；外部恒 1。
+  // 用于把命中阈值、控制点尺寸、描边宽度换算成恒定的屏幕尺寸。
+  const viewScale = isInternalViewport ? viewport?.scale ?? 1 : 1;
 
   useEffect(() => {
     setDraftRect(undefined);
     setPenPoints([]);
-    // 切换工具或 projection 失效时清空 SAM 采点态，避免上下文错乱
-    setSamPromptDraft({ points: [] });
-    setSamBoxLive(undefined);
+    setLiveStroke(undefined);
   }, [activeTool, projection?.canvasWidth, projection?.canvasHeight]);
 
-  // 滚轮转发：标注层在最上面，用户滚轮时要把事件交给下面的底图（3D canvas 或高清图容器）
-  // 自己处理缩放。preventDefault 避免页面跟着滚动。
+  // 滚轮：内部视口自己缩放（围绕光标）；3D 模型模式转发给底层 OrbitControls。
   useEffect(() => {
     const host = containerRef.current;
     if (!host) {
       return;
     }
     const forwardWheel = (event: WheelEvent) => {
+      event.preventDefault();
+      if (internalRef.current) {
+        const current = viewportRef.current;
+        if (!current) {
+          return;
+        }
+        const rect = host.getBoundingClientRect();
+        const cursorX = event.clientX - rect.left;
+        const cursorY = event.clientY - rect.top;
+        const factor = event.deltaY < 0 ? wheelZoomStep : 1 / wheelZoomStep;
+        const fitScale = fitScaleRef.current || current.scale;
+        const minScale = fitScale * minZoomMultiplier;
+        const maxScale = fitScale * maxZoomMultiplier;
+        const nextScale = Math.min(maxScale, Math.max(minScale, current.scale * factor));
+        const ratio = nextScale / current.scale;
+        viewportRef.current = {
+          scale: nextScale,
+          tx: cursorX - (cursorX - current.tx) * ratio,
+          ty: cursorY - (cursorY - current.ty) * ratio
+        };
+        setViewport(viewportRef.current);
+        return;
+      }
       const target = findViewportTarget(host);
       if (!target) {
         return;
       }
-      event.preventDefault();
       target.dispatchEvent(
         new WheelEvent("wheel", {
           bubbles: false,
@@ -249,9 +439,46 @@ export function AnnotationCanvas({
     return () => host.removeEventListener("wheel", forwardWheel);
   }, []);
 
-  // 把 pointerdown 事件切到下面的底图，由它的 pan 控制器接管。
-  // 期间临时把 host 设为 pointer-events: none，后续 pointermove/pointerup
-  // 会穿透到底图（OrbitControls 在 document 上也有监听；SourceImageView 用 setPointerCapture）。
+  // 内部视口的平移：直接更新 Stage transform；不再有跨组件事件转发。
+  const startInternalPan = (nativeEvent: MouseEvent, onTap?: () => void) => {
+    const startX = nativeEvent.clientX;
+    const startY = nativeEvent.clientY;
+    let lastX = startX;
+    let lastY = startY;
+    const handleMove = (event: PointerEvent) => {
+      const current = viewportRef.current;
+      if (!current) {
+        return;
+      }
+      const dx = event.clientX - lastX;
+      const dy = event.clientY - lastY;
+      lastX = event.clientX;
+      lastY = event.clientY;
+      viewportRef.current = { ...current, tx: current.tx + dx, ty: current.ty + dy };
+      setViewport(viewportRef.current);
+    };
+    const cleanup = () => {
+      window.removeEventListener("pointermove", handleMove);
+      window.removeEventListener("pointerup", handleUp);
+      window.removeEventListener("pointercancel", handleCancel);
+    };
+    const handleUp = (event: PointerEvent) => {
+      cleanup();
+      if (onTap) {
+        const distance = Math.hypot(event.clientX - startX, event.clientY - startY);
+        if (distance < 4) {
+          onTap();
+        }
+      }
+    };
+    const handleCancel = () => cleanup();
+    window.addEventListener("pointermove", handleMove);
+    window.addEventListener("pointerup", handleUp);
+    window.addEventListener("pointercancel", handleCancel);
+  };
+
+  // 3D 模型模式：把 pointerdown 事件切到底层 Three.js canvas，由 OrbitControls 接管。
+  // 期间临时把 host 设为 pointer-events: none，后续 pointermove/pointerup 穿透。
   // 松开时若未移动（< 4px），当成空白单击，可选 onTap（比如 deselect）。
   const startForwardPan = (nativeEvent: MouseEvent, onTap?: () => void) => {
     const host = containerRef.current;
@@ -297,6 +524,15 @@ export function AnnotationCanvas({
     window.addEventListener("pointercancel", handleCancel);
   };
 
+  // 统一的"让底图接管平移"入口：内部视口自己动，外部转发。
+  const beginPan = (nativeEvent: MouseEvent, onTap?: () => void) => {
+    if (isInternalViewport) {
+      startInternalPan(nativeEvent, onTap);
+    } else {
+      startForwardPan(nativeEvent, onTap);
+    }
+  };
+
   useEffect(() => {
     const node = containerRef.current;
     if (!node) {
@@ -311,23 +547,19 @@ export function AnnotationCanvas({
       } else if (event.key === "Escape") {
         if (penPoints.length > 0) {
           setPenPoints([]);
-        } else if (activeTool === "sam" && (samPromptDraft.points.length > 0 || samPromptDraft.box || samBoxLive)) {
-          resetSamPrompts();
         } else {
           onSelect(undefined);
         }
       } else if (event.key === "Enter") {
         if (activeTool === "pen" && penPoints.length >= 3) {
           finishPenPolygon(penPoints);
-        } else if (activeTool === "sam" && (samPromptDraft.points.length > 0 || samPromptDraft.box) && !isSamPending) {
-          submitSamPrompts();
         }
       }
     };
     node.addEventListener("keydown", onKey);
     return () => node.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedAnnotationId, activeTool, penPoints, samPromptDraft, samBoxLive, isSamPending]);
+  }, [selectedAnnotationId, activeTool, penPoints]);
 
   // 4 点对齐矩阵（modelToImage / imageToModel），无 alignment 或解算失败时为空对象。
   const alignmentMatrices = useMemo<AlignmentMatrices>(
@@ -378,13 +610,24 @@ export function AnnotationCanvas({
     }).length;
   }, [activeFaceResourceId, alignmentMatrices.imageToModel, alignmentMatrices.modelToImage, annotations, sourceMode]);
 
-  const interactive = Boolean(projection);
-  const stageWidth = projection?.canvasWidth ?? 1;
-  const stageHeight = projection?.canvasHeight ?? 1;
+  const interactive = Boolean(projection) && (!isInternalViewport || Boolean(viewport));
+  const stageWidth = isInternalViewport ? containerSize?.width ?? 1 : externalProjection?.canvasWidth ?? 1;
+  const stageHeight = isInternalViewport ? containerSize?.height ?? 1 : externalProjection?.canvasHeight ?? 1;
 
+  // 指针位置：内部视口返回 Stage 局部坐标（= 图像像素），外部返回屏幕像素。
+  // 两者都与当前 projection 的坐标空间一致，供 screenToUV 直接换算。
   const pointerScreen = () => {
     const stage = stageRef.current;
-    return stage?.getPointerPosition() ?? { x: 0, y: 0 };
+    if (!stage) {
+      return { x: 0, y: 0 };
+    }
+    const pos = stage.getPointerPosition() ?? { x: 0, y: 0 };
+    if (!isInternalViewport) {
+      return pos;
+    }
+    const transform = stage.getAbsoluteTransform().copy();
+    transform.invert();
+    return transform.point(pos);
   };
 
   const newColor = () => annotationPalette[annotations.length % annotationPalette.length];
@@ -401,132 +644,6 @@ export function AnnotationCanvas({
     setPenPoints([]);
   };
 
-  // SAM 多 prompt 提交：把当前 draft 一次性发给 SAM，候选返回后落入标注。
-  // 优先走高清图路径（pic/ 匹配 stoneId），失败回退到当前视角截图。
-  const submitSamPrompts = () => {
-    if (!projection || isSamPending) {
-      return;
-    }
-    const draft = samPromptDraft;
-    if (draft.points.length === 0 && !draft.box) {
-      return;
-    }
-    setIsSamPending(true);
-    // C2：用显式 prop 而非 resourceId.split(":")[0]——后者在自定义资源 id
-    // （如 `resource-ortho-front-xxx`）下抽到错误的 stoneId。
-    const baseColor = newColor();
-    const startedAt = new Date().toISOString();
-
-    // D3 收集本次 prompt 摘要（不存全部坐标，避免 IIML 文档膨胀）
-    const promptSummary = {
-      positiveCount: draft.points.filter((point) => point.label === 1).length,
-      negativeCount: draft.points.filter((point) => point.label === 0).length,
-      hasBox: Boolean(draft.box),
-      sourceMode
-    };
-
-    void (async () => {
-      let createdAnnotation: IimlAnnotation | undefined;
-      let usedPath: "source" | "screenshot" = "source";
-      let lastError: unknown;
-      try {
-        createdAnnotation = await requestSamCandidateWithSource({
-          stoneId,
-          imageUri: activeImageUri,
-          prompts: draft,
-          resourceId,
-          color: baseColor,
-          frame: sourceMode
-        });
-        if (createdAnnotation) {
-          onCreate(createdAnnotation, false);
-          onSelect(createdAnnotation.id);
-        }
-      } catch (error) {
-        console.warn("SAM source path failed, falling back to screenshot:", error);
-        lastError = error;
-      }
-
-      if (!createdAnnotation) {
-        usedPath = "screenshot";
-        const stoneCanvas = findStoneCanvas(containerRef.current);
-        if (stoneCanvas) {
-          try {
-            const shot = await requestSamCandidate({
-              prompts: draft,
-              stoneCanvas,
-              projection,
-              resourceId,
-              color: baseColor,
-              frame: sourceMode
-            });
-            if (shot) {
-              createdAnnotation = shot;
-              onCreate(shot, false);
-              onSelect(shot.id);
-            }
-          } catch (error) {
-            console.error("SAM screenshot path also failed:", error);
-            lastError = error;
-          }
-        }
-      }
-
-      // D3 写入 processingRun（成功 / 失败都报）
-      if (onProcessingRun) {
-        const endedAt = new Date().toISOString();
-        const run: IimlProcessingRun = {
-          id: `run-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-          method: "sam",
-          model: createdAnnotation?.generation?.model ?? "unknown",
-          input: { ...promptSummary, path: usedPath },
-          output: {
-            ok: Boolean(createdAnnotation),
-            polygonCount: createdAnnotation ? 1 : 0
-          },
-          confidence: createdAnnotation?.generation?.confidence,
-          resultAnnotationIds: createdAnnotation ? [createdAnnotation.id] : [],
-          resourceId,
-          frame: sourceMode,
-          startedAt,
-          endedAt,
-          error: createdAnnotation
-            ? undefined
-            : lastError instanceof Error
-              ? lastError.message
-              : lastError !== undefined
-                ? String(lastError)
-                : "no-candidate"
-        };
-        onProcessingRun(run);
-      }
-    })().finally(() => {
-      setIsSamPending(false);
-      setSamPromptDraft({ points: [] });
-      setSamBoxLive(undefined);
-      onToolChange("select");
-    });
-  };
-
-  const resetSamPrompts = () => {
-    setSamPromptDraft({ points: [] });
-    setSamBoxLive(undefined);
-  };
-
-  const undoLastSamPrompt = () => {
-    setSamBoxLive(undefined);
-    setSamPromptDraft((prev) => {
-      // 优先撤销 box（最后加的可能是 box），否则撤销最后一个点
-      if (prev.box) {
-        return { ...prev, box: undefined };
-      }
-      if (prev.points.length === 0) {
-        return prev;
-      }
-      return { ...prev, points: prev.points.slice(0, -1) };
-    });
-  };
-
   const handleMouseDown = (event: KonvaEventObject<MouseEvent>) => {
     if (!projection) {
       return;
@@ -541,25 +658,15 @@ export function AnnotationCanvas({
     // 中键：无论哪个工具都让给底图做平移。
     if (nativeEvent.button === 1) {
       nativeEvent.preventDefault();
-      startForwardPan(nativeEvent);
+      beginPan(nativeEvent);
       return;
     }
 
-    // 右键：SAM 工具下用作"加负点"，其它工具下让给底图做平移
-    // （OrbitControls 默认 RIGHT=PAN；SourceImageView 自己也接受右键 pan）。
+    // 右键：让给底图做平移
+    // （OrbitControls 默认 RIGHT=PAN；内部视口自己处理）。
     if (nativeEvent.button === 2) {
-      if (activeTool === "sam" && !isSamPending) {
-        nativeEvent.preventDefault();
-        const point = pointerScreen();
-        const uv = screenToUV(point, projection);
-        setSamPromptDraft((prev) => ({
-          ...prev,
-          points: [...prev.points, { uv, label: 0 }]
-        }));
-        return;
-      }
       nativeEvent.preventDefault();
-      startForwardPan(nativeEvent);
+      beginPan(nativeEvent);
       return;
     }
 
@@ -568,7 +675,7 @@ export function AnnotationCanvas({
     if (activeTool === "select") {
       // 左键点在空白区域：转 pan。未拖动（< 4px）松开时当作 deselect。
       if (isEmptyTarget && nativeEvent.button === 0) {
-        startForwardPan(nativeEvent, () => onSelect(undefined));
+        beginPan(nativeEvent, () => onSelect(undefined));
       }
       return;
     }
@@ -588,6 +695,16 @@ export function AnnotationCanvas({
       return;
     }
 
+    if (activeTool === "brush" || activeTool === "erase") {
+      // 没有提交回调（未选中标注 / 非高清图模式）时不开始笔画
+      if (nativeEvent.button !== 0 || !onMaskStroke) {
+        return;
+      }
+      const uv = screenToUV(point, projection);
+      setLiveStroke([uv]);
+      return;
+    }
+
     if (activeTool === "point") {
       const uv = screenToUV(point, projection);
       const annotation = createAnnotationFromGeometry({
@@ -604,30 +721,14 @@ export function AnnotationCanvas({
       return;
     }
 
-    if (activeTool === "sam") {
-      if (nativeEvent.button !== 0 || isSamPending) {
-        return;
-      }
-      const uv = screenToUV(point, projection);
-      // Shift + 左键：开始 box 拖动；普通左键：加正点
-      if (nativeEvent.shiftKey) {
-        setSamBoxLive({ start: uv, end: uv });
-        return;
-      }
-      setSamPromptDraft((prev) => ({
-        ...prev,
-        points: [...prev.points, { uv, label: 1 }]
-      }));
-      return;
-    }
-
     if (activeTool === "pen") {
       if (!stage) {
         return;
       }
       if (penPoints.length >= 3) {
         const first = uvToScreen(penPoints[0], projection);
-        const distance = Math.hypot(point.x - first.x, point.y - first.y);
+        // 阈值以屏幕像素衡量：内部视口的局部距离要乘 viewScale 才是屏幕距离。
+        const distance = Math.hypot(point.x - first.x, point.y - first.y) * viewScale;
         if (distance <= 8) {
           finishPenPolygon(penPoints);
           return;
@@ -674,9 +775,21 @@ export function AnnotationCanvas({
       setDraftRect({ ...draftRect, end: pointerScreen() });
     }
 
-    if (samBoxLive) {
-      const uv = screenToUV(pointerScreen(), projection);
-      setSamBoxLive({ ...samBoxLive, end: uv });
+    if (liveStroke) {
+      const point = pointerScreen();
+      const uv = screenToUV(point, projection);
+      setLiveStroke((prev) => {
+        if (!prev || prev.length === 0) {
+          return [uv];
+        }
+        const last = prev[prev.length - 1];
+        // 采样密度：局部（图像像素）距离 ≥ 2px 才追加，避免点数爆炸
+        const lastScreen = uvToScreen(last, projection);
+        if (Math.hypot(point.x - lastScreen.x, point.y - lastScreen.y) < 2) {
+          return prev;
+        }
+        return [...prev, uv];
+      });
     }
   };
 
@@ -686,26 +799,23 @@ export function AnnotationCanvas({
       return;
     }
 
-    // SAM box 拖动结束：距离够大才落到 promptDraft.box，否则视为取消（防止 Shift+
-    // 单击的误触）。
-    if (samBoxLive && projection) {
-      const startScreen = uvToScreen(samBoxLive.start, projection);
-      const endScreen = uvToScreen(samBoxLive.end, projection);
-      const distance = Math.hypot(endScreen.x - startScreen.x, endScreen.y - startScreen.y);
-      if (distance >= minDragPixels) {
-        setSamPromptDraft((prev) => ({
-          ...prev,
-          box: { startUv: samBoxLive.start, endUv: samBoxLive.end }
-        }));
+    if (liveStroke && projection) {
+      if (liveStroke.length > 0 && onMaskStroke) {
+        onMaskStroke({
+          mode: activeTool === "erase" ? "erase" : "add",
+          pointsUv: liveStroke.map((uv) => [uv.u, uv.v] as [number, number]),
+          widthPx: maskStrokeWidthPx
+        });
       }
-      setSamBoxLive(undefined);
+      setLiveStroke(undefined);
       return;
     }
 
     if (!draftRect || !projection) {
       return;
     }
-    const distance = Math.hypot(draftRect.end.x - draftRect.start.x, draftRect.end.y - draftRect.start.y);
+    const distance =
+      Math.hypot(draftRect.end.x - draftRect.start.x, draftRect.end.y - draftRect.start.y) * viewScale;
     if (distance < minDragPixels) {
       setDraftRect(undefined);
       return;
@@ -740,9 +850,15 @@ export function AnnotationCanvas({
     if (draftRect) {
       setDraftRect(undefined);
     }
-    if (samBoxLive) {
-      setSamBoxLive(undefined);
+    if (liveStroke && liveStroke.length > 1 && onMaskStroke && projection) {
+      // 移出画布视为完成一笔，避免笔画悬空丢失
+      onMaskStroke({
+        mode: activeTool === "erase" ? "erase" : "add",
+        pointsUv: liveStroke.map((uv) => [uv.u, uv.v] as [number, number]),
+        widthPx: maskStrokeWidthPx
+      });
     }
+    setLiveStroke(undefined);
   };
 
   const beginShapeDrag = (annotation: IimlAnnotation) => {
@@ -767,7 +883,6 @@ export function AnnotationCanvas({
     }
     return displayAnnotations.find((entry) => entry.source.id === selectedAnnotationId);
   }, [displayAnnotations, selectedAnnotationId]);
-  const selectedAnnotation = selectedDisplay?.source;
   // 跨 frame 标注暂不支持就地拖拽 / 改尺寸：避免在变换后画布上推算反向坐标的复杂度；
   // 用户需要切到原 frame 后再编辑。
   const showSelectionHandles = Boolean(
@@ -778,13 +893,8 @@ export function AnnotationCanvas({
   return (
     <div
       ref={containerRef}
-      className={[
-        "annotation-canvas-host",
-        interactive ? "active" : "",
-        isSamPending ? "sam-pending" : ""
-      ]
-        .filter(Boolean)
-        .join(" ")}
+      className={["annotation-canvas-host", interactive ? "active" : ""].filter(Boolean).join(" ")}
+      style={isInternalViewport && baseImage?.background ? { background: baseImage.background } : undefined}
       tabIndex={0}
     >
       <Stage
@@ -792,6 +902,10 @@ export function AnnotationCanvas({
         ref={stageRef}
         width={stageWidth}
         height={stageHeight}
+        x={isInternalViewport ? viewport?.tx ?? 0 : 0}
+        y={isInternalViewport ? viewport?.ty ?? 0 : 0}
+        scaleX={isInternalViewport ? viewport?.scale ?? 1 : 1}
+        scaleY={isInternalViewport ? viewport?.scale ?? 1 : 1}
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
@@ -799,6 +913,26 @@ export function AnnotationCanvas({
         onDblClick={handleDoubleClick}
         onContextMenu={(event) => event.evt.preventDefault()}
       >
+        {isInternalViewport && imageEl ? (
+          <Layer listening={false}>
+            <KonvaImage
+              image={imageEl}
+              width={imageEl.naturalWidth}
+              height={imageEl.naturalHeight}
+              listening={false}
+            />
+            {overlayEl ? (
+              <KonvaImage
+                image={overlayEl}
+                width={imageEl.naturalWidth}
+                height={imageEl.naturalHeight}
+                opacity={baseImage?.overlayOpacity ?? 0.85}
+                globalCompositeOperation="screen"
+                listening={false}
+              />
+            ) : null}
+          </Layer>
+        ) : null}
         <Layer>
           {displayAnnotations.map(({ source, displayGeometry, isCrossFrame }, index) => (
             <AnnotationShape
@@ -812,6 +946,7 @@ export function AnnotationCanvas({
               isDraft={source.id === draftAnnotationId}
               locked={isLocked(source)}
               projection={projection}
+              viewScale={viewScale}
               onSelect={() => onSelect(source.id)}
               onBeginDrag={() => beginShapeDrag(source)}
             />
@@ -820,6 +955,7 @@ export function AnnotationCanvas({
             <SelectionHandles
               geometry={selectedDisplay.displayGeometry}
               projection={projection}
+              viewScale={viewScale}
               onBeginCornerDrag={(cornerIndex) => beginCornerDrag(selectedDisplay.source, cornerIndex)}
             />
           ) : null}
@@ -836,19 +972,39 @@ export function AnnotationCanvas({
                 points={penScreenPoints.flatMap((point) => [point.x, point.y])}
                 stroke="#f3a712"
                 strokeWidth={2}
+                strokeScaleEnabled={false}
                 dash={[5, 4]}
               />
               {penScreenPoints.map((point, index) => (
                 <Circle
                   fill="#f3a712"
                   key={`pen-${index}`}
-                  radius={index === 0 ? 5 : 3}
+                  radius={(index === 0 ? 5 : 3) / viewScale}
                   stroke="#1d1a18"
                   strokeWidth={1}
+                  strokeScaleEnabled={false}
                   x={point.x}
                   y={point.y}
                 />
               ))}
+            </Group>
+          ) : null}
+          {projection && (maskStrokes.length > 0 || liveStroke) ? (
+            <Group listening={false}>
+              {maskStrokes.map((stroke, index) => (
+                <MaskStrokeLine key={`mask-stroke-${index}`} stroke={stroke} projection={projection} />
+              ))}
+              {liveStroke && liveStroke.length > 0 ? (
+                <MaskStrokeLine
+                  stroke={{
+                    mode: activeTool === "erase" ? "erase" : "add",
+                    pointsUv: liveStroke.map((uv) => [uv.u, uv.v] as [number, number]),
+                    widthPx: maskStrokeWidthPx
+                  }}
+                  projection={projection}
+                  live
+                />
+              ) : null}
             </Group>
           ) : null}
           {calibrationDraft && projection ? (
@@ -856,6 +1012,7 @@ export function AnnotationCanvas({
               draft={calibrationDraft}
               projection={projection}
               sourceMode={sourceMode}
+              viewScale={viewScale}
               alignmentMatrices={alignmentMatrices}
             />
           ) : null}
@@ -865,39 +1022,31 @@ export function AnnotationCanvas({
               displayAnnotations={displayAnnotations}
               relations={relations}
               projection={projection}
-            />
-          ) : null}
-          {activeTool === "sam" && projection ? (
-            <SamPromptOverlay
-              draft={samPromptDraft}
-              live={samBoxLive}
-              projection={projection}
+              viewScale={viewScale}
             />
           ) : null}
         </Layer>
       </Stage>
-      {!projection ? (
+      {!projection && !isInternalViewport ? (
         <div className="annotation-canvas-placeholder">
           <span>正在等待模型投影就绪...</span>
+        </div>
+      ) : null}
+      {isInternalViewport && imageStatus === "loading" ? (
+        <div className="load-panel">
+          <span>正在加载高清图</span>
+        </div>
+      ) : null}
+      {isInternalViewport && imageStatus === "error" ? (
+        <div className="load-panel error">
+          <span>未找到该画像石的高清原图</span>
+          <small>请确认 pic/ 目录里有以编号开头的图像文件，且 ai-service 在运行</small>
         </div>
       ) : null}
       {hiddenCrossFrameCount > 0 ? (
         <div className="annotation-cross-frame-hint">
           有 {hiddenCrossFrameCount} 个标注在另一坐标系中，<strong>请先完成"对齐校准"</strong>才能在当前底图上看到。
         </div>
-      ) : null}
-      {activeTool === "sam" ? (
-        <SamPromptHud
-          draft={samPromptDraft}
-          pending={isSamPending}
-          onSubmit={submitSamPrompts}
-          onUndoLast={undoLastSamPrompt}
-          onReset={resetSamPrompts}
-          onCancel={() => {
-            resetSamPrompts();
-            onToolChange("select");
-          }}
-        />
       ) : null}
     </div>
   );
@@ -913,6 +1062,7 @@ function AnnotationShape({
   isDraft,
   locked,
   projection,
+  viewScale,
   onSelect,
   onBeginDrag
 }: {
@@ -927,6 +1077,8 @@ function AnnotationShape({
   isDraft: boolean;
   locked: boolean;
   projection?: ProjectionContext;
+  // 图像像素 → 屏幕像素比例；内部视口下用于反缩控制点等固定尺寸元素。
+  viewScale: number;
   onSelect: () => void;
   onBeginDrag: () => void;
 }) {
@@ -959,7 +1111,8 @@ function AnnotationShape({
   const fillColor = hexToRgba(baseColor, fillAlpha);
   const opacity = isCrossFrame ? 0.7 : 1;
   const onMouseDown = (event: KonvaEventObject<MouseEvent>) => {
-    if (!interactive) {
+    // 只有左键才是"选中 + 拖动标注"；中键 / 右键放行给 Stage 做底图平移。
+    if (!interactive || event.evt.button !== 0) {
       return;
     }
     event.cancelBubble = true;
@@ -967,7 +1120,7 @@ function AnnotationShape({
     onBeginDrag();
   };
   const onClick = (event: KonvaEventObject<MouseEvent>) => {
-    if (activeTool !== "select") {
+    if (activeTool !== "select" || event.evt.button !== 0) {
       return;
     }
     event.cancelBubble = true;
@@ -991,6 +1144,7 @@ function AnnotationShape({
         height={bottom - top}
         stroke={stroke}
         strokeWidth={strokeWidth}
+        strokeScaleEnabled={false}
         dash={dash}
         fill={fillColor}
         opacity={opacity}
@@ -1006,10 +1160,55 @@ function AnnotationShape({
       <Circle
         x={center.x}
         y={center.y}
-        radius={isSelected ? 7 : 5}
+        radius={(isSelected ? 7 : 5) / viewScale}
         fill={stroke}
         stroke="#1d1a18"
         strokeWidth={1.5}
+        strokeScaleEnabled={false}
+        opacity={opacity}
+        onMouseDown={onMouseDown}
+        onClick={onClick}
+      />
+    );
+  }
+
+  // P2：Polygon / MultiPolygon 用 sceneFunc + evenodd 渲染，正确显示洞
+  // （mask 级合并的输出常带洞；旧 Line flatten 渲染会把洞画成连线瑕疵）。
+  if (displayGeometry.type === "Polygon" || displayGeometry.type === "MultiPolygon") {
+    const polygons: Array<Array<Array<{ x: number; y: number }>>> =
+      displayGeometry.type === "Polygon"
+        ? [displayGeometry.coordinates.map((ring) => ring.map((point) => uvToScreen({ u: Number(point[0] ?? 0), v: Number(point[1] ?? 0) }, projection)))]
+        : displayGeometry.coordinates.map((polygon) =>
+            polygon.map((ring) => ring.map((point) => uvToScreen({ u: Number(point[0] ?? 0), v: Number(point[1] ?? 0) }, projection)))
+          );
+    const drawPath = (context: KonvaContext) => {
+      context.beginPath();
+      for (const rings of polygons) {
+        for (const ring of rings) {
+          if (ring.length < 3) continue;
+          ring.forEach((point, index) => {
+            if (index === 0) {
+              context.moveTo(point.x, point.y);
+            } else {
+              context.lineTo(point.x, point.y);
+            }
+          });
+          context.closePath();
+        }
+      }
+    };
+    return (
+      <Shape
+        sceneFunc={(context, shape) => {
+          drawPath(context);
+          context.fillStrokeShape(shape);
+        }}
+        fillRule="evenodd"
+        stroke={stroke}
+        strokeWidth={strokeWidth}
+        strokeScaleEnabled={false}
+        dash={dash}
+        fill={fillColor}
         opacity={opacity}
         onMouseDown={onMouseDown}
         onClick={onClick}
@@ -1018,15 +1217,14 @@ function AnnotationShape({
   }
 
   const points = projectGeometryToScreen(displayGeometry, projection).flatMap((point) => [point.x, point.y]);
-  const isClosed = displayGeometry.type === "Polygon" || displayGeometry.type === "MultiPolygon";
   return (
     <Line
       points={points}
-      closed={isClosed}
+      closed={false}
       stroke={stroke}
       strokeWidth={strokeWidth}
+      strokeScaleEnabled={false}
       dash={dash}
-      fill={isClosed ? fillColor : undefined}
       opacity={opacity}
       onMouseDown={onMouseDown}
       onClick={onClick}
@@ -1034,13 +1232,55 @@ function AnnotationShape({
   );
 }
 
+/**
+ * P2 mask 编辑笔画：宽度以图像像素表示（随缩放同步缩放，与最终栅格化一致）。
+ * add=绿色半透明；erase=红色半透明；live（正在画）透明度略低。
+ */
+function MaskStrokeLine({
+  stroke,
+  projection,
+  live
+}: {
+  stroke: MaskStrokeDraft;
+  projection: ProjectionContext;
+  live?: boolean;
+}) {
+  const screenPoints = stroke.pointsUv.map(([u, v]) => uvToScreen({ u, v }, projection));
+  const color = stroke.mode === "erase" ? "#ff5f57" : "#45d483";
+  if (screenPoints.length === 1) {
+    return (
+      <Circle
+        x={screenPoints[0].x}
+        y={screenPoints[0].y}
+        radius={Math.max(0.5, stroke.widthPx / 2)}
+        fill={color}
+        opacity={live ? 0.4 : 0.5}
+        listening={false}
+      />
+    );
+  }
+  return (
+    <Line
+      points={screenPoints.flatMap((point) => [point.x, point.y])}
+      stroke={color}
+      strokeWidth={Math.max(1, stroke.widthPx)}
+      lineCap="round"
+      lineJoin="round"
+      opacity={live ? 0.4 : 0.5}
+      listening={false}
+    />
+  );
+}
+
 function SelectionHandles({
   geometry,
   projection,
+  viewScale,
   onBeginCornerDrag
 }: {
   geometry: IimlGeometry;
   projection: ProjectionContext;
+  viewScale: number;
   onBeginCornerDrag: (cornerIndex: 0 | 1 | 2 | 3) => void;
 }) {
   let bounds: { min: UV; max: UV } | undefined;
@@ -1060,21 +1300,23 @@ function SelectionHandles({
     { uv: { u: bounds.min.u, v: bounds.min.v }, index: 3 }
   ];
   const center = uvToScreen(geometryCenter(geometry), projection);
+  const scaledHandle = handleSize / viewScale;
   return (
     <Group>
-      <Circle x={center.x} y={center.y} radius={3} fill="#f3a712" opacity={0.6} listening={false} />
+      <Circle x={center.x} y={center.y} radius={3 / viewScale} fill="#f3a712" opacity={0.6} listening={false} />
       {corners.map(({ uv, index }) => {
         const screen = uvToScreen(uv, projection);
         return (
           <Rect
             key={`handle-${index}`}
-            x={screen.x - handleSize / 2}
-            y={screen.y - handleSize / 2}
-            width={handleSize}
-            height={handleSize}
+            x={screen.x - scaledHandle / 2}
+            y={screen.y - scaledHandle / 2}
+            width={scaledHandle}
+            height={scaledHandle}
             fill="#f3a712"
             stroke="#1d1a18"
             strokeWidth={1.2}
+            strokeScaleEnabled={false}
             onMouseDown={(event) => {
               event.cancelBubble = true;
               onBeginCornerDrag(index);
@@ -1093,6 +1335,7 @@ function DraftRect({ start, end }: { start: { x: number; y: number }; end: { x: 
       height={Math.abs(end.y - start.y)}
       stroke="#f3a712"
       strokeWidth={2}
+      strokeScaleEnabled={false}
       width={Math.abs(end.x - start.x)}
       x={Math.min(start.x, end.x)}
       y={Math.min(start.y, end.y)}
@@ -1111,7 +1354,7 @@ function DraftEllipse({ start, end }: { start: { x: number; y: number }; end: { 
     const angle = (index / samples) * Math.PI * 2;
     points.push(centerX + Math.cos(angle) * radiusX, centerY + Math.sin(angle) * radiusY);
   }
-  return <Line closed dash={[6, 4]} points={points} stroke="#f3a712" strokeWidth={2} />;
+  return <Line closed dash={[6, 4]} points={points} stroke="#f3a712" strokeWidth={2} strokeScaleEnabled={false} />;
 }
 
 /**
@@ -1123,11 +1366,13 @@ function CalibrationOverlay({
   draft,
   projection,
   sourceMode,
+  viewScale,
   alignmentMatrices: _matrices
 }: {
   draft: CalibrationDraftView;
   projection: ProjectionContext;
   sourceMode: IimlAnnotationFrame;
+  viewScale: number;
   alignmentMatrices: AlignmentMatrices;
 }) {
   const ownPoints = sourceMode === "model" ? draft.modelPoints : draft.imagePoints;
@@ -1151,7 +1396,16 @@ function CalibrationOverlay({
     <Group listening={false}>
       {ownPoints.map((uv, index) => {
         const screen = uvToScreen({ u: uv[0], v: uv[1] }, projection);
-        return <CalibrationMarker key={`own-${index}`} x={screen.x} y={screen.y} index={index + 1} color="#f3a712" />;
+        return (
+          <CalibrationMarker
+            key={`own-${index}`}
+            x={screen.x}
+            y={screen.y}
+            index={index + 1}
+            color="#f3a712"
+            viewScale={viewScale}
+          />
+        );
       })}
       {projectedOther.map((uv, index) => {
         const screen = uvToScreen({ u: uv[0], v: uv[1] }, projection);
@@ -1162,6 +1416,7 @@ function CalibrationOverlay({
             y={screen.y}
             index={index + 1}
             color="#2ec4b6"
+            viewScale={viewScale}
             ghost
           />
         );
@@ -1175,17 +1430,21 @@ function CalibrationMarker({
   y,
   index,
   color,
+  viewScale,
   ghost
 }: {
   x: number;
   y: number;
   index: number;
   color: string;
+  viewScale: number;
   ghost?: boolean;
 }) {
   const radius = 7;
+  // 用 1/viewScale 反缩整个 marker：内部视口任何缩放级别下屏幕尺寸恒定。
+  const inverse = 1 / viewScale;
   return (
-    <Group x={x} y={y} opacity={ghost ? 0.65 : 1}>
+    <Group x={x} y={y} scaleX={inverse} scaleY={inverse} opacity={ghost ? 0.65 : 1}>
       <Circle radius={radius + 2} fill="#1d1a18" opacity={0.9} />
       <Circle
         radius={radius}
@@ -1219,12 +1478,14 @@ function RelationLines({
   selectedDisplay,
   displayAnnotations,
   relations,
-  projection
+  projection,
+  viewScale
 }: {
   selectedDisplay: DisplayAnnotation;
   displayAnnotations: DisplayAnnotation[];
   relations: IimlRelation[];
   projection: ProjectionContext;
+  viewScale: number;
 }) {
   const selectedId = selectedDisplay.source.id;
   const center = uvToScreen(geometryCenter(selectedDisplay.displayGeometry), projection);
@@ -1255,196 +1516,34 @@ function RelationLines({
               points={[center.x, center.y, otherCenter.x, otherCenter.y]}
               stroke={stroke}
               strokeWidth={isAuto ? 1.5 : 2}
+              strokeScaleEnabled={false}
               dash={isAuto ? [6, 4] : undefined}
               opacity={0.85}
               listening={false}
             />
-            <Circle x={otherCenter.x} y={otherCenter.y} radius={4} fill={stroke} stroke="#1d1a18" strokeWidth={1.5} listening={false} />
+            <Circle
+              x={otherCenter.x}
+              y={otherCenter.y}
+              radius={4 / viewScale}
+              fill={stroke}
+              stroke="#1d1a18"
+              strokeWidth={1.5}
+              strokeScaleEnabled={false}
+              listening={false}
+            />
           </Group>
         );
       })}
-      <Circle x={center.x} y={center.y} radius={5} fill="#f3a712" stroke="#1d1a18" strokeWidth={1.5} listening={false} />
+      <Circle
+        x={center.x}
+        y={center.y}
+        radius={5 / viewScale}
+        fill="#f3a712"
+        stroke="#1d1a18"
+        strokeWidth={1.5}
+        strokeScaleEnabled={false}
+        listening={false}
+      />
     </Group>
-  );
-}
-
-/**
- * SAM 多 prompt 画布层：
- *   - 正点：绿色实心圆（label=1）
- *   - 负点：红色实心圆 + 中心 ✕（label=0）
- *   - 已确认 box：黄色虚线矩形
- *   - 拖动中的临时 box：黄色更稀疏虚线（与已确认 box 区分）
- */
-function SamPromptOverlay({
-  draft,
-  live,
-  projection
-}: {
-  draft: SamPromptDraft;
-  live: { start: UV; end: UV } | undefined;
-  projection: ProjectionContext;
-}) {
-  const boxStart = draft.box ? draft.box.startUv : undefined;
-  const boxEnd = draft.box ? draft.box.endUv : undefined;
-  const boxScreen = boxStart && boxEnd
-    ? rectScreenFromUVs(boxStart, boxEnd, projection)
-    : undefined;
-  const liveScreen = live ? rectScreenFromUVs(live.start, live.end, projection) : undefined;
-
-  return (
-    <Group listening={false}>
-      {boxScreen ? (
-        <Rect
-          x={boxScreen.x}
-          y={boxScreen.y}
-          width={boxScreen.width}
-          height={boxScreen.height}
-          stroke="#f3a712"
-          strokeWidth={2}
-          dash={[6, 4]}
-          listening={false}
-        />
-      ) : null}
-      {liveScreen ? (
-        <Rect
-          x={liveScreen.x}
-          y={liveScreen.y}
-          width={liveScreen.width}
-          height={liveScreen.height}
-          stroke="#f8b834"
-          strokeWidth={1.5}
-          dash={[3, 4]}
-          opacity={0.85}
-          listening={false}
-        />
-      ) : null}
-      {draft.points.map((point, index) => {
-        const screen = uvToScreen(point.uv, projection);
-        return (
-          <SamPromptMarker
-            key={`sam-prompt-${index}`}
-            x={screen.x}
-            y={screen.y}
-            label={point.label}
-          />
-        );
-      })}
-    </Group>
-  );
-}
-
-function rectScreenFromUVs(a: UV, b: UV, projection: ProjectionContext) {
-  const start = uvToScreen(a, projection);
-  const end = uvToScreen(b, projection);
-  return {
-    x: Math.min(start.x, end.x),
-    y: Math.min(start.y, end.y),
-    width: Math.abs(end.x - start.x),
-    height: Math.abs(end.y - start.y)
-  };
-}
-
-function SamPromptMarker({
-  x,
-  y,
-  label
-}: {
-  x: number;
-  y: number;
-  label: 0 | 1;
-}) {
-  const isPositive = label === 1;
-  const fill = isPositive ? "#45d483" : "#ff5f57";
-  return (
-    <Group x={x} y={y} listening={false}>
-      <Circle radius={8} fill="#1d1a18" opacity={0.85} />
-      <Circle radius={6} fill={fill} stroke="#1d1a18" strokeWidth={1.2} />
-      {isPositive ? null : (
-        <>
-          <Line points={[-3, -3, 3, 3]} stroke="#1d1a18" strokeWidth={1.5} />
-          <Line points={[-3, 3, 3, -3]} stroke="#1d1a18" strokeWidth={1.5} />
-        </>
-      )}
-    </Group>
-  );
-}
-
-/**
- * SAM 多 prompt 浮窗：底部居中，显示当前 prompt 计数 + 操作按钮。
- * 与 calibration-hud 视觉风格一致；不阻塞画布交互（pointer-events 仅作用在按钮上）。
- */
-function SamPromptHud({
-  draft,
-  pending,
-  onSubmit,
-  onUndoLast,
-  onReset,
-  onCancel
-}: {
-  draft: SamPromptDraft;
-  pending: boolean;
-  onSubmit: () => void;
-  onUndoLast: () => void;
-  onReset: () => void;
-  onCancel: () => void;
-}) {
-  const positive = draft.points.filter((point) => point.label === 1).length;
-  const negative = draft.points.filter((point) => point.label === 0).length;
-  const hasBox = Boolean(draft.box);
-  const total = draft.points.length + (hasBox ? 1 : 0);
-  const canSubmit = !pending && total > 0;
-
-  let prompt: React.ReactNode;
-  if (pending) {
-    prompt = <span>正在请求 SAM…</span>;
-  } else if (total === 0) {
-    prompt = (
-      <span>
-        <strong>左键</strong>加正点 · <strong>右键</strong>加负点 · <strong>Shift+左键拖动</strong>出框
-        <span className="muted-text"> · 至少 1 个点 / 框</span>
-      </span>
-    );
-  } else {
-    prompt = (
-      <span>
-        当前：<strong>{positive}</strong> 正点
-        {negative > 0 ? (
-          <>
-            {" / "}
-            <strong>{negative}</strong> 负点
-          </>
-        ) : null}
-        {hasBox ? (
-          <>
-            {" / "}
-            <strong>1</strong> 框
-          </>
-        ) : null}
-        <span className="muted-text"> · 按 Enter 提交</span>
-      </span>
-    );
-  }
-
-  return (
-    <div className="sam-prompt-hud" role="dialog" aria-label="SAM 多点 prompt">
-      <div className="sam-prompt-hud-row">
-        <span className="sam-prompt-hud-step">{Math.min(total, 9)} prompts</span>
-        <div className="sam-prompt-hud-prompt">{prompt}</div>
-      </div>
-      <div className="sam-prompt-hud-actions">
-        <button type="button" className="ghost-cta" onClick={onUndoLast} disabled={pending || total === 0}>
-          撤销上一个
-        </button>
-        <button type="button" className="ghost-cta" onClick={onReset} disabled={pending || total === 0}>
-          清空
-        </button>
-        <button type="button" className="ghost-cta" onClick={onCancel} disabled={pending}>
-          取消
-        </button>
-        <button type="button" className="primary-cta" onClick={onSubmit} disabled={!canSubmit}>
-          {pending ? "运行中…" : `提交 SAM（${total}）`}
-        </button>
-      </div>
-    </div>
   );
 }

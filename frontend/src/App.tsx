@@ -24,6 +24,7 @@ import { Camera, MousePointer2, Ruler, RotateCcw, SquareDashedMousePointer, Tras
 import { lazy, Suspense, useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import * as THREE from "three";
 import {
+  composeMask,
   fetchAssemblyPlan,
   fetchAssemblyPlans,
   fetchIimlDocument,
@@ -32,10 +33,10 @@ import {
   fetchTerms,
   exportTrainingDataset,
   fetchPreflight,
+  getSourceImageUrl,
   importHpsmlPackage,
   revealTrainingDataset,
   runSam3ConceptSegmentation,
-  runYoloDetection,
   saveAssemblyPlan,
   saveIimlDocument,
   type AssemblyPlanRecord,
@@ -56,15 +57,19 @@ import {
   sam3PromptCandidates,
   uniqueSam3Prompts
 } from "./modules/annotation/sam3-prompts";
-import { describeMergeFailure, mergePolygonAnnotations } from "./modules/annotation/merge";
-import { refineBBoxWithSam } from "./modules/annotation/sam";
+import {
+  buildMergedAnnotation,
+  describeMergeFailure,
+  geometryFromMaskPolygons,
+  mergePolygonAnnotations,
+  validateMergeTargets
+} from "./modules/annotation/merge";
 import { TaskProgressPanel, type TaskProgress } from "./modules/annotation/TaskProgressPanel";
 import { annotationPalette, annotationReducer, getProcessingRuns, getRelations, initialAnnotationState } from "./modules/annotation/store";
 import { deriveSpatialRelations } from "./modules/annotation/spatial";
 import type { ActiveImageResourceInfo, AnnotationSourceMode } from "./modules/annotation/AnnotationWorkspace";
 import { useAlignmentStatuses } from "./modules/annotation/useAlignmentStatuses";
 import type { Sam3ConceptInput } from "./modules/annotation/AnnotationToolbar";
-import type { YoloScanOptions } from "./modules/annotation/YoloScanDialog";
 import { useAiHealth } from "./modules/app/useAiHealth";
 import type { AdjustmentAxis, AdjustmentMode } from "./modules/assembly/AssemblyAdjustControls";
 import type { AssemblyCameraState } from "./modules/assembly/AssemblyWorkspace";
@@ -164,13 +169,10 @@ export function App() {
     annotationState.doc?.culturalObject &&
       (annotationState.doc.culturalObject as { alignment?: unknown }).alignment
   );
-  // YOLO 批量扫描：dialog 状态 + 推理进行中标记
-  const [yoloDialogOpen, setYoloDialogOpen] = useState(false);
-  const [yoloScanning, setYoloScanning] = useState(false);
   const [sam3Scanning, setSam3Scanning] = useState(false);
   // J v0.8.0：当前底图资源（正射图 / 拓片 / 法线图等）；undefined = 默认 pic/ 原图。
-  // 由 AnnotationWorkspace 通过 onActiveImageResourceChange 回传，供 YOLO 批量
-  // 扫描 / SAM 精修路由到正确 imageUri，并决定候选 frame / resourceId 绑定。
+  // 由 AnnotationWorkspace 通过 onActiveImageResourceChange 回传，供 SAM3 概念
+  // 分割路由到正确 imageUri，并决定候选 frame / resourceId 绑定。
   const [activeImageResource, setActiveImageResource] = useState<ActiveImageResourceInfo | undefined>(undefined);
   const alignmentStatuses = useAlignmentStatuses(selectedId, hasAlignment);
   // G3 任务进度面板：长任务（SAM 批量精修 / 多石头 YOLO）的进度 + 取消
@@ -198,7 +200,6 @@ export function App() {
   const [vocabularyCategories, setVocabularyCategories] = useState<VocabularyCategory[]>([]);
   const [vocabularyTerms, setVocabularyTerms] = useState<VocabularyTerm[]>([]);
   const aiHealth = useAiHealth();
-  const samStatus = aiHealth?.sam;
   const sam3Status = aiHealth?.sam3;
   // 一旦进入过拼接/标注模式，保持组件 mount，用 CSS 切换可见性，
   // 避免重建 Three.js / Konva 场景导致 gizmo、相机、TransformControls 链路失效。
@@ -332,17 +333,8 @@ export function App() {
           return;
         }
         if (key === "n") {
-          // n = poiNt（s 给 SAM 占用了）
           event.preventDefault();
           dispatchAnnotation({ type: "set-tool", tool: "point" });
-          return;
-        }
-        if (key === "s") {
-          // SAM 未就绪时静默忽略
-          if (samStatus?.ready) {
-            event.preventDefault();
-            dispatchAnnotation({ type: "set-tool", tool: "sam" });
-          }
           return;
         }
         if (key === "f") {
@@ -354,7 +346,7 @@ export function App() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [annotationState.activeTool, isAnnotationActive, samStatus?.ready]);
+  }, [annotationState.activeTool, isAnnotationActive]);
 
   useEffect(() => {
     if (!selectedId) {
@@ -457,6 +449,15 @@ export function App() {
     () => annotationState.doc?.annotations.find((annotation) => annotation.id === annotationState.selectedAnnotationId),
     [annotationState.doc?.annotations, annotationState.selectedAnnotationId]
   );
+  // P2：mask 修正（补笔/擦除）可用性——高清图底图 + 选中面状标注。
+  const maskEditAvailable =
+    annotationSourceMode === "image" &&
+    Boolean(
+      selectedAnnotation &&
+        (selectedAnnotation.target.type === "Polygon" ||
+          selectedAnnotation.target.type === "MultiPolygon" ||
+          selectedAnnotation.target.type === "BBox")
+    );
   // 标注间关系（B1 + B2）：
   // - annotationRelations: doc.relations 里的正式关系（人工创建 / 已采纳的空间关系）
   // - spatialRelationCandidates: 运行时基于几何推导出的空间关系候选，不入库；
@@ -948,192 +949,11 @@ export function App() {
 
   const handleRetryCandidate = useCallback((id: string) => {
     dispatchAnnotation({ type: "delete-annotation", id });
-    dispatchAnnotation({ type: "set-tool", tool: "sam" });
-  }, []);
-
-  // F3：SAM 自动 prompt — 把 YOLO bbox 候选喂给 SAM 跑精修，输出 polygon 替换原 bbox。
-  // 失败时保持原 bbox 不动，status 给提示。也写一条 SAM run 进 processingRuns。
-  const handleRefineWithSam = useCallback(
-    async (id: string) => {
-      const doc = annotationState.doc;
-      const stoneId = selectedStone?.id;
-      if (!doc || !stoneId) return;
-      const annotation = doc.annotations.find((a) => a.id === id);
-      if (!annotation) return;
-      if (annotation.target.type !== "BBox") {
-        dispatchAnnotation({
-          type: "set-status",
-          status: "SAM 精修需要 BBox 几何（YOLO 候选 / 矩形标注）"
-        });
-        return;
-      }
-      // J v0.8.0：精修候选时，如果候选绑到某个资源（正射图 / 拓片）且该资源有
-      // uri，就用 imageUri 直接让 SAM 在该资源上跑精修；否则默认 pic/ 原图。
-      // 这样在正射图上做的 YOLO 候选能就地精修，不会错位到 pic/ 原图上。
-      const annotationResource = doc.resources?.find(
-        (r) => typeof (r as Record<string, unknown>).id === "string" && (r as Record<string, unknown>).id === annotation.resourceId
-      ) as Record<string, unknown> | undefined;
-      const annotationResourceUri = annotationResource && typeof annotationResource.uri === "string"
-        ? String(annotationResource.uri)
-        : undefined;
-      // 只对类 image 资源启用 imageUri 路径，避免误把 3DModel 资源 uri 当图喂给 SAM
-      const annotationResourceType = annotationResource && typeof annotationResource.type === "string"
-        ? String(annotationResource.type)
-        : undefined;
-      const imageTypes = new Set(["Orthophoto", "Rubbing", "NormalMap", "LineDrawing", "OriginalImage", "RTI", "Other"]);
-      const imageUri = annotationResourceUri && annotationResourceType && imageTypes.has(annotationResourceType)
-        ? annotationResourceUri
-        : undefined;
-      const startedAt = new Date().toISOString();
-      dispatchAnnotation({ type: "set-status", status: "SAM 精修中…" });
-      let runError: string | undefined;
-      let runWarning: string | undefined;
-      let runModel = "mobile-sam-vit-t";
-      let resultId: string | undefined;
-      try {
-        const result = await refineBBoxWithSam(annotation, stoneId, imageUri);
-        if (!result) {
-          runWarning = "no-polygon";
-          dispatchAnnotation({
-            type: "set-status",
-            status: "SAM 精修失败：未输出 polygon。bbox 太小或权重未就绪？"
-          });
-          return;
-        }
-        runModel = result.model;
-        const target = polygonFromUVs(result.polygon);
-        // 直接 patch 原 annotation：保留 label / structuralLevel / 颜色等用户已设字段，
-        // 仅替换几何 + 来源元数据（method 改为 sam，但保留 yolo 相关 prompt 信息作为
-        // upstream 链路）
-        const originalBox = annotation.target.type === "BBox"
-          ? [...annotation.target.coordinates]
-          : [];
-        dispatchAnnotation({
-          type: "update-annotation",
-          id,
-          patch: {
-            target,
-            annotationQuality: "silver",
-            geometryIntent: annotation.geometryIntent ?? "semantic_extent",
-            generation: {
-              ...annotation.generation,
-              method: "sam",
-              model: result.model,
-              confidence: result.confidence,
-              prompt: {
-                ...annotation.generation?.prompt,
-                refinedFrom: "yolo-bbox",
-                originalMethod: annotation.generation?.method ?? null,
-                box: originalBox,
-                source: result.sourceImage ?? null
-              }
-            }
-          }
-        });
-        resultId = id;
-        dispatchAnnotation({
-          type: "set-status",
-          status: `SAM 精修完成：bbox → polygon（confidence=${result.confidence.toFixed(2)}, model=${result.model}）`
-        });
-      } catch (error) {
-        runError = error instanceof Error ? error.message : String(error);
-        dispatchAnnotation({ type: "set-status", status: `SAM 精修出错：${runError}` });
-      } finally {
-        dispatchAnnotation({
-          type: "add-processing-run",
-          run: {
-            id: `run-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-            method: "sam-refine",
-            model: runModel,
-            input: {
-              upstreamAnnotationId: id,
-              upstreamMethod: annotation.generation?.method ?? null,
-              upstreamLabel: annotation.label ?? null,
-              stoneId
-            },
-            output: { ok: !!resultId },
-            resultAnnotationIds: resultId ? [resultId] : [],
-            resourceId: annotation.resourceId,
-            frame: annotation.frame ?? "image",
-            startedAt,
-            endedAt: new Date().toISOString(),
-            warning: runWarning,
-            error: runError
-          }
-        });
-      }
-    },
-    [annotationState.doc, selectedStone]
-  );
-
-  // 批量 SAM 精修：所有 YOLO 候选（reviewStatus=candidate + generation.method=yolo）一键升级
-  // 使用 G3 任务进度面板 + cancelRequested 标记支持中途取消
-  const handleBulkRefineYoloWithSam = useCallback(async () => {
-    const doc = annotationState.doc;
-    if (!doc || !selectedStone) return;
-    const targets = doc.annotations.filter(
-      (a) =>
-        a.reviewStatus === "candidate" &&
-        a.generation?.method === "yolo" &&
-        a.target.type === "BBox"
-    );
-    if (targets.length === 0) {
-      dispatchAnnotation({
-        type: "set-status",
-        status: "没有可精修的 YOLO 候选（需 reviewStatus=candidate + method=yolo + BBox）"
-      });
-      return;
-    }
-    const taskId = `task-${Date.now()}-sam-bulk-${Math.random().toString(36).slice(2, 6)}`;
-    cancelRequestedRef.current.delete(taskId);
-    upsertTask({
-      id: taskId,
-      title: `SAM 批量精修 ${targets.length} 个 YOLO 候选`,
-      status: "running",
-      progress: 0,
-      message: "准备中…",
-      cancellable: true
-    });
-    let ok = 0;
-    let failed = 0;
-    let cancelled = false;
-    for (let i = 0; i < targets.length; i++) {
-      if (cancelRequestedRef.current.has(taskId)) {
-        cancelled = true;
-        break;
-      }
-      const t = targets[i];
-      upsertTask({
-        id: taskId,
-        title: `SAM 批量精修 ${targets.length} 个 YOLO 候选`,
-        status: "running",
-        progress: i / targets.length,
-        message: `[${i + 1}/${targets.length}] ${t.label ?? "未命名"}`,
-        cancellable: true
-      });
-      try {
-        await handleRefineWithSam(t.id);
-        ok++;
-      } catch {
-        failed++;
-      }
-    }
-    upsertTask({
-      id: taskId,
-      title: `SAM 批量精修 ${targets.length} 个 YOLO 候选`,
-      status: cancelled ? "cancelled" : failed > 0 ? "failed" : "done",
-      progress: 1,
-      message: cancelled
-        ? `已取消：成功 ${ok} / 失败 ${failed} / 跳过 ${targets.length - ok - failed}`
-        : `成功 ${ok} / 失败 ${failed} / 共 ${targets.length}`
-    });
     dispatchAnnotation({
       type: "set-status",
-      status: cancelled
-        ? `SAM 批量精修已取消（已处理 ${ok + failed}/${targets.length}）`
-        : `SAM 批量精修完成：成功 ${ok} / 失败 ${failed} / 共 ${targets.length}`
+      status: "候选已删除；可在工具栏 SAM3 里换概念词或阈值重新生成"
     });
-  }, [annotationState.doc, selectedStone, handleRefineWithSam, upsertTask]);
+  }, []);
 
   const handleBulkAcceptCandidates = useCallback(() => {
     const candidates = annotationState.doc?.annotations.filter((a) => a.reviewStatus === "candidate") ?? [];
@@ -1149,10 +969,11 @@ export function App() {
     });
   }, [annotationState.doc]);
 
-  // 把选中的候选做几何并集（mergePolygonAnnotations），生成新的合并候选并替换原条目。
-  // 失败原因（少于 2 个 / 跨 frame / 几何不可并集）翻成中文写入 status 提示用户。
+  // P2：合并升级为"mask 级"主路径——所有几何栅格化到同一像素网格做 OR，
+  // 经形态学清理后重新矢量化（保留洞、清小碎片），比矢量 union 对 SAM 噪声
+  // 轮廓稳定得多。AI 服务不可用时回退到旧 polygon-clipping 矢量并集。
   const handleMergeCandidates = useCallback(
-    (ids: string[]) => {
+    async (ids: string[]) => {
       const doc = annotationState.doc;
       if (!doc || ids.length < 2) {
         return;
@@ -1161,32 +982,72 @@ export function App() {
       if (targets.length < 2) {
         return;
       }
+      const invalid = validateMergeTargets(targets);
+      if (invalid) {
+        dispatchAnnotation({ type: "set-status", status: describeMergeFailure(invalid) });
+        return;
+      }
+
+      const commitMerged = (annotation: (typeof targets)[number], method: string) => {
+        ids.forEach((id) => dispatchAnnotation({ type: "delete-annotation", id }));
+        dispatchAnnotation({ type: "add-annotation", annotation });
+        dispatchAnnotation({ type: "select", id: annotation.id });
+        dispatchAnnotation({ type: "set-status", status: `已合并 ${targets.length} 个标注（${method}）` });
+      };
+
+      // mask 合并的像素网格：image frame 用当前底图 / pic 原图；model frame
+      // 用石头档案的宽高比近似（分辨率只影响边缘精度，不影响 UV 坐标系）。
+      const frame = targets[0].frame ?? "model";
+      const maskPayload: Parameters<typeof composeMask>[0] = {
+        baseGeometries: targets.map((annotation) => annotation.target),
+        strokes: [],
+        returnMask: false,
+        returnCutout: false
+      };
+      if (frame === "image") {
+        maskPayload.imageUri = activeImageResource?.uri ?? (selectedStone ? getSourceImageUrl(selectedStone.id) : undefined);
+      } else {
+        const dimensions = selectedStone?.metadata?.dimensions;
+        const aspect = dimensions?.width && dimensions.height ? dimensions.width / dimensions.height : 1;
+        const longEdge = 4096;
+        maskPayload.imageSize = aspect >= 1
+          ? [longEdge, Math.max(64, Math.round(longEdge / aspect))]
+          : [Math.max(64, Math.round(longEdge * aspect)), longEdge];
+      }
+
+      dispatchAnnotation({ type: "set-status", status: "mask 级合并中…" });
+      try {
+        const response = await composeMask(maskPayload);
+        if (response.ok && response.polygons && response.polygons.length > 0) {
+          const geometry = geometryFromMaskPolygons(response.polygons);
+          if (geometry) {
+            const merged = buildMergedAnnotation(targets, geometry, response.model ?? "mask-compose-v1");
+            merged.editOperations = [
+              {
+                type: "mask-compose",
+                at: new Date().toISOString(),
+                params: { operation: "merge", sourceCount: targets.length }
+              }
+            ];
+            commitMerged(merged, "mask 合成");
+            return;
+          }
+        }
+        console.warn("mask merge returned empty result, falling back to vector union:", response.error);
+      } catch (error) {
+        console.warn("mask merge unavailable, falling back to vector union:", error);
+      }
+
+      // 回退：矢量并集（只保留外环，与历史行为一致）
       const result = mergePolygonAnnotations(targets);
       if (!result.ok) {
         dispatchAnnotation({ type: "set-status", status: describeMergeFailure(result.reason) });
         return;
       }
-      ids.forEach((id) => dispatchAnnotation({ type: "delete-annotation", id }));
-      dispatchAnnotation({ type: "add-annotation", annotation: result.annotation });
-      dispatchAnnotation({ type: "select", id: result.annotation.id });
-      dispatchAnnotation({ type: "set-status", status: `已合并 ${targets.length} 个候选` });
+      commitMerged(result.annotation, "矢量并集回退");
     },
-    [annotationState.doc]
+    [annotationState.doc, activeImageResource, selectedStone]
   );
-
-  // YOLO 批量扫描：调 /ai/yolo 后把每个 bbox 转为 candidate IimlAnnotation 落入 store。
-  // 走高清图路径（stoneId）；当前不做截图回退，因为 3D viewport 截图分辨率太低
-  // 出来的 bbox 用处有限，等用户反馈再补。
-  const handleStartYoloScan = useCallback(() => {
-    setYoloDialogOpen(true);
-  }, []);
-
-  const handleCancelYoloScan = useCallback(() => {
-    if (yoloScanning) {
-      return;
-    }
-    setYoloDialogOpen(false);
-  }, [yoloScanning]);
 
   const handleStartSam3 = useCallback(async (options: Sam3ConceptInput) => {
     if (!selectedStone || !annotationState.doc || sam3Scanning) {
@@ -1367,152 +1228,6 @@ export function App() {
     selectedStone
   ]);
 
-  const handleSubmitYoloScan = useCallback(
-    async (options: YoloScanOptions) => {
-      if (!selectedStone) {
-        return;
-      }
-      const doc = annotationState.doc;
-      // J v0.8.0：如果用户在"高清图"模式下选了某个资源（正射图 / 拓片 / 法线图），
-      // YOLO 就扫这个资源；否则扫 pic/ 默认原图。候选 resourceId / frame 跟随。
-      //   - equivalentToModel 正射图：frame 记为 model（与 3D 坐标系 1:1 对齐，
-      //     候选自动出现在 3D 模型视图）
-      //   - 其他资源：frame 记为 image（当前资源坐标系；与 3D 模型同步需 4 点标定）
-      const activeUri = activeImageResource?.uri;
-      const candidateFrame: AnnotationSourceMode = activeImageResource?.equivalentToModel
-        ? "model"
-        : annotationSourceMode;
-      const candidateResourceId = activeImageResource?.id
-        ?? doc?.resources?.[0]?.id
-        ?? `${selectedStone.id}:model`;
-      setYoloScanning(true);
-      dispatchAnnotation({
-        type: "set-status",
-        status: activeUri ? `YOLO 扫描中…（${activeImageResource?.type ?? "资源"}）` : "YOLO 扫描中…"
-      });
-      const startedAt = new Date().toISOString();
-      const createdIds: string[] = [];
-      let runModel = "yolov8n";
-      let runError: string | undefined;
-      let runWarning: string | undefined;
-      try {
-        const response = await runYoloDetection({
-          // imageUri 优先：让 YOLO 扫当前底图（正射图 / 拓片）
-          stoneId: activeUri ? undefined : selectedStone.id,
-          imageUri: activeUri,
-          classFilter: options.classFilter,
-          confThreshold: options.confThreshold,
-          maxDetections: options.maxDetections
-        });
-        runModel = response.model;
-        if (response.error) {
-          runError = response.error;
-          dispatchAnnotation({ type: "set-status", status: `YOLO 扫描失败：${response.error}` });
-          return;
-        }
-        const detections = response.detections ?? [];
-        if (detections.length === 0) {
-          runWarning = "no-detection";
-          // 用 debug 字段给出具体原因，让用户知道是"模型真没扫到"还是"扫到但被阈值/类别过滤"
-          const debug = response.debug;
-          let reason = "YOLO 没找到任何候选，可降低阈值或换张更清晰的高清原图再试";
-          if (debug) {
-            if (debug.rawDetections === 0) {
-              reason = `YOLO 扫描完毕，模型对该图无响应（rawDetections=0）。汉画像石灰度浮雕在 COCO 通用模型上识别困难，建议：① 用 SAM 框选 + 点选手动标注 ② 等汉画像石专用微调模型`;
-            } else if (debug.filteredByClass > 0 && debug.filteredByConf === 0) {
-              const top = Object.entries(debug.classDistribution)
-                .slice(0, 5)
-                .map(([k, v]) => `${k}×${v}`)
-                .join(" ");
-              reason = `YOLO 扫到 ${debug.rawDetections} 个对象但都不在你勾选的类别里。模型实际输出：${top}。打开 dialog 取消"类别过滤"试试`;
-            } else if (debug.filteredByConf > 0) {
-              reason = `YOLO 扫到 ${debug.rawDetections} 个但置信度全都低于阈值 ${debug.appliedConfThreshold.toFixed(2)}（被过滤 ${debug.filteredByConf} 个）。把阈值滑杆拉到 0.05 再试`;
-            }
-          }
-          dispatchAnnotation({ type: "set-status", status: reason });
-          return;
-        }
-        // 把每个 bbox 转成 candidate annotation。frame 跟随当前 sourceMode；
-        // bbox_uv 已经是 image-normalized（v 向下），与前端 UV 约定一致，直接用。
-        const baseColorIndex = doc?.annotations.length ?? 0;
-        detections.forEach((detection, index) => {
-          // 后端总是输出 bbox_uv（image-normalized 与前端 UV 一致）。pixel bbox 仅作为
-          // 旧接口兼容，新代码这里只信任 bbox_uv，缺失就跳过。
-          const uv = detection.bbox_uv;
-          if (!uv) {
-            return;
-          }
-          const annotation = createAnnotationFromGeometry({
-            geometry: { type: "BBox", coordinates: uv },
-            resourceId: candidateResourceId,
-            color: annotationPalette[(baseColorIndex + index) % annotationPalette.length],
-            frame: candidateFrame,
-            label: `YOLO 候选：${detection.label}`,
-            structuralLevel: "figure",
-            reviewStatus: "candidate",
-            generation: {
-              method: "yolo",
-              model: response.model,
-              confidence: detection.confidence,
-              prompt: {
-                stoneId: selectedStone.id,
-                imageUri: activeUri ?? null,
-                classFilter: options.classFilter ?? null,
-                confThreshold: options.confThreshold,
-                maxDetections: options.maxDetections,
-                label: detection.label
-              }
-            }
-          });
-          dispatchAnnotation({ type: "add-annotation", annotation });
-          createdIds.push(annotation.id);
-        });
-        const debugTail = response.debug
-          ? `（原始 ${response.debug.rawDetections}，按类过滤 ${response.debug.filteredByClass}，按阈值过滤 ${response.debug.filteredByConf}）`
-          : "";
-        dispatchAnnotation({
-          type: "set-status",
-          status: `YOLO 扫描完成，落入 ${createdIds.length} 个候选（model=${response.model}）${debugTail}`
-        });
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        runError = message;
-        dispatchAnnotation({ type: "set-status", status: `YOLO 扫描出错：${message}` });
-      } finally {
-        // D3 写入 processingRun（成功 / 失败都报）
-        dispatchAnnotation({
-          type: "add-processing-run",
-          run: {
-            id: `run-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-            method: "yolo",
-            model: runModel,
-            input: {
-              stoneId: selectedStone.id,
-              classFilter: options.classFilter ?? null,
-              confThreshold: options.confThreshold,
-              maxDetections: options.maxDetections,
-              sourceMode: annotationSourceMode
-            },
-            output: {
-              ok: createdIds.length > 0,
-              detectionsCount: createdIds.length
-            },
-            resultAnnotationIds: createdIds,
-            resourceId: candidateResourceId,
-            frame: candidateFrame,
-            startedAt,
-            endedAt: new Date().toISOString(),
-            warning: runWarning,
-            error: runError
-          }
-        });
-        setYoloScanning(false);
-        setYoloDialogOpen(false);
-      }
-    },
-    [annotationSourceMode, annotationState.doc, selectedStone, activeImageResource]
-  );
-
   return (
     <div className="app-shell">
       <header className="topbar">
@@ -1568,17 +1283,15 @@ export function App() {
                 canRedo={annotationState.redoStack.length > 0}
                 canUndo={annotationState.undoStack.length > 0}
                 hasAlignment={hasAlignment}
+                maskEditAvailable={maskEditAvailable}
                 sam3Scanning={sam3Scanning}
                 sam3Status={sam3Status}
-                samStatus={samStatus}
-                yoloScanning={yoloScanning}
                 onCancelCalibration={() => dispatchAnnotation({ type: "set-tool", tool: "select" })}
                 onDeleteSelected={deleteSelectedAnnotation}
                 onRedo={() => dispatchAnnotation({ type: "redo" })}
                 onResetView={() => setResetToken((value) => value + 1)}
                 onStartCalibration={() => dispatchAnnotation({ type: "set-tool", tool: "calibrate" })}
                 onStartSam3={handleStartSam3}
-                onStartYoloScan={handleStartYoloScan}
                 onToolChange={(tool) => dispatchAnnotation({ type: "set-tool", tool })}
                 onUndo={() => dispatchAnnotation({ type: "undo" })}
               />
@@ -1662,12 +1375,9 @@ export function App() {
                   selectedAnnotationId={annotationState.selectedAnnotationId}
                   sourceMode={annotationSourceMode}
                   stone={selectedStone}
-                  yoloDialogOpen={yoloDialogOpen}
-                  yoloScanning={yoloScanning}
                   onActiveImageResourceChange={setActiveImageResource}
                   onCreate={(annotation, asDraft) => dispatchAnnotation({ type: "add-annotation", annotation, asDraft })}
                   onDelete={(id) => dispatchAnnotation({ type: "delete-annotation", id })}
-                  onProcessingRun={(run) => dispatchAnnotation({ type: "add-processing-run", run })}
                   onSaveAlignment={(alignment) => {
                     dispatchAnnotation({ type: "set-alignment", alignment });
                     // P2：保存后给出重投影误差反馈（4 点时≈0，主要确认矩阵非退化；
@@ -1685,10 +1395,9 @@ export function App() {
                   }}
                   onSelect={(id) => dispatchAnnotation({ type: "select", id })}
                   onSourceModeChange={setAnnotationSourceMode}
+                  onStatusMessage={(status) => dispatchAnnotation({ type: "set-status", status })}
                   onToolChange={(tool) => dispatchAnnotation({ type: "set-tool", tool })}
                   onUpdate={(id, patch) => dispatchAnnotation({ type: "update-annotation", id, patch })}
-                  onYoloCancel={handleCancelYoloScan}
-                  onYoloSubmit={handleSubmitYoloScan}
                 />
               </div>
             </Suspense>
@@ -1735,8 +1444,6 @@ export function App() {
                 onMergeCandidates={handleMergeCandidates}
                 onRejectCandidate={handleRejectCandidate}
                 onRetryCandidate={handleRetryCandidate}
-                onRefineWithSam={handleRefineWithSam}
-                onBulkRefineYoloWithSam={handleBulkRefineYoloWithSam}
                 onSelectAnnotation={(id) => dispatchAnnotation({ type: "select", id })}
                 onUpdateAnnotation={(id, patch) => dispatchAnnotation({ type: "update-annotation", id, patch })}
                 processingRuns={annotationProcessingRuns}

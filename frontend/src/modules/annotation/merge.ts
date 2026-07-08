@@ -42,6 +42,64 @@ export type MergeResult =
   | { ok: false; reason: MergeFailure };
 
 /**
+ * P2 共享工厂：由"合并后的几何"构造新标注，继承源标注的审核状态 / 颜色 /
+ * frame / resourceId。矢量 union（fallback）与 mask 级合并（主路径）共用。
+ */
+export function buildMergedAnnotation(
+  annotations: IimlAnnotation[],
+  geometry: IimlGeometry,
+  model: string
+): IimlAnnotation {
+  const first = annotations[0];
+  const baseFrame = first.frame ?? "model";
+  // 合并后的审核状态："最保守"原则——任一源是候选则结果是候选（继续审），
+  // 否则跟随第一个源的状态。
+  const hasCandidate = annotations.some((annotation) => annotation.reviewStatus === "candidate");
+  const reviewStatus = hasCandidate ? "candidate" : first.reviewStatus ?? "reviewed";
+  const label = hasCandidate ? "合并候选" : "合并标注";
+  return createAnnotationFromGeometry({
+    geometry,
+    resourceId: first.resourceId,
+    color: first.color,
+    frame: baseFrame,
+    label,
+    structuralLevel: first.structuralLevel === "unknown" ? "figure" : first.structuralLevel,
+    reviewStatus,
+    generation: {
+      method: "merge",
+      model,
+      confidence: averageConfidence(annotations),
+      prompt: {
+        sourceIds: annotations.map((annotation) => annotation.id),
+        sourceCount: annotations.length
+      }
+    }
+  });
+}
+
+/**
+ * 合并前置校验（两条路径共用）：数量 / 同 frame / 有面状几何。
+ */
+export function validateMergeTargets(annotations: IimlAnnotation[]): MergeFailure | undefined {
+  if (annotations.length < 2) {
+    return "not-enough-targets";
+  }
+  const baseFrame = annotations[0].frame ?? "model";
+  if (annotations.some((annotation) => (annotation.frame ?? "model") !== baseFrame)) {
+    return "frame-mismatch";
+  }
+  const hasArea = annotations.some((annotation) =>
+    annotation.target.type === "Polygon" ||
+    annotation.target.type === "MultiPolygon" ||
+    annotation.target.type === "BBox"
+  );
+  if (!hasArea) {
+    return "no-polygon";
+  }
+  return undefined;
+}
+
+/**
  * 把多个候选标注做几何并集（union），返回新的合并候选。
  *
  * 业务约束：
@@ -115,34 +173,7 @@ export function mergePolygonAnnotations(annotations: IimlAnnotation[]): MergeRes
     };
   }
 
-  const first = annotations[0];
-  // 合并后的审核状态："最保守"原则——任一源是候选则结果是候选（继续审），
-  // 否则跟随第一个源的状态。这样：
-  //   候选 + 候选 → 候选（让用户审合并质量）
-  //   approved + approved → approved（避免已审过的标注被打回重审）
-  const hasCandidate = annotations.some((annotation) => annotation.reviewStatus === "candidate");
-  const reviewStatus = hasCandidate ? "candidate" : first.reviewStatus ?? "reviewed";
-  const label = hasCandidate ? "SAM 合并候选" : "合并标注";
-
-  const merged = createAnnotationFromGeometry({
-    geometry,
-    resourceId: first.resourceId,
-    color: first.color,
-    frame: baseFrame,
-    label,
-    structuralLevel: first.structuralLevel === "unknown" ? "figure" : first.structuralLevel,
-    reviewStatus,
-    generation: {
-      method: "sam-merge",
-      model: "polygon-union",
-      confidence: averageConfidence(annotations),
-      prompt: {
-        sourceIds: annotations.map((annotation) => annotation.id),
-        sourceCount: annotations.length
-      }
-    }
-  });
-  return { ok: true, annotation: merged };
+  return { ok: true, annotation: buildMergedAnnotation(annotations, geometry, "polygon-union") };
 }
 
 /**
@@ -191,6 +222,23 @@ function averageConfidence(annotations: IimlAnnotation[]): number {
     return 1;
   }
   return values.reduce((sum, value) => sum + value, 0) / values.length;
+}
+
+/**
+ * P2：把 /ai/mask/compose 输出的 polygons（ring[0] 外环 + 洞）转成 IIML 几何。
+ * 单块 → Polygon（含洞），多块 → MultiPolygon。
+ */
+export function geometryFromMaskPolygons(
+  polygons: Array<{ rings: IimlPoint[][] }>
+): IimlGeometry | undefined {
+  const valid = polygons.filter((polygon) => polygon.rings.length > 0 && polygon.rings[0].length >= 4);
+  if (valid.length === 0) {
+    return undefined;
+  }
+  if (valid.length === 1) {
+    return { type: "Polygon", coordinates: valid[0].rings };
+  }
+  return { type: "MultiPolygon", coordinates: valid.map((polygon) => polygon.rings) };
 }
 
 /**

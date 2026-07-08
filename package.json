@@ -14,6 +14,7 @@
     "scan": "tsx backend/src/scripts/scan.ts",
     "setup:sam3": "powershell -ExecutionPolicy Bypass -File ai-service/scripts/setup-sam3.ps1",
     "migrate:iiml-frame": "tsx backend/src/scripts/migrate-iiml-frame.ts",
+    "migrate:iiml-anchor": "tsx backend/src/scripts/migrate-iiml-anchor.ts",
     "start:backend": "node dist/backend/server.js",
     "test": "tsx --test backend/src/test/*.test.ts frontend/src/test/*.test.ts",
     "test:backend": "tsx --test backend/src/test/*.test.ts",
@@ -35,7 +36,8 @@
     "react": "^19.2.1",
     "react-dom": "^19.2.1",
     "react-konva": "^19.2.3",
-    "three": "^0.181.2"
+    "three": "^0.181.2",
+    "three-mesh-bvh": "^0.9.0"
   },
   "devDependencies": {
     "@types/cors": "^2.8.19",

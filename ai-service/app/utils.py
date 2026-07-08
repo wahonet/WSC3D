@@ -11,10 +11,21 @@ from __future__ import annotations
 
 import base64
 import io
+import os
 from typing import Any
 
 import numpy as np
 from PIL import Image
+
+
+def legacy_ai_enabled() -> bool:
+    """P0 收敛：旧 AI 入口（MobileSAM /ai/sam、YOLO /ai/yolo、/ai/canny）默认下线。
+
+    SAM3 (/ai/sam3) 是唯一 AI 标注入口。迁移旧数据或调试时设 ``WSC3D_LEGACY_AI=1``
+    临时恢复；产品主流程不再出现这些端点。
+    """
+
+    return os.environ.get("WSC3D_LEGACY_AI", "0").strip().lower() in {"1", "true", "yes", "on"}
 
 
 def decode_image(image_base64: str) -> np.ndarray:

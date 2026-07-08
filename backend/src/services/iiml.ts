@@ -32,6 +32,7 @@ import {
   HAN_STONE_CATEGORIES,
   TRAINING_ROLES
 } from "../domain/han-stone.js";
+import { enrichDocAnchors, type StoneDimensionsCm } from "./anchor.js";
 import { parseMarkdownMetadata } from "../parsers/markdownParser.js";
 import type { CatalogConfig, getCatalog } from "./catalog.js";
 import type { StoneMetadata, StoneRecord } from "../types.js";
@@ -101,6 +102,17 @@ export type IimlAnnotation = {
   resourceId: string;
   target: IimlGeometry;
   frame?: IimlAnnotationFrame;
+  // P4：保存时自动派生的空间锚点（canonical frame / bboxUv / centroidUv / 物理位置）。
+  anchor?: import("./anchor.js").AnnotationAnchor;
+  // P2：mask 级编辑产物（mask / cutout / thumbnail URI + 栅格尺寸）与操作历史。
+  appearance?: {
+    maskUri?: string;
+    cutoutUri?: string;
+    thumbnailUri?: string;
+    imageSizePx?: { width: number; height: number };
+    areaPx?: number;
+  };
+  editOperations?: Array<Record<string, unknown>>;
   structuralLevel: "whole" | "scene" | "figure" | "component" | "trace" | "inscription" | "damage" | "unknown";
   // SOP v0.3 §1 引入：汉画像石领域类别（13 类 + unknown）。可选 —— 历史标注无此字段，
   // A2 训练池准入会跳过 missing-category；UI 鼓励填。
@@ -349,9 +361,18 @@ async function ensureOriginalImageResource(
   }
 }
 
-export async function saveIimlDoc(projectRoot: string, stoneId: string, doc: IimlDocument): Promise<IimlDocument> {
+export async function saveIimlDoc(
+  projectRoot: string,
+  stoneId: string,
+  doc: IimlDocument,
+  // P4：石头实测尺寸（cm），用于派生 anchor.physical；不传则 anchor 无物理换算。
+  dimensions?: StoneDimensionsCm
+): Promise<IimlDocument> {
   const id = sanitizeIimlId(stoneId);
   const normalized = normalizeIimlDoc(id, doc);
+  // P4：保存时自动派生 / 刷新每条标注的空间锚点（canonical frame / bboxUv /
+  // centroidUv / 物理位置）。纯函数幂等，重复保存零 diff。
+  enrichDocAnchors(normalized as unknown as Record<string, unknown>, dimensions);
   validateIimlDoc(normalized);
   const targetPath = iimlFilePath(projectRoot, id);
   await mkdir(path.dirname(targetPath), { recursive: true });

@@ -110,6 +110,52 @@ export async function deleteStoneResource(
   return { ok: true, stoneId: safeStoneId, fileName: safeFileName };
 }
 
+// P2：标注外观资产（mask / cutout / thumbnail）落盘。
+// 存到 data/stone-resources/{stoneId}/annotations/{annotationId}/{kind}.png，
+// 走已有的 /assets/stone-resources 静态托管；同名覆盖（一条标注只保留最新一套）。
+const ANNOTATION_ASSET_KINDS = ["mask", "cutout", "thumbnail"] as const;
+export type AnnotationAssetKind = (typeof ANNOTATION_ASSET_KINDS)[number];
+
+export type AnnotationAssetUris = Partial<Record<`${AnnotationAssetKind}Uri`, string>>;
+
+export async function saveAnnotationAssets(
+  stoneResourceDir: string,
+  stoneId: string,
+  annotationId: string,
+  assets: Partial<Record<AnnotationAssetKind, string>>
+): Promise<{ stoneId: string; annotationId: string; uris: AnnotationAssetUris }> {
+  const safeStoneId = sanitizeSegment(stoneId);
+  const safeAnnotationId = sanitizeSegment(annotationId);
+  if (!safeStoneId || !safeAnnotationId) {
+    throw new ResourceInputError(400, "invalid_params");
+  }
+  const entries = ANNOTATION_ASSET_KINDS.map((kind) => [kind, assets[kind]] as const).filter(
+    (entry): entry is [AnnotationAssetKind, string] => typeof entry[1] === "string" && entry[1].length > 0
+  );
+  if (entries.length === 0) {
+    throw new ResourceInputError(400, "no_assets");
+  }
+
+  const dir = path.join(stoneResourceDir, safeStoneId, "annotations", safeAnnotationId);
+  await mkdir(dir, { recursive: true });
+
+  const uris: AnnotationAssetUris = {};
+  for (const [kind, base64] of entries) {
+    const payload = base64.startsWith("data:") ? base64.slice(base64.indexOf(",") + 1) : base64;
+    const buffer = Buffer.from(payload, "base64");
+    if (buffer.length === 0) {
+      throw new ResourceInputError(400, "empty_asset", { kind });
+    }
+    if (buffer.length > 30 * 1024 * 1024) {
+      throw new ResourceInputError(413, "payload_too_large", { kind });
+    }
+    await writeFile(path.join(dir, `${kind}.png`), buffer);
+    uris[`${kind}Uri`] =
+      `/assets/stone-resources/${encodeURIComponent(safeStoneId)}/annotations/${encodeURIComponent(safeAnnotationId)}/${kind}.png`;
+  }
+  return { stoneId: safeStoneId, annotationId: safeAnnotationId, uris };
+}
+
 export class ResourceInputError extends Error {
   constructor(
     readonly statusCode: number,

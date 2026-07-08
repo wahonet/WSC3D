@@ -13,11 +13,13 @@
  * - **面对面贴合**：选 A / B 各一面，自动算 quaternion + 平移让两面贴合
  * - **方案保存 / 加载**：JSON 形式持久化到 `data/assembly-plans/`
  *
- * 设计要点：
- * - 父级隐藏（`active = false`）时暂停 render loop 省 GPU；后台不空转
+ * 设计要点（P5 Assembly 2.0）：
+ * - **按需渲染**：静止时不持续满帧 RAF；相机 / gizmo / 窗口变化时才 render
+ * - **BVH 加速拾取**：GLTF mesh 建 three-mesh-bvh，复杂模型点选明显变快
+ * - 父级隐藏（`active = false`）时完全停止 RAF；重新激活立刻补一帧
  * - 每块模型用一个 `THREE.Group` 包一层，便于整组应用 transform；加载后再
  *   计算 baseSize 回传父级供尺寸推断
- * - 选中切换时 `BoxHelper` + `TransformControls` 都重新挂在新块上
+ * - 选中切换时 `TransformControls` 重新挂在新块上；辅助对象仅选中项更新
  * - OrbitControls 与 TransformControls 协同：拖 gizmo 时 OrbitControls 暂停
  */
 
@@ -29,6 +31,7 @@ import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import type { AssemblyDimensions, AssemblyItem, AssemblyTransform } from "./types";
 import { AssemblyAdjustControls, type AdjustmentAxis, type AdjustmentMode } from "./AssemblyAdjustControls";
 import { ViewCube, type ViewCubeView } from "../shared/ViewCube";
+import { accelerateObjectMeshes, disposeObjectMeshesBvh } from "./mesh-bvh";
 
 type AssemblyWorkspaceProps = {
   // 当父级以 CSS 隐藏工作区时传 false，暂停 Three.js render loop，
@@ -125,12 +128,17 @@ export function AssemblyWorkspace({
   const clickStartRef = useRef<{ x: number; y: number } | undefined>(undefined);
   const loaderRef = useRef(new GLTFLoader());
   const activeRef = useRef(active);
+  // P5：按需渲染回调，供 init 以外的 effect 在场景变化后请求补帧。
+  const requestRenderRef = useRef<(() => void) | null>(null);
   const [loadingCount, setLoadingCount] = useState(0);
   const [readyItemIds, setReadyItemIds] = useState<Set<string>>(() => new Set());
   const isModelReady = readyItemIds.has(selectedItemId);
 
   useEffect(() => {
     activeRef.current = active;
+    if (active) {
+      requestRenderRef.current?.();
+    }
   }, [active]);
 
   useEffect(() => {
@@ -237,6 +245,7 @@ export function AssemblyWorkspace({
       }
       syncGizmoSphere(gizmoSphereRef.current, loaded);
       onTransformChangeRef.current(instanceId, transformFromGroup(loaded.group));
+      requestRender();
     };
     transformControls.addEventListener("dragging-changed", draggingChanged);
     transformControls.addEventListener("objectChange", objectChanged);
@@ -285,29 +294,45 @@ export function AssemblyWorkspace({
       renderer.setSize(nextWidth, nextHeight);
       camera.aspect = nextWidth / nextHeight;
       camera.updateProjectionMatrix();
+      requestRender();
     };
     const observer = new ResizeObserver(resize);
     observer.observe(container);
 
-    const animate = () => {
-      if (disposed) {
+    // P5：按需渲染——静止时不持续 RAF；OrbitControls damping 通过 change 事件续帧。
+    let rafId = 0;
+    const requestRender = () => {
+      if (disposed || rafId || !activeRef.current) {
         return;
       }
-      // 隐藏工作区时跳过更新与 render，省 GPU；保持 RAF 以便重新激活时立刻响应。
-      if (!activeRef.current) {
-        requestAnimationFrame(animate);
+      rafId = requestAnimationFrame(renderOnce);
+    };
+    requestRenderRef.current = requestRender;
+
+    const renderOnce = () => {
+      rafId = 0;
+      if (disposed || !activeRef.current) {
         return;
       }
       controls.update();
-      loadedRef.current.forEach((loaded) => loaded.selectionBox.update());
-      syncGizmoSphere(gizmoSphereRef.current, loadedRef.current.get(selectedItemIdRef.current));
+      const selected = loadedRef.current.get(selectedItemIdRef.current);
+      if (selected?.selectionBox.visible) {
+        selected.selectionBox.update();
+      }
+      syncGizmoSphere(gizmoSphereRef.current, selected);
       renderer.render(scene, camera);
-      requestAnimationFrame(animate);
     };
-    animate();
+
+    controls.addEventListener("change", requestRender);
+    requestRender();
 
     return () => {
       disposed = true;
+      requestRenderRef.current = null;
+      if (rafId) {
+        cancelAnimationFrame(rafId);
+      }
+      controls.removeEventListener("change", requestRender);
       if (loadedRef.current.size > 0) {
         onCameraStateChangeRef.current(readAssemblyCameraState(camera, controls));
       }
@@ -403,23 +428,28 @@ export function AssemblyWorkspace({
             fitAssemblyCamera(loadedRef.current, cameraRef.current, controlsRef.current);
             shouldPreserveLoadedCameraRef.current = true;
           }
+          requestRenderRef.current?.();
         }
       });
     }
+    requestRenderRef.current?.();
   }, [items]);
 
   useEffect(() => {
     syncTransformControls(transformControlsRef.current, loadedRef.current, selectedItemId, gizmoMode, adjustmentStep, rotationStep);
     syncGizmoSphere(gizmoSphereRef.current, loadedRef.current.get(selectedItemId));
+    requestRenderRef.current?.();
   }, [adjustmentStep, gizmoMode, items, loadingCount, readyItemIds, rotationStep, selectedItemId]);
 
   useEffect(() => {
     fitAssemblyCamera(loadedRef.current, cameraRef.current, controlsRef.current);
+    requestRenderRef.current?.();
   }, [resetToken]);
 
   const setView = (view: AssemblyView) => {
     onViewChange(view);
     fitAssemblyCamera(loadedRef.current, cameraRef.current, controlsRef.current, view);
+    requestRenderRef.current?.();
   };
 
   const groundSelectedItem = () => {
@@ -439,6 +469,7 @@ export function AssemblyWorkspace({
     syncGizmoSphere(gizmoSphereRef.current, loaded);
     loaded.selectionBox.update();
     onTransformChangeRef.current(loaded.item.instanceId, transformFromGroup(loaded.group));
+    requestRenderRef.current?.();
   };
 
   return (
@@ -509,6 +540,7 @@ function loadAssemblyItem({
 
       const model = gltf.scene;
       normalizeModel(model);
+      accelerateObjectMeshes(model);
       const baseBox = new THREE.Box3().setFromObject(model);
       const baseSize = baseBox.getSize(new THREE.Vector3());
       if (!item.baseDimensions) {
@@ -629,6 +661,7 @@ function pickItem(
   const rect = canvas.getBoundingClientRect();
   const pointer = new THREE.Vector2(((event.clientX - rect.left) / rect.width) * 2 - 1, -(((event.clientY - rect.top) / rect.height) * 2 - 1));
   const raycaster = new THREE.Raycaster();
+  raycaster.firstHitOnly = true;
   raycaster.setFromCamera(pointer, camera);
   const models = [...loadedMap.values()].map((loaded) => loaded.model);
   const [hit] = raycaster.intersectObjects(models, true);
@@ -758,6 +791,7 @@ function disposeLoaded(loaded: LoadedAssemblyObject) {
   loaded.selectionBox.parent?.remove(loaded.selectionBox);
   loaded.selectionBox.geometry.dispose();
   disposeMaterial(loaded.selectionBox.material);
+  disposeObjectMeshesBvh(loaded.model);
   disposeObject(loaded.group);
 }
 

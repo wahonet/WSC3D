@@ -49,7 +49,17 @@ export function createIimlRouter(
 
   router.put("/iiml/:stoneId", async (req, res, next) => {
     try {
-      res.json(await saveIimlDoc(projectRoot, req.params.stoneId, req.body));
+      // P4：把石头实测尺寸（cm）传给保存管线，派生 anchor.physical。
+      // catalog 加载失败不阻塞保存（anchor 只是少物理换算）。
+      let dimensions: { width?: number; height?: number } | undefined;
+      try {
+        const catalog = await getCatalogImpl(config);
+        const stone = catalog.stones.find((entry) => entry.id === req.params.stoneId);
+        dimensions = stone?.metadata?.dimensions;
+      } catch {
+        dimensions = undefined;
+      }
+      res.json(await saveIimlDoc(projectRoot, req.params.stoneId, req.body, dimensions));
     } catch (error) {
       next(error);
     }

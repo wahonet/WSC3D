@@ -22,10 +22,10 @@ npm run dev
 
 几个初次使用最好知道的事：
 
-- AI 服务第一次启动会从 GitHub 下载 MobileSAM 权重（约 39 MB）到 `ai-service/weights/`，下载期间前端的 SAM 按钮会显示"加载中"。
-- SAM3 是 Hugging Face 上的 gated 模型。把已授权下载的 `sam3.pt` 放到 `ai-service/weights/sam3/sam3.pt` 就行，这个sam3.pt的权重去哪要就别问我了。
+- SAM3 是 Hugging Face 上的 gated 模型。把已授权下载的 `sam3.pt` 放到 `ai-service/weights/sam3/sam3.pt` 就行，这个sam3.pt的权重去哪要就别问我了。SAM3 是平台唯一的 AI 标注入口，首次调用时懒加载。
 - 高清原图放进仓库根目录的 `pic/`（已在 .gitignore 里），文件名以画像石编号开头即可，比如 `29东汉武氏祠....tif`。AI 服务会按数字前缀匹配，tif 会在需要时自动转码成 PNG 缓存。
-- 装依赖如果想用 GPU 给 SAM3 提速，把 `requirements.txt` 换成 `requirements-cu128.txt`；默认装的是 CPU 版（MobileSAM 本来就跑在 CPU 上，日常够用）。
+- 装依赖如果想用 GPU 给 SAM3 提速，把 `requirements.txt` 换成 `requirements-cu128.txt`；默认装的是 CPU 版。
+- 旧的 MobileSAM 交互分割与 YOLO 批量扫描已从主流程下线（端点默认返回 410）。迁移旧数据或调试时设环境变量 `WSC3D_LEGACY_AI=1` 可临时恢复。
 
 ## 三个进程怎么分工
 
@@ -33,7 +33,7 @@ npm run dev
 
 **后端**（Node.js + Express + TypeScript，端口 3100）管的是数据和文件：扫描本地资源目录生成画像石列表、读写 IIML 标注文档（带 ajv 校验）、保存拼接方案、托管三维模型和图片等静态资源、导出训练集。它是唯一直接碰 `data/` 目录的进程。
 
-**AI 服务**（Python + FastAPI，端口 8010）专门做推理和图像处理：MobileSAM 做交互式分割、SAM3 做文本概念分割、YOLOv8n 做目标检测、OpenCV 做线图和高清图转码。它独立于后端，权重和缓存都放在 `ai-service/` 下面。
+**AI 服务**（Python + FastAPI，端口 8010）专门做推理和图像处理：SAM3 做文本概念分割（唯一 AI 标注入口），OpenCV 做线图和高清图转码。旧的 MobileSAM / YOLOv8n 端点默认下线（`WSC3D_LEGACY_AI=1` 可临时恢复）。它独立于后端，权重和缓存都放在 `ai-service/` 下面。
 
 三个进程故意拆开，是因为它们的生命周期和技术栈差别很大——AI 模型加载慢、吃内存，单独成进程才不会拖累前端热更新；后端做纯数据读写，保持轻量。以后要换分割模型，或者把 AI 服务搬到另一台带 GPU 的机器，都比较好动。
 
@@ -78,26 +78,23 @@ npm run dev
 
 左边工具栏从上到下：
 
-- **选择/移动、矩形、圆/椭圆、点、钢笔**（多边形，双击或回车闭合）——基础几何。
+- **选择/移动、矩形、圆/椭圆、点、钢笔**（多边形，双击或回车闭合）——人工几何补正工具。
+- **SAM3 概念分割**——唯一 AI 候选生成器，用"人物""马""鸟"这样的概念词驱动。
 - **对齐校准（十字准星）**——4 点单应性标定，下面单讲。
-- **SAM 多 prompt 智能分割**——左键点正点、右键点负点、Shift+左键拖框，回车提交一次推理。
-- **YOLO 批量扫描（Radar）**——一次扫出一批候选框。
-- **S3 概念分割（SAM3）**——用"人物""马""鸟"这样的概念词驱动。
-- **AI 线图叠加**——5 种边缘检测算法，半透明白线突出浅浮雕轮廓。
+- **AI 线图叠加**——5 种边缘检测算法，半透明白线突出浅浮雕轮廓（视觉辅助，不产生标注）。
 
-### AI 候选的三层链路
+### SAM3 主标注 + 人工补正
 
-这是标注能批量化生产的关键。三个模型分工，串成一条"先粗后精"的流水线：
+平台的标注工作流收敛为一条主线：**SAM3 生成候选 → 人工审阅 → 手工几何补正**。
 
-1. **YOLOv8n 做召回**：通用 COCO 模型，一次扫出 N 个粗略边界框（人物、鸟兽、器物等）。汉画像石是灰度浮雕，通用模型直接检出的置信度偏低，所以这里做了"原图 + CLAHE 对比度增强图"双跑，再按 IoU 去重，明显改善了"什么都扫不到"的情况。
-2. **MobileSAM 做精修**：在每个 YOLO 框里、或者用户点的位置跑 SAM，输出精确的多边形轮廓，拿到"高召回 + 高精度"的候选。SAM 也支持任意资源 URI（正射图、拓片都能直接分割），不限于高清原图。
-3. **SAM3 做概念分割**：输入中文概念词（人物/马/鸟/兽/车/纹饰），前端会自动扩展成英文同义词提交，再按阈值和最大候选数过滤，适配画像石这种非摄影风格的人物轮廓。
+- **SAM3 概念分割**：输入中文概念词（人物/马/鸟/兽/车/纹饰）或自定义英文 prompt，前端会自动扩展成英文同义词提交，再按阈值和最大候选数过滤，适配画像石这种非摄影风格的人物轮廓。支持任意资源 URI（正射图、拓片都能直接分割），不限于高清原图。
+- **人工补正**：矩形 / 圆 / 点 / 钢笔多边形负责 SAM3 覆盖不到或分割不准的区域。
 
-每次 SAM/YOLO/Canny 调用都会记一条 `processingRun` 到 IIML 文档，含模型名、参数、置信度、起止时间——这样每条 AI 候选都能追溯到"是哪个模型、什么参数、什么时候产出的"，论文要求的可溯源性自动满足。
+每次 SAM3 调用都会记一条 `processingRun` 到 IIML 文档，含模型名、参数、置信度、起止时间——这样每条 AI 候选都能追溯到"是哪个模型、什么参数、什么时候产出的"，论文要求的可溯源性自动满足。
 
-候选产出后默认是 `candidate` 状态，进候选 tab 集中审阅：单条接受/拒绝/重试，也能全部接受/拒绝。多条多边形还能选中后做几何并集合并（polygon-clipping，只留最外轮廓），合并后的状态智能继承。用户审核通过后升到 `reviewed` 或 `approved`，才有资格进训练池。批量任务（一次 YOLO 扫描、SAM3 多概念分割）会弹出一个进度面板，能看到当前进度，长任务可以中途取消。
+候选产出后默认是 `candidate` 状态，进候选 tab 集中审阅：单条接受/拒绝/重试，也能全部接受/拒绝。多条多边形还能选中后做合并。用户审核通过后升到 `reviewed` 或 `approved`，才有资格进训练池。批量任务会弹出一个进度面板，能看到当前进度，长任务可以中途取消。
 
-> 关于兜底：如果 SAM 权重还没下载好、或某次推理失败，系统会退回 OpenCV Canny 轮廓作为 fallback，保证流程不中断。这种 fallback 候选会显式标成 `weak` 质量，不会混在真神经网络置信度里，处理记录面板上也有醒目的 fallback 标记，避免被误当成高质量标注拿去训练。
+> 历史说明：早期版本同时提供 MobileSAM 交互分割与 YOLOv8n 批量扫描。实际使用中只有 SAM3 的分割质量满足要求，v0.9.0 起两者从界面与主流程移除，AI 服务端点默认 410（`WSC3D_LEGACY_AI=1` 临时恢复）。历史标注文档里 `generation.method = "sam" / "yolo"` 的数据仍正常显示与导出。
 
 ### 一标注一图层
 
@@ -173,7 +170,7 @@ npm run dev
 
 - **前端** React 19 + Vite + TypeScript。三维 Three.js，二维标注 react-konva，多边形并集 polygon-clipping，知识图谱 cytoscape。三大工作区都走 lazy 加载，主 chunk 控制在 500KB 以内。
 - **后端** Node.js + Express + TypeScript。IIML 文档用 ajv 校验后落盘，拼接方案以 JSON 持久化。
-- **AI 服务** Python + FastAPI。Pillow/numpy/OpenCV 做图像处理，MobileSAM/SAM3/ultralytics 做模型推理。权重按需下载、懒加载，SAM 推理会缓存图像 embedding，同一块石头多次 prompt 只算一次。
+- **AI 服务** Python + FastAPI。Pillow/numpy/OpenCV 做图像处理，SAM3 做概念分割推理（懒加载）。旧 MobileSAM / ultralytics 代码保留但默认下线。
 - **数据格式**：标注是类 IIML 的 JSON 文档；两套坐标系（modelBox UV 与高清图自身归一化）用 `frame` 字段区分，靠 `culturalObject.alignment` 里的 4 点单应性矩阵互投。
 
 ## API 一览
@@ -209,14 +206,14 @@ POST   /api/assembly-plans                  保存方案
 ### AI 服务 FastAPI :8010
 
 ```
-GET    /ai/health                       健康检查 + SAM 加载状态
-POST   /ai/sam                          SAM 智能分割（imageUri / stoneId / base64）
-POST   /ai/sam3                         SAM3 文本概念分割
-POST   /ai/yolo                         YOLOv8n 目标检测（CLAHE 双跑）
-POST   /ai/canny                        OpenCV Canny 线图
+GET    /ai/health                       健康检查 + SAM3 加载状态
+POST   /ai/sam3                         SAM3 文本概念分割（唯一 AI 标注入口）
 GET    /ai/source-image/{stone_id}      高清原图 tif→PNG 转码缓存
 GET    /ai/lineart/{stone_id}           线图 PNG（5 算法×阈值各自缓存）
 GET    /ai/lineart/methods              支持的线图方法
+POST   /ai/sam                          [legacy] 默认 410；WSC3D_LEGACY_AI=1 恢复
+POST   /ai/yolo                         [legacy] 默认 410；WSC3D_LEGACY_AI=1 恢复
+POST   /ai/canny                        [legacy] 默认 410；WSC3D_LEGACY_AI=1 恢复
 ```
 
 ## 常用命令
@@ -238,9 +235,9 @@ GET    /ai/lineart/methods              支持的线图方法
 ai-service/        AI 子服务（Python + FastAPI）
   app/
     main.py            FastAPI 路由入口
-    sam.py             MobileSAM 推理 + 高清图加载 + tif→PNG + embedding 缓存
-    sam3_service.py    SAM3 文本概念分割
-    yolo.py            YOLOv8n + CLAHE 双跑
+    sam3_service.py    SAM3 文本概念分割（唯一 AI 标注入口）
+    sam.py             [legacy] MobileSAM 推理（默认下线）
+    yolo.py            [legacy] YOLOv8n + CLAHE 双跑（默认下线）
     canny.py           5 种线图算法 + 落盘缓存
     resources.py       图源匹配 / URI 反解 / 缓存
     routers/           health / inference / imagery / lineart 路由

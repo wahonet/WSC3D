@@ -4,6 +4,7 @@ import {
   bufferFromStoneResourceBody,
   deleteStoneResource,
   listStoneResources,
+  saveAnnotationAssets,
   uploadStoneResource
 } from "../services/stone-resources.js";
 
@@ -39,6 +40,30 @@ export function createResourcesRouter(stoneResourceDir: string): express.Router 
   router.delete("/stones/:id/resources/:fileName", async (req, res, next) => {
     try {
       res.json(await deleteStoneResource(stoneResourceDir, req.params.id, req.params.fileName));
+    } catch (error) {
+      if (error instanceof ResourceInputError) {
+        res.status(error.statusCode).json({ error: error.code, ...error.extra });
+        return;
+      }
+      next(error);
+    }
+  });
+
+  // P2：标注外观资产（mask / cutout / thumbnail base64）落盘，返回可引用 URI。
+  router.post("/stones/:id/annotations/:annotationId/assets", async (req, res, next) => {
+    try {
+      const body = (req.body ?? {}) as {
+        maskPngBase64?: string;
+        cutoutPngBase64?: string;
+        thumbnailPngBase64?: string;
+      };
+      res.json(
+        await saveAnnotationAssets(stoneResourceDir, req.params.id, req.params.annotationId, {
+          mask: body.maskPngBase64,
+          cutout: body.cutoutPngBase64,
+          thumbnail: body.thumbnailPngBase64
+        })
+      );
     } catch (error) {
       if (error instanceof ResourceInputError) {
         res.status(error.statusCode).json({ error: error.code, ...error.extra });
