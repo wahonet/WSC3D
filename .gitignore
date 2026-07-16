@@ -17,6 +17,8 @@ pic/
 # Local runtime data
 data/assembly-plans/
 data/iiml/
+# 知识库主数据入库（data/knowledge/*.json），运行时备份不入库
+data/knowledge/.history/
 # 用户生成 / 上传的资源（正射图、上传的拓片等）；仓库里不放二进制图
 data/stone-resources/
 # A2 训练集导出产物：每次"导出训练集"重写整棵树，不入库
