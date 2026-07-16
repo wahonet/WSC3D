@@ -224,6 +224,18 @@ export function annotationReducer(state: AnnotationState, action: AnnotationActi
         state.selectedAnnotationId
       );
     }
+    case "set-cultural-node": {
+      // IIML 四层数据（physicalLayer / visualLayer / iconographyMeta / culturalLayer）
+      // 统一落在 culturalObject 下，一次替换整个节点。
+      return updateDoc(
+        state,
+        (doc) => ({
+          ...doc,
+          culturalObject: { ...(doc.culturalObject ?? {}), [action.key]: action.value }
+        }),
+        state.selectedAnnotationId
+      );
+    }
     case "undo": {
       const previous = state.undoStack.at(-1);
       if (!previous || !state.doc) {

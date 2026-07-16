@@ -1,0 +1,239 @@
+/* New app shell — fullscreen canvas + floating panels */
+
+.wsc-shell {
+  height: 100vh;
+  display: grid;
+  grid-template-rows: var(--topbar-h) 1fr;
+  overflow: hidden;
+  background: var(--bg-root);
+}
+
+.wsc-topbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: 0 var(--space-4);
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border-subtle);
+  z-index: var(--z-topbar);
+  min-height: var(--topbar-h);
+}
+
+.wsc-topbar__brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+  flex-shrink: 0;
+}
+
+.wsc-topbar__logo {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+  border-radius: var(--radius-sm);
+}
+
+.wsc-topbar__title {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.wsc-topbar__title strong {
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.wsc-topbar__title small {
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+.wsc-topbar__modes {
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  background: var(--bg-root);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-subtle);
+}
+
+.wsc-topbar__mode {
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  border-radius: var(--radius-sm);
+  transition: background 0.12s, color 0.12s;
+}
+
+.wsc-topbar__mode:hover:not(:disabled) {
+  color: var(--text-primary);
+  background: var(--bg-overlay);
+}
+
+.wsc-topbar__mode.is-active {
+  background: var(--accent-muted);
+  color: var(--accent);
+}
+
+.wsc-topbar__spacer {
+  flex: 1;
+}
+
+.wsc-topbar__stone {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 200px;
+  max-width: 320px;
+}
+
+.wsc-topbar__stone span {
+  font-size: 11px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.wsc-topbar__status {
+  font-size: 11px;
+  color: var(--text-secondary);
+  max-width: 280px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wsc-topbar__status.is-dirty {
+  color: var(--warning);
+}
+
+.wsc-topbar__status.is-error {
+  color: var(--danger);
+}
+
+.wsc-topbar__status.is-saving {
+  color: var(--success);
+}
+
+.wsc-stage {
+  position: relative;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--bg-root);
+}
+
+.wsc-stage__layer {
+  position: absolute;
+  inset: 0;
+}
+
+.wsc-stage__layer.is-hidden {
+  visibility: hidden;
+  pointer-events: none;
+  z-index: -1;
+}
+
+.wsc-stage__layer.is-active {
+  z-index: 1;
+}
+
+.wsc-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+/* Viewer floating panel content */
+.wsc-panel-content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.wsc-segmented {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+}
+
+.wsc-segmented button {
+  padding: 6px 8px;
+  font-size: 11px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-default);
+  background: var(--bg-root);
+  color: var(--text-secondary);
+}
+
+.wsc-segmented button.is-active {
+  background: var(--accent-muted);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.wsc-record dl {
+  margin: 0;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 12px;
+  font-size: 12px;
+}
+
+.wsc-record dt {
+  color: var(--text-muted);
+}
+
+.wsc-record dd {
+  margin: 0;
+  color: var(--text-primary);
+}
+
+.wsc-measure-readout {
+  margin: 0;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 12px;
+  font-size: 12px;
+}
+
+.wsc-measure-readout dt {
+  color: var(--text-muted);
+}
+
+.wsc-measure-readout dd {
+  margin: 0;
+  font-family: var(--font-mono);
+}
+
+/* Floating toolbar dock */
+.wsc-float-toolbar {
+  position: fixed;
+  left: 12px;
+  top: calc(var(--topbar-h) + 12px);
+  z-index: calc(var(--z-panel) + 5);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+}
+
+.wsc-workspace-panel-menu {
+  position: fixed;
+  top: calc(var(--topbar-h) + 8px);
+  right: 12px;
+  z-index: calc(var(--z-panel) + 10);
+  pointer-events: auto;
+}
+

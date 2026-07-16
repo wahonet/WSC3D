@@ -1041,16 +1041,30 @@ export async function runSam3ConceptSegmentation(payload: {
   threshold?: number;
   maxResults?: number;
 }): Promise<SamSegmentationResponse> {
-  const response = await fetch("/ai/sam3", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload)
-  });
-  if (!response.ok) {
-    const text = await response.text().catch(() => "");
-    throw new Error(`SAM3 概念分割失败：${response.status}${text ? `：${text}` : ""}`);
+  // 超时保护：首次调用要加载大模型（可达数分钟），给足预算；但绝不无限挂起——
+  // fetch 永不返回会让前端 sam3Scanning 卡死，按钮从此禁用。
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), 300_000);
+  try {
+    const response = await fetch("/ai/sam3", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+      signal: controller.signal
+    });
+    if (!response.ok) {
+      const text = await response.text().catch(() => "");
+      throw new Error(`SAM3 概念分割失败：${response.status}${text ? `：${text}` : ""}`);
+    }
+    return await response.json();
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw new Error("SAM3 请求超时（5 分钟）。AI 服务可能正在加载模型或已停止响应，请稍后重试。");
+    }
+    throw error;
+  } finally {
+    window.clearTimeout(timeout);
   }
-  return response.json();
 }
 
 // 通用 YOLO 检测：优先 imageUri > stoneId (pic/ 高清图) > imageBase64 (截图)。

@@ -1,0 +1,123 @@
+.fp-host {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: var(--z-panel);
+}
+
+.fp-panel {
+  position: fixed;
+  display: flex;
+  flex-direction: column;
+  pointer-events: auto;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  overflow: hidden;
+  min-width: 200px;
+  min-height: 80px;
+}
+
+.fp-panel.is-collapsed {
+  min-height: unset;
+}
+
+.fp-panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  height: var(--panel-header-h);
+  padding: 0 var(--space-2) 0 var(--space-3);
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border-subtle);
+  cursor: grab;
+  user-select: none;
+  flex-shrink: 0;
+}
+
+.fp-panel__header:active {
+  cursor: grabbing;
+}
+
+.fp-panel__title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.fp-panel__actions {
+  display: flex;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.fp-panel__body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: var(--space-3);
+}
+
+.fp-panel__resize {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 14px;
+  height: 14px;
+  cursor: nwse-resize;
+  background: linear-gradient(135deg, transparent 50%, var(--border-strong) 50%);
+  opacity: 0.6;
+}
+
+.fp-panel__resize:hover {
+  opacity: 1;
+}
+
+.shell-panel-menu {
+  position: relative;
+}
+
+.shell-panel-menu__dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 200px;
+  padding: var(--space-2);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  z-index: var(--z-dropdown);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.shell-panel-menu__list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.shell-panel-menu__item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 6px 8px;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.shell-panel-menu__item:hover {
+  background: var(--bg-overlay);
+}
+
+.shell-panel-menu__item input {
+  accent-color: var(--accent);
+}

@@ -34,6 +34,7 @@ export type AlternativeInterpretationsViewProps = {
 
 const generationMethodLabels: Record<string, string> = {
   manual: "手动",
+  sam3: "SAM3",
   sam: "SAM",
   yolo: "YOLO",
   "sam-refine": "SAM 精修",

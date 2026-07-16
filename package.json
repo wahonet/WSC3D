@@ -4,10 +4,10 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "concurrently -n backend,frontend,ai -p \"[dev:{name}]\" --restart-tries 3 --restart-after 1000 \"tsx watch backend/src/server.ts\" \"vite --config frontend/vite.config.ts --host 127.0.0.1\" \"cd ai-service && .venv\\Scripts\\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8010 --reload --reload-dir app\"",
+    "dev": "concurrently -n backend,frontend,ai -p \"[dev:{name}]\" --restart-tries 100 --restart-after 1000 \"tsx watch backend/src/server.ts\" \"vite --config frontend/vite.config.ts --host 127.0.0.1\" \"cd ai-service && .venv\\Scripts\\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8010\"",
     "dev:backend": "tsx watch backend/src/server.ts",
     "dev:frontend": "vite --config frontend/vite.config.ts --host 127.0.0.1",
-    "dev:ai": "cd ai-service && .venv\\Scripts\\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8010 --reload --reload-dir app",
+    "dev:ai": "cd ai-service && .venv\\Scripts\\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8010",
     "build": "npm run build:backend && npm run build:frontend",
     "build:backend": "tsc -p backend/tsconfig.json",
     "build:frontend": "tsc -p frontend/tsconfig.json && vite build --config frontend/vite.config.ts",

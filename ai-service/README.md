@@ -1,14 +1,40 @@
 # WSC3D AI Service
 
-标注模块的本地 AI 子服务，提供 SAM 智能分割、YOLO 候选检测、OpenCV 线图、高清图转码与图像质量检查。
+标注模块的本地 AI 子服务（FastAPI，127.0.0.1:8010）。当前主线是三件事：
 
-当前代码结构：
+- **SAM3 文本概念分割**（`/ai/sam3`，平台唯一 AI 标注入口，懒加载）；
+- **mask 合成**（`/ai/mask/compose`，人工补笔/擦除后的形态学清理与重新矢量化）；
+- **图像服务**（tif→PNG 转码缓存、缩略图预览、5 种线图算法、图像质量检查）。
 
-- `app/main.py`：FastAPI 生命周期与 router 装配。
+旧的 MobileSAM 交互分割（`/ai/sam`）、YOLO 批量检测（`/ai/yolo`）、base64 Canny（`/ai/canny`）已从主流程下线，默认返回 **410 Gone**；迁移旧数据或调试时设环境变量 `WSC3D_LEGACY_AI=1` 临时恢复（同时会恢复启动时的 MobileSAM 预加载和 health 里的旧 feature 上报）。
+
+## 端点一览
+
+```
+GET    /ai/health                       健康检查 + SAM3 加载状态
+POST   /ai/sam3                         SAM3 文本概念分割
+POST   /ai/mask/compose                 mask 合成：几何 + 笔画 → 清理 → 矢量化
+GET    /ai/source-image/{stone_id}      高清原图 tif→PNG 转码缓存（face 参数选面位）
+GET    /ai/pic-preview                  pic 文件缩略图预览（绑定工作台用）
+GET    /ai/quality/{stone_id}           图像质量指标（分辨率 / 曝光 / 清晰度）
+GET    /ai/lineart/{stone_id}           线图 PNG（canny/sobel/scharr/morph/canny-plus）
+GET    /ai/lineart/methods              支持的线图方法
+POST   /ai/sam                          [legacy] 默认 410
+POST   /ai/yolo                         [legacy] 默认 410
+POST   /ai/canny                        [legacy] 默认 410
+```
+
+## 代码结构
+
+- `app/main.py`：FastAPI 装配（仅 legacy 开启时预加载 MobileSAM）。
 - `app/routers/`：按 health、inference、imagery、lineart 拆分 HTTP 入口。
-- `app/resources.py`：pic/ 图源匹配、资源 URI 反解、PNG/preview 缓存。
-- `app/sam.py`、`app/sam3_service.py`、`app/yolo.py`、`app/canny.py`：模型或算法本体。
+- `app/sam3_service.py`：SAM3 概念分割（懒加载 + 线程锁，权重策略见下）。
+- `app/mask_ops.py`：mask 合成——几何栅格化、add/erase 笔画叠加、闭/开运算、去小岛、填小洞、矢量化回带洞多边形，可选返回 mask / 抠图 / 缩略图 PNG。
+- `app/resources.py`：pic/ 图源匹配（数字前缀 + 可选 `-面位`）、资源 URI 反解、source/preview 落盘缓存。
+- `app/canny.py`：5 种线图算法本体 + 按 `stoneId×算法×阈值` 落盘缓存。
 - `app/quality.py`：图像质量指标计算。
+- `app/schemas.py` / `app/utils.py`：请求模型与公共工具。
+- `app/sam.py`、`app/yolo.py`：[legacy] MobileSAM / YOLOv8n，默认不加载。
 
 ## 启动
 
@@ -16,40 +42,27 @@
 cd ai-service
 python -m venv .venv
 .venv\Scripts\activate
-pip install -r requirements.txt        # CPU 默认（MobileSAM 本就跑 CPU，安装最轻）
+pip install -r requirements.txt        # CPU 默认
 uvicorn app.main:app --host 127.0.0.1 --port 8010 --reload
 ```
 
-根目录 `npm run dev` 会通过 `python -m uvicorn app.main:app --port 8010 --reload` 一并启动该服务。
+根目录 `npm run dev` 会通过 `.venv` 里的 python 一并启动该服务。
 
 ### CPU vs CUDA 依赖
 
-- **CPU 默认**（`requirements.txt`）：MobileSAM 在 `sam.py` 里固定 `device="cpu"`，
-  CPU torch 足够，安装最轻（不拉几个 GB 的 CUDA wheel）。SAM3 也能在 CPU 跑（较慢）。
-- **CUDA 12.8 变体**（`requirements-cu128.txt`）：有 NVIDIA GPU 时换用
-  `pip install -r requirements-cu128.txt`，给 SAM3 推理提速。MobileSAM 仍在 CPU。
-- 两个文件 + `pyproject.toml` 现已对齐：默认不含 `triton-windows`（CUDA 编译相关），
-  无 CUDA 环境不再装无用包。
-
-## SAM 模型与权重
-
-- 使用 [MobileSAM](https://github.com/ChaoningZhang/MobileSAM)（`vit_t`，约 39 MB）。
-- 启动时在后台线程自动从 `https://github.com/ChaoningZhang/MobileSAM/raw/master/weights/mobile_sam.pt` 下载到
-  `ai-service/weights/mobile_sam.pt`；只下载一次，之后直接加载。
-- 下载完成前或下载失败时，`/ai/sam` 会自动回退到 OpenCV Canny + 轮廓检测的 fallback
-  实现（`model: "mobile-sam-fallback-contour"`），前端候选闭环仍可跑通。
-- 若处于断网环境，可手动把权重放到 `ai-service/weights/mobile_sam.pt`，启动时会直接加载。
+- **CPU 默认**（`requirements.txt`）：安装最轻，不拉几个 GB 的 CUDA wheel。SAM3 在 CPU 上能跑但较慢。
+- **CUDA 12.8 变体**（`requirements-cu128.txt`）：有 NVIDIA GPU 时换用 `pip install -r requirements-cu128.txt`，给 SAM3 推理提速（含 `torch==2.11.0+cu128` / `torchvision==0.26.0+cu128` / `triton-windows`）。
+- `pyproject.toml` 与两个 requirements 文件保持对齐，CUDA 相关包只出现在 cu128 变体里。
 
 ## SAM3 概念分割
 
-- `/ai/sam3` 使用官方 `sam3` 包，适合文本概念分割，例如“horse”“person”“bird”。
-- SAM3 懒加载：只有第一次调用 `/ai/sam3` 时才加载/下载模型，不影响 `/ai/sam` 的 MobileSAM 交互式点选/框选。
-- Windows + CUDA 跑 SAM3 时需要 `triton-windows` 与 `torch==2.11.0+cu128` / `torchvision==0.26.0+cu128`，用 `requirements-cu128.txt` 安装；CPU 默认路径（`requirements.txt`）不含这些，SAM3 降级到 CPU 跑。
-- 默认优先读取 `ai-service/weights/sam3/sam3.pt`；也可设置 `WSC3D_SAM3_CHECKPOINT` 指向其它本地 checkpoint。
-- 若本地 checkpoint 不存在，服务会走 Hugging Face 下载。`facebook/sam3` 是 gated repo，需要先在 Hugging Face 通过访问审批并完成 `hf auth login`。
-- 若 Hugging Face 在当前网络下超时，可先手动把 `sam3.pt` 放入 `ai-service/weights/sam3/`；或设置 `WSC3D_SAM3_HF_ENDPOINT` / 系统代理后重启服务再试。
-- 本地安装助手：在项目根目录运行 `npm run setup:sam3`；若未登录 Hugging Face，可先设置 `$env:HF_TOKEN='hf_xxx'` 后再运行。
-- 不在本机登录 Hugging Face 时，可从已获授权的环境取得 `sam3.pt`，再运行 `powershell -ExecutionPolicy Bypass -File ai-service/scripts/setup-sam3.ps1 -LocalCheckpoint D:\path\to\sam3.pt` 导入本地权重。
+- `/ai/sam3` 使用官方 `sam3` 包做文本概念分割，例如 "horse" "person" "bird"（前端会把中文概念词自动扩展成英文同义词再提交）。
+- **懒加载**：只有第一次调用 `/ai/sam3` 时才加载模型，不拖慢服务启动。
+- 输入三选一，优先级 `imageUri > stoneId > imageBase64`：`imageUri` 支持正射图、拓片等任意本地资源 URI；`stoneId` 按数字前缀从 `pic/` 匹配高清原图。
+- 权重查找顺序：先读本地 `ai-service/weights/sam3/sam3.pt`（可用 `WSC3D_SAM3_CHECKPOINT` 指向别处）；不存在则走 Hugging Face 下载。`facebook/sam3` 是 gated repo，需要先通过访问审批并完成 `hf auth login`。
+- HF 网络不通时：手动把 `sam3.pt` 放进 `ai-service/weights/sam3/`，或设置 `WSC3D_SAM3_HF_ENDPOINT` / 系统代理后重启再试。
+- 设备选择：`WSC3D_SAM3_DEVICE` 显式指定，否则自动探测 CUDA，不可用回落 CPU；CUDA 推理使用 bfloat16 autocast。
+- 本地安装助手：项目根目录运行 `npm run setup:sam3`；未登录 HF 时可先设 `$env:HF_TOKEN='hf_xxx'`。也可从已授权环境拿到 `sam3.pt` 后运行 `powershell -ExecutionPolicy Bypass -File ai-service/scripts/setup-sam3.ps1 -LocalCheckpoint D:\path\to\sam3.pt` 导入。
 
 请求示例：
 
@@ -62,6 +75,8 @@ uvicorn app.main:app --host 127.0.0.1 --port 8010 --reload
 }
 ```
 
+返回 `polygons`（归一化 UV 多边形）、`detections[{polygon,bbox,score}]`、`confidence`（top1 分数）与 `coordinateSystem`（`image-uv` 或 `modelbox-uv`，取决于输入来源）。
+
 ## 健康检查
 
 `GET /ai/health` 返回：
@@ -70,54 +85,31 @@ uvicorn app.main:app --host 127.0.0.1 --port 8010 --reload
 {
   "ok": true,
   "service": "wsc3d-ai",
-  "features": ["sam", "sam3", "yolo", "canny"],
-  "sam": {
-    "ready": true,
-    "status": "ready",        // pending | downloading | loading | ready | error
-    "model": "mobile-sam-vit-t",
-    "detail": "mobile-sam-vit-t"
-  },
+  "features": ["sam3", "mask-compose", "lineart"],
   "sam3": {
     "ready": false,
-    "status": "pending",
+    "status": "pending",     // pending | loading | ready | error
     "model": "sam3",
     "detail": ""
-  }
+  },
+  "legacyAi": false
 }
 ```
 
-前端在进入标注模式时轮询该端点，根据 `sam.ready` 决定 SAM 工具按钮是否亮起，
-并在 `status` 为 `downloading / loading` 时给出"SAM 模型加载中…"的 UI 提示。
+设 `WSC3D_LEGACY_AI=1` 后，`features` 扩展为 `["sam3", "mask-compose", "lineart", "sam", "yolo", "canny"]`，并额外返回 MobileSAM 的 `sam` 状态。前端进入标注模式时轮询该端点决定 AI 工具是否亮起。
 
-## SAM 接口
+## 目录环境变量
 
-`POST /ai/sam`
+- `WSC3D_PIC_DIR`：高清原图目录，默认 `<项目根>/pic`。
+- `WSC3D_ROOT`：项目根，用于相对 URI 反解。
+- 缓存落在 `ai-service/cache/`（source / preview / lineart 三类，按源文件 mtime 失效）。
 
-```json
-{
-  "stoneId": "29",
-  "imageBase64": null,
-  "imageUri": "/assets/stone-resources/29/ortho-xxx.png",
-  "prompts": [
-    { "type": "point", "x": 512, "y": 384, "label": 1 }
-  ]
-}
-```
+## Legacy：MobileSAM / YOLO / Canny
 
-- 输入优先级为 `imageUri > stoneId > imageBase64`。
-- `imageUri`：正射图、拓片、法线图等任意本地资源 URI，由 `app/resources.py` 反解为本地文件。
-- `stoneId`：按数字前缀从 `pic/` 匹配高清原图。
-- `imageBase64`：截图 fallback，适合没有本地图源时临时使用。
-- `prompts` 支持 `point` / `box` 以及高清图路径使用的 `point_uv` / `box_uv`，可多 prompt 组合。
+代码保留但默认下线，仅在 `WSC3D_LEGACY_AI=1` 时可用：
 
-返回：
+- **MobileSAM**（`vit_t`，约 39 MB）：启动时后台线程自动从 GitHub 下载权重到 `ai-service/weights/mobile_sam.pt`，只下载一次；模型不可用时自动回退 OpenCV 轮廓 fallback。支持 `point` / `box` / `point_uv` / `box_uv` 多 prompt 组合，带按图源 key 的 embedding 内存缓存。
+- **YOLOv8n**：原图 + CLAHE 增强图双跑后按 IoU 去重，权重优先读 `ai-service/yolov8n.pt`。
+- **Canny**：base64 输入的单次线图，已被 `/ai/lineart/{stone_id}` 的缓存版取代。
 
-```json
-{
-  "polygons": [[[u, v, 0], [u, v, 0], ...]],
-  "confidence": 0.93,
-  "model": "mobile-sam-vit-t"
-}
-```
-
-坐标是图像归一化 `(u, v) ∈ [0, 1]²`，前端负责把它转换到 WSC3D 的 `modelBox` 归一化空间后写入 IIML。
+历史标注文档里 `generation.method = "sam" / "yolo"` 的数据在前端仍正常显示与导出。

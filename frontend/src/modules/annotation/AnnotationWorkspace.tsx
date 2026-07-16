@@ -735,17 +735,17 @@ export function AnnotationWorkspace({
       <div className="annotation-source-switch" role="group" aria-label="底图来源">
         <button
           type="button"
-          className={sourceMode === "model" ? "active" : ""}
-          onClick={() => onSourceModeChange("model")}
-        >
-          3D 模型
-        </button>
-        <button
-          type="button"
           className={sourceMode === "image" ? "active" : ""}
           onClick={() => onSourceModeChange("image")}
         >
           高清图
+        </button>
+        <button
+          type="button"
+          className={sourceMode === "model" ? "active" : ""}
+          onClick={() => onSourceModeChange("model")}
+        >
+          3D 模型
         </button>
       </div>
       {sourceMode === "image" && (picFaceOptions.length > 1 || activePicFace) ? (

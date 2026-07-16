@@ -1,0 +1,462 @@
+/* Annotation workspace & panels */
+
+.annotation-panel-root--standalone {
+  height: 100%;
+  overflow: auto;
+}
+
+.annotation-panel-root--standalone .annotation-tab-panel {
+  padding: 0;
+}
+
+.annotation-workspace .source-switch,
+.annotation-workspace .resource-switch,
+.annotation-workspace .layer-switch,
+.annotation-workspace .lineart-switch,
+.annotation-workspace .face-switch {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+}
+
+.annotation-workspace .calibration-hud,
+.annotation-workspace .mask-edit-hud {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+}
+
+/* Unify conflicting legacy .secondary-action (annotation scope) */
+.annotation-panel-root .secondary-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  font-size: 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-default);
+  background: var(--bg-root);
+  color: var(--text-secondary);
+}
+
+.annotation-panel-root .secondary-action:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-muted);
+}
+
+.annotation-panel-root .secondary-action:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* ---------- 标注模式分栏布局：左参考图 / 右大标注面板 ---------- */
+
+.ann-shell {
+  display: flex;
+  align-items: stretch;
+}
+
+.ann-canvas {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+
+/* 左侧竖排浮动工具栏（画布内绝对定位，跟随保活层隐藏） */
+.ann-toolbar-dock {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+}
+
+.ann-divider {
+  flex: none;
+  width: 5px;
+  cursor: col-resize;
+  background: var(--border-subtle);
+  transition: background 0.12s;
+  touch-action: none;
+}
+
+.ann-divider:hover,
+.ann-divider.is-dragging {
+  background: var(--accent);
+}
+
+.ann-dock {
+  flex: none;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--bg-surface);
+  border-left: 1px solid var(--border-subtle);
+}
+
+.ann-dock .annotation-panel-root {
+  height: 100%;
+  min-height: 0;
+}
+
+/* ---------- IIML 四层标注面板 ---------- */
+
+.iiml-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.iiml-steps {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--bg-surface);
+  flex: 0 0 auto;
+}
+
+.iiml-step {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  padding: 8px 10px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-root);
+  color: var(--text-secondary);
+  text-align: left;
+  transition: border-color 0.12s, background 0.12s;
+}
+
+.iiml-step:hover {
+  border-color: var(--border-default);
+  color: var(--text-primary);
+}
+
+.iiml-step.is-active {
+  border-color: var(--accent);
+  background: var(--accent-muted);
+  color: var(--accent);
+}
+
+.iiml-step.is-done:not(.is-active) {
+  border-color: var(--success);
+}
+
+.iiml-step__index {
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+.iiml-step__label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.iiml-step__progress {
+  font-size: 10px;
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+}
+
+.iiml-step.is-done .iiml-step__progress {
+  color: var(--success);
+}
+
+.iiml-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 14px 16px;
+}
+
+.iiml-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.iiml-layer-intro {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+
+.iiml-grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 12px;
+}
+
+.iiml-textarea {
+  resize: vertical;
+  min-height: 56px;
+  line-height: 1.6;
+  font-family: inherit;
+}
+
+.iiml-group-title {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--accent);
+  letter-spacing: 0.05em;
+}
+
+.iiml-collapse {
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 8px 12px;
+  background: var(--bg-surface);
+}
+
+.iiml-collapse > summary {
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--text-secondary);
+  user-select: none;
+}
+
+.iiml-collapse[open] > summary {
+  margin-bottom: 8px;
+  color: var(--text-primary);
+}
+
+.iiml-subheader {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-primary);
+  margin-bottom: 6px;
+}
+
+.iiml-subheader__actions {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.iiml-view-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  font-size: 11px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-root);
+  color: var(--text-secondary);
+}
+
+.iiml-view-toggle.is-active {
+  border-color: var(--accent);
+  background: var(--accent-muted);
+  color: var(--accent);
+}
+
+.iiml-region-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.iiml-region {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.iiml-region:hover {
+  background: var(--bg-overlay);
+  color: var(--text-primary);
+}
+
+.iiml-region.is-selected {
+  border-color: var(--accent);
+  background: var(--accent-muted);
+  color: var(--text-primary);
+}
+
+.iiml-region__dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  flex: none;
+}
+
+.iiml-region__label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.iiml-region__meta {
+  font-size: 10px;
+  color: var(--text-muted);
+  flex: none;
+}
+
+.iiml-region__actions {
+  display: none;
+  align-items: center;
+  gap: 2px;
+  flex: none;
+}
+
+.iiml-region:hover .iiml-region__actions,
+.iiml-region.is-selected .iiml-region__actions {
+  display: inline-flex;
+}
+
+.iiml-region__actions button {
+  display: inline-flex;
+  padding: 3px;
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  background: transparent;
+  border: none;
+}
+
+.iiml-region__actions button:hover {
+  color: var(--text-primary);
+  background: var(--bg-overlay);
+}
+
+.iiml-candidates {
+  border: 1px solid var(--accent-muted);
+  border-radius: var(--radius-md);
+  padding: 10px 12px;
+  background: color-mix(in srgb, var(--accent-muted) 40%, transparent);
+}
+
+.iiml-region-editor {
+  border-top: 1px solid var(--border-subtle);
+  padding-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.iiml-issue-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.iiml-graph-host {
+  height: 380px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.iiml-symbol-row {
+  display: grid;
+  grid-template-columns: 1fr 1.4fr auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.iiml-symbol-remove {
+  display: inline-flex;
+  padding: 6px;
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  background: transparent;
+  border: 1px solid var(--border-subtle);
+}
+
+.iiml-symbol-remove:hover {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+
+.iiml-exports {
+  flex: 0 0 auto;
+  border-top: 1px solid var(--border-subtle);
+  padding: 8px 16px;
+  background: var(--bg-surface);
+}
+
+.iiml-exports > summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--text-secondary);
+  user-select: none;
+}
+
+.iiml-exports__grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding-top: 8px;
+}
+
+.iiml-savebar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 16px;
+  border-top: 1px solid var(--border-subtle);
+  background: var(--bg-surface);
+}
+
+.iiml-savebar__status {
+  flex: 1;
+  min-width: 0;
+  font-size: 11px;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.iiml-savebar.is-dirty .iiml-savebar__status {
+  color: var(--warning);
+}
+
+.iiml-savebar.is-error .iiml-savebar__status {
+  color: var(--danger);
+}
+
+.iiml-savebar.is-saved .iiml-savebar__status {
+  color: var(--success);
+}

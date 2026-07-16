@@ -30,6 +30,8 @@ type ProcessingRunsListProps = {
 };
 
 const methodLabels: Record<string, string> = {
+  sam3: "SAM3",
+  "mask-compose": "Mask 合成",
   sam: "SAM",
   "sam-merge": "SAM 合并",
   yolo: "YOLO",

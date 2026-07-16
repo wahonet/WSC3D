@@ -1,0 +1,23 @@
+/* Viewer workspace — namespaced chrome overrides */
+
+.viewer-hud {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
+.viewer-hud strong {
+  color: var(--text-primary);
+}
+
+.viewer-hud.top-left {
+  top: calc(var(--topbar-h) + 12px);
+}
+
+.measure-hint-text,
+.measure-readout {
+  font-size: 12px;
+}

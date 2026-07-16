@@ -6,4 +6,11 @@
  * 直接绑定到 5000+ 行全局 CSS。
  */
 
+@import "./tokens.css";
+@import "./base.css";
+@import "../ui/ui.css";
+@import "../ui/floating/floating.css";
+@import "./shell.css";
+@import "./modules/viewer.css";
+@import "./modules/annotation.css";
 @import "../styles.css";

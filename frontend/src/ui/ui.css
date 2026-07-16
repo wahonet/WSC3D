@@ -1,0 +1,213 @@
+/* Button */
+.ui-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: 7px 14px;
+  border-radius: var(--radius-md);
+  font-size: 12px;
+  font-weight: 500;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+
+.ui-btn--compact {
+  padding: 4px 10px;
+  font-size: 11px;
+}
+
+.ui-btn--primary {
+  background: var(--accent);
+  color: #1a1408;
+  border-color: var(--accent-hover);
+}
+
+.ui-btn--primary:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+
+.ui-btn--ghost {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  border-color: var(--border-default);
+}
+
+.ui-btn--ghost:hover:not(:disabled) {
+  background: var(--bg-overlay);
+  border-color: var(--border-strong);
+}
+
+.ui-btn--danger {
+  background: var(--danger-muted);
+  color: var(--danger);
+  border-color: rgba(232, 93, 93, 0.35);
+}
+
+.ui-btn--danger:hover:not(:disabled) {
+  background: rgba(232, 93, 93, 0.22);
+}
+
+/* Icon button */
+.ui-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  transition: background 0.12s, color 0.12s;
+}
+
+.ui-icon-btn--md {
+  width: 32px;
+  height: 32px;
+}
+
+.ui-icon-btn--sm {
+  width: 28px;
+  height: 28px;
+}
+
+.ui-icon-btn:hover:not(:disabled) {
+  background: var(--bg-overlay);
+  color: var(--text-primary);
+}
+
+.ui-icon-btn.is-active {
+  background: var(--accent-muted);
+  color: var(--accent);
+}
+
+/* Field */
+.ui-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.ui-field__label {
+  font-size: 11px;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.ui-input,
+.ui-select {
+  width: 100%;
+  padding: 6px 10px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-default);
+  background: var(--bg-root);
+  color: var(--text-primary);
+}
+
+.ui-input:focus,
+.ui-select:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-muted);
+}
+
+/* Chip */
+.ui-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  border: 1px solid var(--border-default);
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+
+.ui-chip:hover:not(:disabled) {
+  border-color: var(--border-strong);
+  color: var(--text-primary);
+}
+
+.ui-chip.is-active {
+  background: var(--accent-muted);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* Tabs */
+.ui-tabs {
+  display: flex;
+  gap: 2px;
+  border-bottom: 1px solid var(--border-subtle);
+  padding: 0 var(--space-2);
+}
+
+.ui-tabs__tab {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 8px 12px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  transition: color 0.12s, border-color 0.12s;
+}
+
+.ui-tabs__tab:hover:not(:disabled) {
+  color: var(--text-primary);
+}
+
+.ui-tabs__tab.is-active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+.ui-tabs__badge {
+  font-size: 10px;
+  padding: 1px 5px;
+  border-radius: 999px;
+  background: var(--bg-overlay);
+  color: var(--text-muted);
+}
+
+.ui-tabs__tab.is-active .ui-tabs__badge {
+  background: var(--accent-muted);
+  color: var(--accent);
+}
+
+.ui-tab-panel {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+/* Section */
+.ui-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.ui-section__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.ui-section__title {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-secondary);
+}
+
+.ui-section__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}

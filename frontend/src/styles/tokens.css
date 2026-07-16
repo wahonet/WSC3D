@@ -1,0 +1,60 @@
+:root {
+  color-scheme: dark;
+
+  /* Graphite backgrounds */
+  --bg-root: #0e0f11;
+  --bg-surface: #16181c;
+  --bg-elevated: #1e2128;
+  --bg-overlay: #252a33;
+
+  /* Text */
+  --text-primary: #e8eaed;
+  --text-secondary: #9aa3b2;
+  --text-muted: #6b7280;
+
+  /* Accent — warm gold */
+  --accent: #d9a441;
+  --accent-hover: #e8b85a;
+  --accent-muted: rgba(217, 164, 65, 0.15);
+
+  /* Status */
+  --success: #2ec4b6;
+  --success-muted: rgba(46, 196, 182, 0.12);
+  --danger: #e85d5d;
+  --danger-muted: rgba(232, 93, 93, 0.12);
+  --warning: #e8a838;
+
+  /* Borders */
+  --border-subtle: #2a2f38;
+  --border-default: #363c48;
+  --border-strong: #4a5264;
+
+  /* Typography */
+  --font-sans: "Segoe UI", "Microsoft YaHei", "PingFang SC", system-ui, sans-serif;
+  --font-mono: ui-monospace, "Cascadia Code", "Consolas", monospace;
+
+  /* Spacing */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+
+  /* Radius */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 10px;
+
+  /* Shadows */
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.35);
+  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.45);
+  --shadow-lg: 0 16px 48px rgba(0, 0, 0, 0.55);
+
+  /* Panel */
+  --panel-header-h: 36px;
+  --topbar-h: 48px;
+  --z-panel: 100;
+  --z-topbar: 200;
+  --z-dropdown: 300;
+}

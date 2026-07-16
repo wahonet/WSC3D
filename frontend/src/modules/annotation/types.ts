@@ -139,6 +139,8 @@ export type AnnotationAction =
   | { type: "add-resource"; resource: IimlResourceEntry }
   | { type: "update-resource"; id: string; patch: Partial<IimlResourceEntry> }
   | { type: "delete-resource"; id: string }
+  // IIML 四层标注：把某一层的结构化数据写入 doc.culturalObject.{key}
+  | { type: "set-cultural-node"; key: string; value: Record<string, unknown> }
   | { type: "undo" }
   | { type: "redo" };
 
