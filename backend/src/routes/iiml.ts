@@ -9,6 +9,8 @@ import {
   loadVocabulary,
   saveIimlDoc
 } from "../services/iiml.js";
+import { loadKb } from "../services/kb/kb-store.js";
+import { projectVocabulary } from "../services/kb/kb-vocabulary.js";
 
 type CatalogLoader = typeof getCatalog;
 
@@ -21,6 +23,13 @@ export function createIimlRouter(
 
   router.get("/terms", async (_req, res, next) => {
     try {
+      // 概念库已建立时由 KB 投影旧词表结构（term.id = conceptId，标注选词
+      // 即自然挂到概念）；概念库为空回退旧 data/terms.json，冷启动不受影响。
+      const kb = await loadKb(projectRoot);
+      if (kb.concepts.length > 0) {
+        res.json(projectVocabulary(kb));
+        return;
+      }
       res.json(await loadVocabulary(projectRoot));
     } catch (error) {
       next(error);

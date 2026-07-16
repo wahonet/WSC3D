@@ -13,6 +13,7 @@ import { fileURLToPath } from "node:url";
 import { createAssemblyRouter } from "./routes/assembly.js";
 import { createCatalogRouter } from "./routes/catalog.js";
 import { createIimlRouter } from "./routes/iiml.js";
+import { createKbRouter } from "./routes/kb.js";
 import { createPicRouter } from "./routes/pic.js";
 import { createResourcesRouter } from "./routes/resources.js";
 import { createTrainingRouter } from "./routes/training.js";
@@ -68,6 +69,7 @@ app.get("/api/health", (_req, res) => {
 
 app.use("/api", createCatalogRouter(config, getCatalog));
 app.use("/api", createResourcesRouter(stoneResourceDir));
+app.use("/api", createKbRouter(projectRoot));
 app.use("/api", createIimlRouter(projectRoot, config, getCatalog));
 app.use("/api", createTrainingRouter(projectRoot, config, getCatalog));
 app.use("/api", createPicRouter(projectRoot, config, getCatalog));

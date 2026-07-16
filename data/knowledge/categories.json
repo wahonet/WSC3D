@@ -1,0 +1,359 @@
+{
+  "categories": [
+    {
+      "id": "cat-person",
+      "name": "人",
+      "order": 0
+    },
+    {
+      "id": "cat-person-figure",
+      "name": "具体人物",
+      "parentId": "cat-person",
+      "order": 0
+    },
+    {
+      "id": "cat-person-role",
+      "name": "社会身份",
+      "parentId": "cat-person",
+      "order": 1
+    },
+    {
+      "id": "cat-person-body",
+      "name": "身体与形态",
+      "parentId": "cat-person",
+      "order": 2
+    },
+    {
+      "id": "cat-person-kinship",
+      "name": "亲属称谓",
+      "parentId": "cat-person",
+      "order": 3
+    },
+    {
+      "id": "cat-nature",
+      "name": "天然",
+      "order": 1
+    },
+    {
+      "id": "cat-nature-animal",
+      "name": "动物",
+      "parentId": "cat-nature",
+      "order": 0
+    },
+    {
+      "id": "cat-nature-plant",
+      "name": "植物",
+      "parentId": "cat-nature",
+      "order": 1
+    },
+    {
+      "id": "cat-nature-sky",
+      "name": "天象与气象",
+      "parentId": "cat-nature",
+      "order": 2
+    },
+    {
+      "id": "cat-nature-terrain",
+      "name": "山川地物",
+      "parentId": "cat-nature",
+      "order": 3
+    },
+    {
+      "id": "cat-artifact",
+      "name": "人造",
+      "order": 2
+    },
+    {
+      "id": "cat-artifact-weapon",
+      "name": "兵器武备",
+      "parentId": "cat-artifact",
+      "order": 0
+    },
+    {
+      "id": "cat-artifact-vehicle",
+      "name": "车与舟船",
+      "parentId": "cat-artifact",
+      "order": 1
+    },
+    {
+      "id": "cat-artifact-architecture",
+      "name": "建筑与构件",
+      "parentId": "cat-artifact",
+      "order": 2
+    },
+    {
+      "id": "cat-artifact-furniture",
+      "name": "家具陈设",
+      "parentId": "cat-artifact",
+      "order": 3
+    },
+    {
+      "id": "cat-artifact-daily",
+      "name": "日常用品",
+      "parentId": "cat-artifact",
+      "order": 4
+    },
+    {
+      "id": "cat-artifact-clothing",
+      "name": "服饰冠带",
+      "parentId": "cat-artifact",
+      "order": 5
+    },
+    {
+      "id": "cat-artifact-tool",
+      "name": "生产工具",
+      "parentId": "cat-artifact",
+      "order": 6
+    },
+    {
+      "id": "cat-artifact-ritual",
+      "name": "礼仪器物",
+      "parentId": "cat-artifact",
+      "order": 7
+    },
+    {
+      "id": "cat-artifact-other",
+      "name": "其他人造物",
+      "parentId": "cat-artifact",
+      "order": 8
+    },
+    {
+      "id": "cat-imagination",
+      "name": "想象",
+      "order": 3
+    },
+    {
+      "id": "cat-imagination-deity",
+      "name": "神祇仙人",
+      "parentId": "cat-imagination",
+      "order": 0
+    },
+    {
+      "id": "cat-imagination-beast",
+      "name": "神兽瑞兽",
+      "parentId": "cat-imagination",
+      "order": 1
+    },
+    {
+      "id": "cat-imagination-realm",
+      "name": "仙境异域",
+      "parentId": "cat-imagination",
+      "order": 2
+    },
+    {
+      "id": "cat-imagination-other",
+      "name": "其他想象",
+      "parentId": "cat-imagination",
+      "order": 3
+    },
+    {
+      "id": "cat-pattern",
+      "name": "纹样",
+      "order": 4
+    },
+    {
+      "id": "cat-pattern-geometric",
+      "name": "几何纹样",
+      "parentId": "cat-pattern",
+      "order": 0
+    },
+    {
+      "id": "cat-pattern-cloud",
+      "name": "云气纹样",
+      "parentId": "cat-pattern",
+      "order": 1
+    },
+    {
+      "id": "cat-pattern-biotic",
+      "name": "动植物纹样",
+      "parentId": "cat-pattern",
+      "order": 2
+    },
+    {
+      "id": "cat-pattern-other",
+      "name": "其他纹样",
+      "parentId": "cat-pattern",
+      "order": 3
+    },
+    {
+      "id": "cat-story",
+      "name": "故事、典故与图像题材",
+      "order": 5
+    },
+    {
+      "id": "cat-story-assassin",
+      "name": "刺客故事",
+      "parentId": "cat-story",
+      "order": 0
+    },
+    {
+      "id": "cat-story-filial",
+      "name": "孝子故事",
+      "parentId": "cat-story",
+      "order": 1
+    },
+    {
+      "id": "cat-story-women",
+      "name": "列女故事",
+      "parentId": "cat-story",
+      "order": 2
+    },
+    {
+      "id": "cat-story-ruler",
+      "name": "帝王圣贤",
+      "parentId": "cat-story",
+      "order": 3
+    },
+    {
+      "id": "cat-story-loyal",
+      "name": "忠臣义士",
+      "parentId": "cat-story",
+      "order": 4
+    },
+    {
+      "id": "cat-story-theme",
+      "name": "图像主题",
+      "parentId": "cat-story",
+      "order": 5
+    },
+    {
+      "id": "cat-story-other",
+      "name": "其他故事",
+      "parentId": "cat-story",
+      "order": 6
+    },
+    {
+      "id": "cat-inscription",
+      "name": "题刻",
+      "order": 6
+    },
+    {
+      "id": "cat-inscription-bangti",
+      "name": "榜题",
+      "parentId": "cat-inscription",
+      "order": 0
+    },
+    {
+      "id": "cat-inscription-jinian",
+      "name": "纪年题记",
+      "parentId": "cat-inscription",
+      "order": 1
+    },
+    {
+      "id": "cat-inscription-songming",
+      "name": "颂铭",
+      "parentId": "cat-inscription",
+      "order": 2
+    },
+    {
+      "id": "cat-inscription-other",
+      "name": "其他题刻",
+      "parentId": "cat-inscription",
+      "order": 3
+    },
+    {
+      "id": "cat-morphology",
+      "name": "形态特征",
+      "order": 7
+    },
+    {
+      "id": "cat-morphology-whole",
+      "name": "整体形态",
+      "parentId": "cat-morphology",
+      "order": 0
+    },
+    {
+      "id": "cat-morphology-part",
+      "name": "局部形态",
+      "parentId": "cat-morphology",
+      "order": 1
+    },
+    {
+      "id": "cat-morphology-appearance",
+      "name": "外观特征",
+      "parentId": "cat-morphology",
+      "order": 2
+    },
+    {
+      "id": "cat-morphology-expression",
+      "name": "表达形式",
+      "parentId": "cat-morphology",
+      "order": 3
+    },
+    {
+      "id": "cat-morphology-appendage",
+      "name": "附加形态",
+      "parentId": "cat-morphology",
+      "order": 4
+    },
+    {
+      "id": "cat-behavior",
+      "name": "行为",
+      "order": 8
+    },
+    {
+      "id": "cat-behavior-ritual",
+      "name": "仪式行为",
+      "parentId": "cat-behavior",
+      "order": 0
+    },
+    {
+      "id": "cat-behavior-travel",
+      "name": "出行行为",
+      "parentId": "cat-behavior",
+      "order": 1
+    },
+    {
+      "id": "cat-behavior-combat",
+      "name": "战斗行为",
+      "parentId": "cat-behavior",
+      "order": 2
+    },
+    {
+      "id": "cat-behavior-labor",
+      "name": "劳作行为",
+      "parentId": "cat-behavior",
+      "order": 3
+    },
+    {
+      "id": "cat-behavior-daily",
+      "name": "日常行为",
+      "parentId": "cat-behavior",
+      "order": 4
+    },
+    {
+      "id": "cat-relation",
+      "name": "人物间关系",
+      "order": 9
+    },
+    {
+      "id": "cat-relation-kinship",
+      "name": "亲属关系",
+      "parentId": "cat-relation",
+      "order": 0
+    },
+    {
+      "id": "cat-relation-social",
+      "name": "君臣宾主",
+      "parentId": "cat-relation",
+      "order": 1
+    },
+    {
+      "id": "cat-relation-other",
+      "name": "其他关系",
+      "parentId": "cat-relation",
+      "order": 2
+    },
+    {
+      "id": "cat-composite",
+      "name": "复合要素",
+      "order": 10
+    },
+    {
+      "id": "cat-composite-expression",
+      "name": "复合表达",
+      "parentId": "cat-composite",
+      "order": 0
+    }
+  ]
+}
