@@ -1459,8 +1459,21 @@ function buildReportCsv(
   for (const item of splits.test) splitOf.set(`${item.stoneId}|${item.ann.id}`, "test");
 
   const header =
-    "stoneId,annotationId,decision,split,errors,category,motif,structuralLevel,reviewStatus,annotationQuality,geometryIntent,trainingRole,annotationIssues,label,imageType,imageId,frame,projected";
+    "stoneId,annotationId,decision,split,errors,category,motif,conceptId,conceptLabel,claimStatus,structuralLevel,reviewStatus,annotationQuality,geometryIntent,trainingRole,annotationIssues,label,imageType,imageId,frame,projected";
   const rows: string[] = [header];
+
+  // Phase 4 Claim 化：conceptRef / claim 为可选扩展字段，历史文档没有则输出空列
+  const conceptCols = (ann: IimlAnnotation): string[] => {
+    const extended = ann as IimlAnnotation & {
+      conceptRef?: { conceptId?: string; label?: string };
+      claim?: { status?: string };
+    };
+    return [
+      csvCell(extended.conceptRef?.conceptId ?? ""),
+      csvCell(extended.conceptRef?.label ?? ""),
+      csvCell(extended.claim?.status ?? "")
+    ];
+  };
 
   for (const item of accepted) {
     const a = item.ann as IimlAnnotation & { category?: string; motif?: string };
@@ -1474,6 +1487,7 @@ function buildReportCsv(
         "",
         csvCell(a.category ?? ""),
         csvCell(a.motif ?? ""),
+        ...conceptCols(item.ann),
         csvCell(item.ann.structuralLevel ?? ""),
         csvCell(item.ann.reviewStatus ?? ""),
         csvCell(getAnnotationQuality(item.ann)),
@@ -1499,6 +1513,7 @@ function buildReportCsv(
         csvCell(item.errors.join(";")),
         csvCell(a.category ?? ""),
         csvCell(a.motif ?? ""),
+        ...conceptCols(item.ann),
         csvCell(item.ann.structuralLevel ?? ""),
         csvCell(item.ann.reviewStatus ?? ""),
         csvCell(getAnnotationQuality(item.ann)),

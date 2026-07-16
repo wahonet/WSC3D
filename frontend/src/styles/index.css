@@ -13,4 +13,5 @@
 @import "./shell.css";
 @import "./modules/viewer.css";
 @import "./modules/annotation.css";
+@import "./modules/knowledge.css";
 @import "../styles.css";

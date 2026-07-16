@@ -16,9 +16,11 @@
  * 所有编辑直接 dispatch update-annotation → reducer undo 栈 + autosave。
  */
 
-import { Check } from "lucide-react";
-import { useMemo } from "react";
+import { Check, Link2, Search } from "lucide-react";
+import { useMemo, useState } from "react";
 import type { StoneMetadata, VocabularyCategory, VocabularyTerm } from "../../api/client";
+import { suggestEvidence } from "../../api/kb";
+import { ConceptPicker } from "../knowledge/ConceptPicker";
 import { Button } from "../../ui/Button";
 import { Chip } from "../../ui/Chip";
 import { Field, Select } from "../../ui/Field";
@@ -43,6 +45,7 @@ import type {
   IimlAnnotation,
   IimlAnnotationIssue,
   IimlAnnotationQualityTier,
+  IimlClaimStatus,
   IimlDocument,
   IimlGeometryIntent,
   IimlHanStoneCategory,
@@ -87,6 +90,13 @@ const trainingRoleOptions: Array<{ value: IimlTrainingRole; label: string; title
   { value: "train", label: "训练", title: "常规训练候选" },
   { value: "validation", label: "验证/评估", title: "gold 子集，优先留作验证或论文评估" },
   { value: "holdout", label: "暂存", title: "保留在 IIML 中，但导出报告会单独标记" }
+];
+
+export const claimStatusOptions: Array<{ value: IimlClaimStatus; label: string }> = [
+  { value: "candidate", label: "候选（未审）" },
+  { value: "review_required", label: "需复核" },
+  { value: "verified", label: "已确认" },
+  { value: "no_concept_expected", label: "无对应概念" }
 ];
 
 const annotationIssueOptions: Array<{ value: IimlAnnotationIssue; label: string }> = [
@@ -274,6 +284,8 @@ export function RegionEditor({
         <p className="ui-muted">故事类（忠臣 / 孝子 / 烈女）建议填写具体母题，训练导出会给出 warning。</p>
       ) : null}
 
+      <ConceptClaimSection annotation={annotation} dispatch={dispatch} />
+
       <Field label="前图像志描述（可见对象的纯描述）">
         <DraftTextarea
           value={annotation.semantics?.preIconographic ?? ""}
@@ -416,5 +428,160 @@ export function RegionEditor({
         onSelectAnnotation={(id) => dispatch({ type: "select", id })}
       />
     </section>
+  );
+}
+
+/**
+ * 概念绑定与文献证据（Claim 化）。
+ *
+ * 对照参照系统"图-词-文段关联"：标注绑定知识库概念后，"匹配文献证据"按
+ * 概念词形字面扫描全部文段，产出 auto_text_match_unconfirmed 建议；人工逐条
+ * 确认 / 拒绝。claim.status 管断言审核（与几何 reviewStatus 正交）。
+ */
+function ConceptClaimSection({
+  annotation,
+  dispatch
+}: {
+  annotation: IimlAnnotation;
+  dispatch: (a: AnnotationAction) => void;
+}) {
+  const [matching, setMatching] = useState(false);
+  const [hint, setHint] = useState<string>();
+  const patch = (p: Partial<IimlAnnotation>) => dispatch({ type: "update-annotation", id: annotation.id, patch: p });
+  const conceptRef = annotation.conceptRef;
+  const claim = annotation.claim;
+  const evidence = claim?.evidence ?? [];
+
+  const setEvidenceStatus = (segmentId: string, status: "confirmed" | "rejected") => {
+    patch({
+      claim: {
+        status: claim?.status ?? "candidate",
+        evidence: evidence.map((entry) => (entry.segmentId === segmentId ? { ...entry, status } : entry))
+      }
+    });
+  };
+
+  const matchEvidence = async () => {
+    if (!conceptRef) return;
+    setMatching(true);
+    setHint(undefined);
+    try {
+      const suggestions = await suggestEvidence(conceptRef.conceptId);
+      const known = new Set(evidence.map((entry) => entry.segmentId));
+      const added = suggestions
+        .filter((s) => !known.has(s.segmentId))
+        .map((s) => ({
+          segmentId: s.segmentId,
+          status: s.status,
+          prov: s.prov,
+          snippet: s.snippet,
+          sourceTitle: s.page ? `${s.sourceTitle} · 页 ${s.page}` : s.sourceTitle
+        }));
+      if (added.length === 0) {
+        setHint(suggestions.length === 0 ? "知识库暂无命中文段；可先到知识库录入文献文段。" : "没有新的证据建议（已全部列出）。");
+      }
+      patch({
+        claim: {
+          status: claim?.status ?? "candidate",
+          evidence: [...evidence, ...added]
+        }
+      });
+    } catch (error) {
+      setHint(`匹配失败：${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      setMatching(false);
+    }
+  };
+
+  return (
+    <details className="iiml-collapse" open={Boolean(conceptRef)}>
+      <summary>
+        概念绑定与文献证据{conceptRef ? `（${conceptRef.label}）` : "（未绑定）"}
+      </summary>
+      <div className="iiml-form">
+        {conceptRef ? (
+          <div className="claim-bound-row">
+            <span className="kb-chip is-primary" title={conceptRef.conceptId}>
+              <Link2 size={11} /> {conceptRef.label}
+            </span>
+            <Select
+              value={claim?.status ?? "candidate"}
+              onChange={(e) => patch({ claim: { status: e.target.value as IimlClaimStatus, evidence } })}
+            >
+              {claimStatusOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </Select>
+            <Button compact disabled={matching} onClick={() => void matchEvidence()}>
+              <Search size={12} /> {matching ? "匹配中…" : "匹配文献证据"}
+            </Button>
+            <Button
+              compact
+              variant="ghost"
+              onClick={() => patch({ conceptRef: undefined, claim: undefined })}
+              title="解除概念绑定并清空证据"
+            >
+              解绑
+            </Button>
+          </div>
+        ) : (
+          <>
+            <ConceptPicker
+              placeholder="搜索知识库概念并绑定，如 西王母…"
+              onPick={(concept) =>
+                patch({
+                  conceptRef: { conceptId: concept.id, label: concept.label },
+                  claim: { status: "candidate", evidence: [] }
+                })
+              }
+            />
+            <Button
+              compact
+              variant="ghost"
+              onClick={() => patch({ conceptRef: undefined, claim: { status: "no_concept_expected", evidence: [] } })}
+              title="装饰 / 结构性区域等不需要对应概念时标记"
+            >
+              标记为「无对应概念」
+            </Button>
+            {claim?.status === "no_concept_expected" ? <p className="ui-muted">已标记：无对应概念。</p> : null}
+          </>
+        )}
+
+        {hint ? <p className="ui-muted">{hint}</p> : null}
+
+        {evidence.length > 0 ? (
+          <ul className="claim-evidence-list">
+            {evidence.map((entry) => (
+              <li key={entry.segmentId} className={`claim-evidence is-${entry.status}`}>
+                <div className="claim-evidence__head">
+                  <span className={`claim-evidence__status is-${entry.status}`}>
+                    {entry.status === "confirmed" ? "已确认" : entry.status === "rejected" ? "已拒绝" : "自动匹配待确认"}
+                  </span>
+                  <span className="claim-evidence__source">{entry.sourceTitle ?? entry.segmentId}</span>
+                  {entry.status !== "confirmed" ? (
+                    <button type="button" title="确认为证据" onClick={() => setEvidenceStatus(entry.segmentId, "confirmed")}>
+                      <Check size={12} />
+                    </button>
+                  ) : null}
+                  {entry.status !== "rejected" ? (
+                    <button
+                      type="button"
+                      title="拒绝该证据"
+                      onClick={() => setEvidenceStatus(entry.segmentId, "rejected")}
+                    >
+                      ×
+                    </button>
+                  ) : null}
+                </div>
+                {entry.snippet ? <p className="claim-evidence__snippet">{entry.snippet}</p> : null}
+                {entry.prov ? <p className="claim-evidence__prov">{entry.prov}</p> : null}
+              </li>
+            ))}
+          </ul>
+        ) : null}
+      </div>
+    </details>
   );
 }

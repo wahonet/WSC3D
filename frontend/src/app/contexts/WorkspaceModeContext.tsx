@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 
-export type WorkspaceMode = "viewer" | "annotation";
+export type WorkspaceMode = "viewer" | "annotation" | "knowledge";
 
 type WorkspaceModeContextValue = {
   workspaceMode: WorkspaceMode;

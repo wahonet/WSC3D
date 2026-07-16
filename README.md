@@ -4,7 +4,7 @@
 
 整套系统由前端、后端、AI 服务三个本地进程组成，全部跑在 127.0.0.1，数据不离开本机，适合敏感数据不方便上公网的情况，也有助于本地离线研究。
 
-平台现在收敛为两个工作区：**浏览**（单块画像石的多视图查看与测量）和**标注**（图像志级别的标注工作台）。早期版本还有独立的**拼接**（多石组合复原）与**绑定**（高清照片配对）工作台，UI 收敛时已下线——拼接方案数据与 API 仍保留（`.hpsml` 研究包导出会带上相关方案），图片绑定数据仍是高清底图匹配的基础（详见「绑定与图片配对」一节）。标注是花精力最多的部分，也是下面要展开讲的重点。
+平台现在有三个工作区：**浏览**（单块画像石的多视图查看与测量）、**标注**（图像志级别的标注工作台）、**知识库**（跨石头的概念-术语-文献知识图谱，参照"汉画术语概念树与知识图谱"系统设计）。早期版本还有独立的**拼接**（多石组合复原）与**绑定**（高清照片配对）工作台，UI 收敛时已下线——拼接方案数据与 API 仍保留（`.hpsml` 研究包导出会带上相关方案），图片绑定数据仍是高清底图匹配的基础（详见「绑定与图片配对」一节）。标注与知识库是花精力最多的部分，也是下面要展开讲的重点。
 
 ## 快速开始
 
@@ -140,9 +140,34 @@ npm run dev
 
 为了让你在标注时就心里有数，每条标注在区域列表行和编辑区顶部都会显示一个训练就绪度标记——能进池（绿）、能进但有警告（黄）、进不了（红），hover 列出具体卡在哪一项；编辑区还提供"设为已审核""设类别 unknown"这类一键修复。（旧版的列表多选批量修复在四层面板重构中暂未恢复，批量升级候选可先用"全部接受"。）
 
+### 概念绑定与文献证据（Claim 化）
+
+区域编辑器里每条标注可以绑定知识库概念——标注从"画个框写个名"升级为**"这块区域是某概念"的学术断言**：
+
+- **概念绑定**：搜索知识库概念挂到标注上（`conceptRef`），装饰/结构性区域可标"无对应概念"；
+- **断言状态机**：候选（未审）/ 需复核 / 已确认 / 无对应概念，与几何审核状态正交；
+- **文献证据链**：点"匹配文献证据"，按概念的全部词形（含异体字）字面扫描知识库文段，命中产出 `auto_text_match_unconfirmed` 建议，人工逐条确认或拒绝；证据带出处快照，脱离知识库也能展示；
+- **审核过滤**：母题区域列表按断言状态过滤（已绑概念 / 有证据 / 自动证据 / 需复核 / 未绑概念），对照参照系统"图-词-文段关联"工作台的审核体验；
+- 训练导出报告新增 conceptId / conceptLabel / claimStatus 三列，概念层信息随训练池一起落盘。
+
 ### 导出
 
 除了训练集，单块石头还支持五种学术导出：IIML / CSV / COCO / IIIF Web Annotation / `.hpsml`（自定义研究包，可以跨机器迁移完整研究状态）。`.hpsml` 也支持一键解包导入。
+
+## 知识库模块
+
+跨石头的全局知识层，数据模型是四元链：**Source（文献）→ Segment（文段，带出处/页码/原文）→ Term（术语词形，异体归一，如 丁蘭/丁兰刻木 → 概念"丁兰"）→ Concept（概念，挂两级分类树）**。种子分类树参照"汉画术语概念树与知识图谱"系统的类目：人 / 天然 / 人造 / 想象 / 纹样 / 故事典故与图像题材 / 题刻 / 形态特征 / 行为 / 人物间关系 / 复合要素，共 11 个一级类目 + 50 个二级分类（`npm run seed:kb` 写入，可编辑）。
+
+工作台三栏：左边概念树（分类 + 概念叶，每概念显示"N 词 / M 段"），中间混合检索（概念/术语/原文/出处，结果 Concept/Term/Segment/Source 混排）与图谱两种视图，右边详情/录入面板。
+
+- **文献录入**：登记文献 → 录入文段（页码 + 原文），点"识别提及"按全库词形做字面匹配预标（auto 徽标），也可手工增删提及；
+- **概念管理**：分类树下新建概念（自动登记规范名为首选词形）、添加异体词形、编辑说明；
+- **语义关系**：概念间 7 种受控关系（ISA / 有参与者 / 使用器物 / 形态特征 / 部件 / 描绘 / 相关联），每条边带置信度（high/medium/未定）与创建方式，删除概念时级联清理；
+- **独立共现**：同一文段共同提及自动派生 `CO_OCCURS_IN_SEGMENT` 边（权重 = 共现文段数），不落盘、始终与文段一致；
+- **概念图谱**：总览图（分类 hub + 概念叶，concentric 布局按类目着色）与局部图（选中概念的 Concept–Term–Segment–Source 星型 + 语义关系/共现邻居），点概念节点联动右栏详情，可导出当前子图 JSON；
+- **词表兼容**：`/api/terms` 由概念库投影（term.id = conceptId），标注侧 TermPicker 选词即自然挂到概念；概念库为空时回退旧 `data/terms.json`。
+
+数据落在 `data/knowledge/`（categories / concepts / terms / sources / segments / relations 六个 JSON，入库），写入走 ajv 校验 + `.history/` 备份（每文件 20 份，不入库）。
 
 ## 绑定与图片配对（工作台已下线）
 
@@ -166,7 +191,8 @@ npm run dev
 | 线图缓存 | 各算法×阈值组合的线图 PNG | `./ai-service/cache/lineart/` | 否 |
 | SAM 权重 | mobile_sam.pt（首次自动下载） | `./ai-service/weights/` | 否 |
 | SAM3 权重 | sam3.pt（gated，手动放或 setup:sam3） | `./ai-service/weights/sam3/` | 否 |
-| 术语库 | 人物/动物/器物/场景/纹饰 受控词 | `./data/terms.json` | 是 |
+| 术语库（旧） | 冷启动回退词表 | `./data/terms.json` | 是 |
+| 知识库 | 概念树/词形/文献/文段/关系 六 JSON | `./data/knowledge/` | 是 |
 | 标注存储 | 每块石头一份 IIML（另有 `.history/` 自动备份，每石最多 50 份） | `./data/iiml/<stoneId>.iiml.json` | 是 |
 | 图片绑定记录 | pic 文件 ↔ 画像石映射 | `./data/pic-bindings.json` | 是 |
 | 拼接方案 | JSON 持久化 | `./data/assembly-plans/` | 是 |
@@ -216,6 +242,14 @@ POST   /api/training/reveal-dataset         打开本机训练集目录
 GET    /api/assembly-plans                  拼接方案列表
 GET    /api/assembly-plans/:id              单条方案
 POST   /api/assembly-plans                  保存方案
+GET    /api/kb/snapshot                     知识库全量快照
+GET    /api/kb/search                       混合检索（概念/术语/原文/出处）
+GET    /api/kb/concepts/:id/detail          概念详情（词形/关系溯源/共现/文段/来源分布）
+GET    /api/kb/concepts/:id/graph           概念局部子图
+GET    /api/kb/graph/overview               概念树总览子图
+GET    /api/kb/evidence/suggest             证据字面匹配建议（conceptId）
+POST   /api/kb/mentions/suggest             文段录入预标建议（text）
+POST/PUT/DELETE /api/kb/{concepts,terms,sources,segments,relations}  各实体 CRUD
 ```
 
 ### AI 服务 FastAPI :8010
@@ -244,6 +278,7 @@ POST   /ai/canny                        [legacy] 默认 410；WSC3D_LEGACY_AI=1 
 | `npm run typecheck` | 前后端 TypeScript 类型检查 |
 | `npm run test` | 前后端单元测试（纯函数回归网） |
 | `npm run scan` | 扫描本地资源、生成缓存 summary |
+| `npm run seed:kb` | 初始化知识库（两级分类树 + 旧词表迁移，幂等） |
 | `npm run setup:sam3` | 检查 / 导入 / 下载 SAM3 权重 |
 | `npm run migrate:iiml-frame` | 给历史 IIML 文档补 `frame="model"`（一次性） |
 | `npm run migrate:iiml-anchor` | 给历史 IIML 标注补派生空间锚点 anchor（一次性） |
@@ -270,6 +305,8 @@ backend/           Node.js 后端
     domain/han-stone.ts  14 类领域枚举（单一事实源）
     services/            catalog / iiml / anchor / homography / pic-bindings /
                          preflight / training-export / training-validation / hpsml …
+    services/kb/         知识库：kb-store（五实体 + ajv + history）/ kb-query
+                         （检索 / 共现派生 / 证据匹配 / 子图）/ kb-vocabulary（旧词表投影）
     routes/              HTTP 边界
     parsers/             结构化档案 Markdown 解析
     scripts/             scan / migrate 一次性脚本
@@ -284,6 +321,7 @@ frontend/          React + Three.js + Konva 前端
     api/                     统一 HTTP 封装 + IIML / AI 类型契约（client.ts 单一事实源）
     ui/                      基础组件库（Button / Chip / Field / Tabs…）+ 浮动面板系统
     modules/viewer/          浏览模块
+    modules/knowledge/       知识库工作区（概念树 / 概念详情 / 文献录入 / 概念图谱 / 概念选择器）
     modules/annotation/      标注模块（约 25 个组件 + 工具）
       AnnotationCanvas.tsx     Konva 画布（跨 frame 渲染、标定 overlay）
       AnnotationWorkspace.tsx  工作区（双底图 + 多资源切换）
@@ -298,7 +336,7 @@ frontend/          React + Three.js + Konva 前端
       exporters.ts             5 种学术导出
     modules/shared/          视角骰子等共享组件
     styles/                  tokens / base / shell / 模块 CSS（styles.css 为遗留样式，逐步迁移）
-data/              术语库、IIML 文档、拼接方案、资源落盘、pic 绑定记录
+data/              术语库、知识库（knowledge/）、IIML 文档、拼接方案、资源落盘、pic 绑定记录
 docs/              Release Notes、标注 SOP、最近加固工作日志
 ```
 

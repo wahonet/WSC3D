@@ -143,6 +143,21 @@ export type IimlAnnotation = {
   trainingRole?: IimlTrainingRole;
   // 记录 SAM/YOLO 或人工标注失败原因，供主动学习队列排序。
   annotationIssues?: IimlAnnotationIssue[];
+  // 知识库概念绑定（Phase 4 Claim 化）：标注 = "这块区域是某概念"的断言。
+  // conceptId 指向 data/knowledge/concepts.json；label 冗余存展示名防悬空。
+  conceptRef?: { conceptId: string; label: string };
+  // 断言状态机与文献证据链：evidence[].segmentId 指向知识库文段；
+  // status=auto_text_match_unconfirmed 为字面匹配建议，人工确认后转 confirmed。
+  claim?: {
+    status: "candidate" | "review_required" | "verified" | "no_concept_expected";
+    evidence?: Array<{
+      segmentId: string;
+      status: "auto_text_match_unconfirmed" | "confirmed" | "rejected";
+      prov?: string;
+      snippet?: string;
+      sourceTitle?: string;
+    }>;
+  };
   label?: string;
   color?: string;
   // 标注填充区域的透明度 0..1；描边不透明。默认 0.15。
@@ -278,6 +293,42 @@ const iimlSchema: AnySchema = {
             type: "array",
             nullable: true,
             items: { type: "string", enum: [...ANNOTATION_ISSUES] }
+          },
+          // Phase 4 Claim 化：概念绑定与文献证据链（可选，历史文档无此字段）
+          conceptRef: {
+            type: "object",
+            nullable: true,
+            required: ["conceptId", "label"],
+            additionalProperties: true,
+            properties: {
+              conceptId: { type: "string", minLength: 1 },
+              label: { type: "string", minLength: 1 }
+            }
+          },
+          claim: {
+            type: "object",
+            nullable: true,
+            required: ["status"],
+            additionalProperties: true,
+            properties: {
+              status: {
+                type: "string",
+                enum: ["candidate", "review_required", "verified", "no_concept_expected"]
+              },
+              evidence: {
+                type: "array",
+                nullable: true,
+                items: {
+                  type: "object",
+                  additionalProperties: true,
+                  required: ["segmentId", "status"],
+                  properties: {
+                    segmentId: { type: "string", minLength: 1 },
+                    status: { type: "string", enum: ["auto_text_match_unconfirmed", "confirmed", "rejected"] }
+                  }
+                }
+              }
+            }
           }
         }
       }

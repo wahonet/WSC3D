@@ -273,6 +273,32 @@ export type IimlEditOperation = {
   params?: Record<string, unknown>;
 };
 
+// ---------- Claim 化（知识库概念绑定与证据链） ----------
+
+export type IimlConceptRef = {
+  conceptId: string;
+  label: string;
+};
+
+export type IimlClaimStatus = "candidate" | "review_required" | "verified" | "no_concept_expected";
+
+export type IimlClaimEvidenceStatus = "auto_text_match_unconfirmed" | "confirmed" | "rejected";
+
+export type IimlClaimEvidence = {
+  segmentId: string;
+  status: IimlClaimEvidenceStatus;
+  /** 溯源标记，如 auto_exact_term_text_match */
+  prov?: string;
+  /** 冗余快照：命中文段摘要与出处，脱离知识库也能展示 */
+  snippet?: string;
+  sourceTitle?: string;
+};
+
+export type IimlClaim = {
+  status: IimlClaimStatus;
+  evidence?: IimlClaimEvidence[];
+};
+
 export type IimlAnnotation = {
   id: string;
   type?: "Annotation";
@@ -300,6 +326,11 @@ export type IimlAnnotation = {
   trainingRole?: IimlTrainingRole;
   // 低对比、纹理混淆、遮挡风化等问题标签，供主动学习队列排序。
   annotationIssues?: IimlAnnotationIssue[];
+  // 知识库概念绑定（Claim 化）：标注 = "这块区域是某概念"的断言。
+  // conceptId 指向全局知识库（/api/kb），label 冗余存展示名防悬空。
+  conceptRef?: IimlConceptRef;
+  // 断言状态机 + 文献证据链；与几何审核 reviewStatus 正交。
+  claim?: IimlClaim;
   label?: string;
   color?: string;
   // 标注填充区域的透明度 0..1；描边始终用 color 不透明。默认 0.15。

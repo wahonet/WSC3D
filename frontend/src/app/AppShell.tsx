@@ -7,12 +7,14 @@ import { useStoneSelection } from "./contexts/StoneSelectionContext";
 import { useTasks } from "./contexts/TasksContext";
 import { useWorkspaceMode, type WorkspaceMode } from "./contexts/WorkspaceModeContext";
 import { AnnotationContainer } from "./workspaces/AnnotationContainer";
+import { KnowledgeContainer } from "./workspaces/KnowledgeContainer";
 import { ViewerContainer } from "./workspaces/ViewerContainer";
 import { Select } from "../ui/Field";
 
 const MODE_LABELS: Record<WorkspaceMode, string> = {
   viewer: "浏览",
-  annotation: "标注"
+  annotation: "标注",
+  knowledge: "知识库"
 };
 
 function formatSaveStatus(state: AnnotationSaveState, message?: string): string {
@@ -112,6 +114,7 @@ export function AppShell() {
         {error ? <div className="wsc-empty">{error}</div> : null}
         <ViewerContainer />
         <AnnotationContainer layerClassName={annotationLayer} />
+        <KnowledgeContainer />
       </div>
 
       <TaskProgressPanel tasks={tasks} onCancel={requestCancelTask} onDismiss={dismissTask} />

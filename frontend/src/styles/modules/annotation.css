@@ -377,6 +377,147 @@
   gap: 6px;
 }
 
+/* Claim 化：概念断言过滤 chips + 区域行概念徽标 + 证据链列表 */
+
+.iiml-claim-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+
+.iiml-claim-filter {
+  padding: 2px 8px;
+  font-size: 10.5px;
+  border-radius: 999px;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-root);
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.iiml-claim-filter:hover {
+  color: var(--text-primary);
+  border-color: var(--border-default);
+}
+
+.iiml-claim-filter.is-active {
+  border-color: var(--accent);
+  background: var(--accent-muted);
+  color: var(--accent);
+}
+
+.iiml-region__concept {
+  flex: none;
+  max-width: 88px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 1px 7px;
+  font-size: 10px;
+  border-radius: 999px;
+  border: 1px solid var(--success);
+  color: var(--success);
+}
+
+.claim-bound-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.claim-bound-row .ui-select {
+  max-width: 150px;
+}
+
+.claim-evidence-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.claim-evidence {
+  padding: 7px 10px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--bg-elevated);
+}
+
+.claim-evidence.is-rejected {
+  opacity: 0.55;
+}
+
+.claim-evidence__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+}
+
+.claim-evidence__head button {
+  display: inline-flex;
+  padding: 2px 4px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.claim-evidence__head button:hover {
+  color: var(--accent);
+}
+
+.claim-evidence__status {
+  flex: none;
+  padding: 1px 7px;
+  font-size: 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border-default);
+  color: var(--text-muted);
+}
+
+.claim-evidence__status.is-confirmed {
+  border-color: var(--success);
+  color: var(--success);
+}
+
+.claim-evidence__status.is-auto_text_match_unconfirmed {
+  border-color: var(--warning);
+  color: var(--warning);
+}
+
+.claim-evidence__status.is-rejected {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.claim-evidence__source {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-secondary);
+}
+
+.claim-evidence__snippet {
+  margin: 5px 0 0;
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+
+.claim-evidence__prov {
+  margin: 3px 0 0;
+  font-size: 9.5px;
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+}
+
 .iiml-graph-host {
   height: 380px;
   border: 1px solid var(--border-subtle);

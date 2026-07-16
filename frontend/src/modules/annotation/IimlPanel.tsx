@@ -351,7 +351,14 @@ function IconographyLayerPanel(
 
   const annotations = doc?.annotations ?? [];
   const candidates = useMemo(() => annotations.filter((a) => a.reviewStatus === "candidate"), [annotations]);
-  const regions = useMemo(() => annotations.filter((a) => a.reviewStatus !== "candidate"), [annotations]);
+  const allRegions = useMemo(() => annotations.filter((a) => a.reviewStatus !== "candidate"), [annotations]);
+  // Claim 化审核过滤：对照参照系统"图-词-文段关联"工作台的状态 chips
+  const [claimFilter, setClaimFilter] = useState<ClaimFilter>("all");
+  const claimCounts = useMemo(() => countClaimFilters(allRegions), [allRegions]);
+  const regions = useMemo(
+    () => allRegions.filter((a) => matchClaimFilter(a, claimFilter)),
+    [allRegions, claimFilter]
+  );
   const relations = useMemo(() => getRelations(doc), [doc]);
   const processingRuns = useMemo(() => getProcessingRuns(doc), [doc]);
   // 训练就绪度：每条标注 ✓/⚠/✗ 徽章（hover 列原因），与训练导出准入同一套校验
@@ -465,7 +472,9 @@ function IconographyLayerPanel(
 
       <section>
         <header className="iiml-subheader">
-          <strong>母题区域（{regions.length}）</strong>
+          <strong>
+            母题区域（{claimFilter === "all" ? allRegions.length : `${regions.length}/${allRegions.length}`}）
+          </strong>
           <span className="iiml-subheader__actions">
             <button
               type="button"
@@ -483,6 +492,22 @@ function IconographyLayerPanel(
             </button>
           </span>
         </header>
+
+        {view === "regions" && allRegions.length > 0 ? (
+          <div className="iiml-claim-filters" role="group" aria-label="按概念断言状态过滤">
+            {CLAIM_FILTERS.map((filter) => (
+              <button
+                key={filter.id}
+                type="button"
+                className={`iiml-claim-filter${claimFilter === filter.id ? " is-active" : ""}`}
+                title={filter.hint}
+                onClick={() => setClaimFilter(filter.id)}
+              >
+                {filter.label}（{claimCounts[filter.id]}）
+              </button>
+            ))}
+          </div>
+        ) : null}
 
         {view === "graph" ? (
           <div className="iiml-graph-host">
@@ -508,6 +533,11 @@ function IconographyLayerPanel(
                     <span className="iiml-region__dot" style={{ background: a.color }} />
                     <span className="iiml-region__label">{a.label || a.semantics?.name || "（未命名）"}</span>
                     <TrainingBadge result={trainingResults.get(a.id)} />
+                    {a.conceptRef ? (
+                      <span className="iiml-region__concept" title={`已绑概念：${a.conceptRef.label}`}>
+                        {a.conceptRef.label}
+                      </span>
+                    ) : null}
                     <span className="iiml-region__meta">
                       {hanStoneCategoryOptions.find((o) => o.value === a.category)?.label ?? ""}
                     </span>
@@ -568,6 +598,54 @@ function IconographyLayerPanel(
       ) : null}
     </div>
   );
+}
+
+// ---------------- Claim 审核过滤 ----------------
+
+type ClaimFilter = "all" | "bound" | "evidence" | "auto-evidence" | "review" | "unbound";
+
+const CLAIM_FILTERS: Array<{ id: ClaimFilter; label: string; hint: string }> = [
+  { id: "all", label: "全部", hint: "全部区域" },
+  { id: "bound", label: "已绑概念", hint: "已绑定知识库概念" },
+  { id: "evidence", label: "有证据", hint: "至少一条已确认的文献证据" },
+  { id: "auto-evidence", label: "自动证据", hint: "有字面匹配的自动证据待人工确认" },
+  { id: "review", label: "需复核", hint: "断言状态 = review_required" },
+  { id: "unbound", label: "未绑概念", hint: "未绑定概念且未标记「无对应概念」" }
+];
+
+function matchClaimFilter(annotation: IimlAnnotation, filter: ClaimFilter): boolean {
+  const evidence = annotation.claim?.evidence ?? [];
+  switch (filter) {
+    case "all":
+      return true;
+    case "bound":
+      return Boolean(annotation.conceptRef);
+    case "evidence":
+      return evidence.some((entry) => entry.status === "confirmed");
+    case "auto-evidence":
+      return evidence.some((entry) => entry.status === "auto_text_match_unconfirmed");
+    case "review":
+      return annotation.claim?.status === "review_required";
+    case "unbound":
+      return !annotation.conceptRef && annotation.claim?.status !== "no_concept_expected";
+  }
+}
+
+function countClaimFilters(annotations: IimlAnnotation[]): Record<ClaimFilter, number> {
+  const counts: Record<ClaimFilter, number> = {
+    all: annotations.length,
+    bound: 0,
+    evidence: 0,
+    "auto-evidence": 0,
+    review: 0,
+    unbound: 0
+  };
+  for (const annotation of annotations) {
+    for (const filter of ["bound", "evidence", "auto-evidence", "review", "unbound"] as ClaimFilter[]) {
+      if (matchClaimFilter(annotation, filter)) counts[filter] += 1;
+    }
+  }
+  return counts;
 }
 
 // ---------------- 第四层：文化层 ----------------
