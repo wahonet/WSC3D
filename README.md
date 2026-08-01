@@ -189,8 +189,8 @@ npm run dev
 | 高清原图 | tif/jpg/png（数字前缀配 stoneId） | `./pic` | 否 |
 | AI 转码缓存 | tif→PNG 落盘缓存 | `./ai-service/cache/source/` | 否 |
 | 线图缓存 | 各算法×阈值组合的线图 PNG | `./ai-service/cache/lineart/` | 否 |
-| SAM 权重 | mobile_sam.pt（首次自动下载） | `./ai-service/weights/` | 否 |
-| SAM3 权重 | sam3.pt（gated，手动放或 setup:sam3） | `./ai-service/weights/sam3/` | 否 |
+| SAM3 权重 | sam3.pt（gated，手动放或 `npm run setup:sam3`） | `./ai-service/weights/sam3/` | 否 |
+| 旧 SAM 权重 | mobile_sam.pt（legacy，仅 `WSC3D_LEGACY_AI=1`） | `./ai-service/weights/` | 否 |
 | 术语库（旧） | 冷启动回退词表 | `./data/terms.json` | 是 |
 | 知识库 | 概念树/词形/文献/文段/关系 六 JSON | `./data/knowledge/` | 是 |
 | 标注存储 | 每块石头一份 IIML（另有 `.history/` 自动备份，每石最多 50 份） | `./data/iiml/<stoneId>.iiml.json` | 是 |
@@ -203,10 +203,10 @@ npm run dev
 
 ## 技术栈选型
 
-- **前端** React 19 + Vite + TypeScript。三维 Three.js，二维标注 react-konva，多边形并集 polygon-clipping，知识图谱 cytoscape。应用壳层是"多 context + 工作区容器"（`src/app/`），浏览与标注两个工作区都走 lazy 加载。
-- **后端** Node.js + Express + TypeScript。IIML 文档用 ajv 校验后落盘，拼接方案以 JSON 持久化。
+- **前端** React 19 + Vite + TypeScript。三维 Three.js，二维标注 react-konva，多边形并集 polygon-clipping，知识图谱 cytoscape。应用壳层是"多 context + 工作区容器"（`src/app/`），浏览 / 标注 / 知识库三个工作区都走 lazy 加载。
+- **后端** Node.js + Express + TypeScript。IIML 文档与知识库用 ajv 校验后落盘，拼接方案以 JSON 持久化。
 - **AI 服务** Python + FastAPI。Pillow/numpy/OpenCV 做图像处理，SAM3 做概念分割推理（懒加载）。旧 MobileSAM / ultralytics 代码保留但默认下线。
-- **数据格式**：标注是类 IIML 的 JSON 文档；两套坐标系（modelBox UV 与高清图自身归一化）用 `frame` 字段区分，靠 `culturalObject.alignment` 里的 4 点单应性矩阵互投。
+- **数据格式**：标注是类 IIML 的 JSON 文档（可挂 `conceptRef` / `claim`）；两套坐标系（modelBox UV 与高清图自身归一化）用 `frame` 字段区分，靠 `culturalObject.alignment` 里的 4 点单应性矩阵互投。知识库是 Source→Segment→Term→Concept 四元链。
 
 ## API 一览
 
@@ -305,20 +305,20 @@ backend/           Node.js 后端
     domain/han-stone.ts  14 类领域枚举（单一事实源）
     services/            catalog / iiml / anchor / homography / pic-bindings /
                          preflight / training-export / training-validation / hpsml …
-    services/kb/         知识库：kb-store（五实体 + ajv + history）/ kb-query
+    services/kb/         知识库：kb-store（六 JSON + ajv + history）/ kb-query
                          （检索 / 共现派生 / 证据匹配 / 子图）/ kb-vocabulary（旧词表投影）
     routes/              HTTP 边界
     parsers/             结构化档案 Markdown 解析
-    scripts/             scan / migrate 一次性脚本
+    scripts/             scan / seed-kb / migrate 一次性脚本
 frontend/          React + Three.js + Konva 前端
   src/
     App.tsx                  应用根（AppProviders + AppShell 两行拼装）
     app/                     应用壳层
-      AppShell.tsx             顶栏 + 双工作区挂载 + 任务进度面板
+      AppShell.tsx             顶栏 + 三工作区挂载 + 任务进度面板
       contexts/                全局状态（选石 / 模式 / 视口 / 保存状态 / 任务 / 拼接方案）
-      workspaces/              ViewerContainer / AnnotationContainer 容器
+      workspaces/              ViewerContainer / AnnotationContainer / KnowledgeContainer
       annotation/useAnnotationLogic.tsx  标注用例层（加载 / 自动保存 / SAM3 / 导出）
-    api/                     统一 HTTP 封装 + IIML / AI 类型契约（client.ts 单一事实源）
+    api/                     统一 HTTP 封装 + IIML / AI / 知识库类型契约
     ui/                      基础组件库（Button / Chip / Field / Tabs…）+ 浮动面板系统
     modules/viewer/          浏览模块
     modules/knowledge/       知识库工作区（概念树 / 概念详情 / 文献录入 / 概念图谱 / 概念选择器）
@@ -326,9 +326,9 @@ frontend/          React + Three.js + Konva 前端
       AnnotationCanvas.tsx     Konva 画布（跨 frame 渲染、标定 overlay）
       AnnotationWorkspace.tsx  工作区（双底图 + 多资源切换）
       IimlPanel.tsx            IIML 四层主面板（物理 / 视觉 / 图像学 / 文化）
-      RegionEditor.tsx         选中区域深编辑（术语 / 证据源 / 训练细节 / 关系）
+      RegionEditor.tsx         选中区域深编辑（概念绑定 / Claim / 术语 / 证据 / 训练细节 / 关系）
       iiml-layers.ts           四层数据模型与完成度
-      KnowledgeGraphView.tsx   cytoscape 图谱
+      KnowledgeGraphView.tsx   标注关系图谱（cytoscape）
       homography.ts            4 点单应性矩阵 + 重投影误差
       merge.ts                 候选合并（mask 合成优先，矢量并集回退）
       sam3-prompts.ts          SAM3 概念词扩展与错误文案
@@ -344,7 +344,8 @@ docs/              Release Notes、标注 SOP、最近加固工作日志
 
 | 版本 | 主题 |
 | --- | --- |
-| v0.9.0 | 数据可信度加固 · 训练就绪度面板 · 列表批量修复 · AI fallback 分级 · SAM embedding 缓存 · 单元测试底盘 |
+| v0.10.0 | 知识库工作区 · 概念图谱 · 标注 Claim 化（概念绑定 + 文献证据链）· 训练导出带概念列 |
+| v0.9.0 | 数据可信度加固 · 训练就绪度面板 · 列表批量修复 · AI fallback 分级 · SAM embedding 缓存 · 单元测试底盘 · SAM3-only 主流程 |
 | v0.8.0 | 图谱 UI 修缮 · 资源独立 tab · 三维生成正射图 · 多资源画布切换 · 跨资源坐标变换 · `.hpsml` 解包 |
 | v0.7.0 | 紧急修复 · 图谱完善 · 多解释 UI · AI 加深 · 多资源 · `.hpsml` 包 |
 | v0.6.0 | M3 收尾 · 学术导出 · 工程瘦身 |
@@ -358,7 +359,7 @@ docs/              Release Notes、标注 SOP、最近加固工作日志
 - 画布上的跨资源投影——把标注按资源的变换矩阵直接投影到当前底图坐标系上显示；
 - 用现有 COCO 导出积累的标注，微调一个汉画像石专用检测器；
 - AI 线图接入 HED / Relic2Contour 这类深度学习方法；
-- Playwright 端到端测试，覆盖"标注 → 保存 → 导出"主链路。
+- Playwright 端到端测试从知识库冒烟扩展到"标注 → 保存 → 导出"主链路。
 
 ## 协议与致谢
 
