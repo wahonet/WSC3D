@@ -503,7 +503,8 @@ button:disabled { cursor: not-allowed; }
 /* ==========================================================================
    research module
    ========================================================================== */
-.research { height: 100%; display: flex; flex-direction: column; }
+/* 注意：不能写 height:100%（会把 48px 顶栏算进去、底部溢出窗口），要作为 .shell 的弹性子项 */
+.research { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .research-body { flex: 1; min-height: 0; }
 .rv-bar {
   min-height: 40px; flex-shrink: 0; display: flex; align-items: center; gap: 7px; padding: 5px 12px; flex-wrap: wrap;
