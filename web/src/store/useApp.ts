@@ -164,7 +164,7 @@ export const useApp = create<AppState>((set, get) => ({
   overlay: null,
   showAnnoLayer: true,
   showSegLayer: true,
-  projOn: false,
+  projOn: localStorage.getItem('stonelab.proj') !== 'off',   // 跨图投影：默认开启，偏好跨资产记忆
   projItems: [],
   projReason: '',
   seg: SEG_DEFAULT,
@@ -230,12 +230,12 @@ export const useApp = create<AppState>((set, get) => ({
     const sameStone = get().curStone?.id === stone.id
     set({
       curStone: stone, curAsset: asset, selectedId: null, overlay: null, annos: [],
-      projOn: false, projItems: [], projReason: '',
+      projItems: [], projReason: '',
       seg: { ...get().seg, points: [], boxes: [], dets: [], excluded: [], viewPreprocessed: false, lastInfo: '' },
       tool: get().tool === 'align' && !is2d(asset) ? 'select' : get().tool,
     })
     writeHash(asset.id, get().page)
-    get().refreshAnnos().catch(toast.error)
+    get().refreshAnnos().catch(toast.error)   // 内含按 projOn 拉取跨图投影
     if (!sameStone || !get().stoneInfo) {
       try { set({ stoneInfo: await getStone(stone.id) }) } catch (e) { toast.error(e) }
     }
@@ -252,7 +252,7 @@ export const useApp = create<AppState>((set, get) => ({
     const annos = await listAnnotations(a.id)
     if (get().curAsset?.id !== a.id) return
     set({ annos })
-    if (get().projOn) await fetchProjected(a.id, set)
+    if (get().projOn && is2d(a)) await fetchProjected(a.id, set, get)
   },
 
   refreshStoneInfo: async () => {
@@ -285,11 +285,11 @@ export const useApp = create<AppState>((set, get) => ({
   setShowSegLayer: v => set({ showSegLayer: v }),
 
   toggleProj: async v => {
-    set({ projOn: v, projReason: '' })
+    set({ projOn: v, projReason: '', projItems: v ? get().projItems : [] })
+    localStorage.setItem('stonelab.proj', v ? 'on' : 'off')
     const a = get().curAsset
-    if (v && a) {
-      const ok = await fetchProjected(a.id, set).catch(e => { set({ projReason: String(e) }); return false })
-      if (!ok) set({ projOn: false })
+    if (v && a && is2d(a)) {
+      await fetchProjected(a.id, set, get).catch(e => set({ projReason: String(e) }))
     }
   },
 
@@ -338,7 +338,7 @@ export const useApp = create<AppState>((set, get) => ({
       if (!r.ok) { toast.warn(r.message); return }
       toast.ok(r.message)
       await get().loadStones()
-      if (projOn) await fetchProjected(curAsset.id, set)
+      if (projOn) await fetchProjected(curAsset.id, set, get)
     } catch (e) { toast.error(e) }
   },
 
@@ -435,8 +435,10 @@ export const useApp = create<AppState>((set, get) => ({
   },
 }))
 
-async function fetchProjected(assetId: number, set: (p: Partial<AppState>) => void): Promise<boolean> {
+async function fetchProjected(assetId: number, set: (p: Partial<AppState>) => void,
+                              get: () => AppState): Promise<boolean> {
   const r = await getProjected(assetId)
+  if (get().curAsset?.id !== assetId) return false        // 期间已切换资产，丢弃过期结果
   if (!r.ok) {
     set({ projItems: [], projReason: r.reason ?? '' })
     return false

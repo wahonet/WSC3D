@@ -65,28 +65,39 @@ export function AnnoShape({ a, toEl, selected, interactive, onSelect, linkedTint
   return null
 }
 
-/** 跨图投影标注：紫色点划线，来自同石其他照片/拓片 */
-export function ProjectedShape({ p, toEl }: { p: ProjectedAnnotation; toEl: ToEl }) {
+/** 跨图投影标注：紫色点划线，来自同石其他照片/拓片；可选中（研究模块）与高亮 */
+export function ProjectedShape({ p, toEl, selected, linkedTint, interactive, onSelect }: {
+  p: ProjectedAnnotation; toEl: ToEl; selected?: boolean; linkedTint?: boolean
+  interactive?: boolean; onSelect?: (id: number) => void
+}) {
   const g = p.geometry as Record<string, unknown>
-  const style = { stroke: COLORS.proj, strokeWidth: 1.7, strokeDasharray: '2 4', fill: COLORS.proj, fillOpacity: 0.07 }
-  const title = <title>{`[来自 ${p.source_filename}] ${p.label}`}</title>
+  const c = selected ? COLORS.select : linkedTint ? COLORS.linked : COLORS.proj
+  const style = {
+    stroke: c, strokeWidth: selected ? 2.6 : 1.7, strokeDasharray: selected ? '5 3' : '2 4',
+    fill: c, fillOpacity: selected ? 0.18 : 0.07,
+  }
+  const groupProps = {
+    className: interactive ? 'hit' : undefined,
+    onClick: interactive ? (e: MouseEvent) => { e.stopPropagation(); onSelect?.(p.id) } : undefined,
+  }
+  const title = <title>{`[投影自 ${p.source_filename}] ${p.label}`}</title>
   if (p.atype === 'polygon') {
     const pts = (g.points as Pt[]).map(q => toEl(q).join(',')).join(' ')
-    return <polygon points={pts} {...style}>{title}</polygon>
+    return <g {...groupProps}>{title}<polygon points={pts} {...style} /></g>
   }
   if (p.atype === 'point') {
     const [x, y] = toEl(g.p as Pt)
     return (
-      <g>
+      <g {...groupProps}>
         {title}
-        <circle cx={x} cy={y} r={6} fill="none" stroke={COLORS.proj} strokeWidth={1.7} strokeDasharray="2 3" />
-        <circle cx={x} cy={y} r={2} fill={COLORS.proj} />
+        <circle cx={x} cy={y} r={selected ? 8 : 6} fill="none" stroke={c} strokeWidth={1.7} strokeDasharray="2 3" />
+        <circle cx={x} cy={y} r={2} fill={c} />
       </g>
     )
   }
   if (p.atype === 'line') {
     const [x1, y1] = toEl(g.p1 as Pt), [x2, y2] = toEl(g.p2 as Pt)
-    return <g>{title}<line x1={x1} y1={y1} x2={x2} y2={y2} {...style} fill="none" /></g>
+    return <g {...groupProps}>{title}<line x1={x1} y1={y1} x2={x2} y2={y2} {...style} fill="none" /></g>
   }
   return null
 }

@@ -108,11 +108,11 @@ export default function ToolPanel() {
             <>
               <div className="layer-row">
                 <span className="sw" style={{ background: COLORS.proj }} />
-                <span className="lbl" title="同石其他已入链图上的标注，经主图坐标系投影到本图">跨图投影（点划线）</span>
-                {projOn && <span className="cnt">{projItems.length}</span>}
+                <span className="lbl" title="同石其他已入链图上的标注，经主图坐标系投影到本图（主图上的标注会出现在所有已对齐的图上）">跨图投影（点划线）</span>
+                {projOn && projItems.length > 0 && <span className="cnt">{projItems.length}</span>}
                 <Switch checked={projOn} onChange={toggleProj} />
               </div>
-              {projReason && <div className="note-box warn" style={{ margin: '0 10px' }}>{projReason}</div>}
+              {projOn && projReason && <div className="hint" style={{ padding: '0 10px 4px' }}>{projReason}</div>}
             </>
           )}
           {overlay && (

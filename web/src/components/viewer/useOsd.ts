@@ -39,11 +39,25 @@ export function useOsd(src: string | null, opts: OsdOptions = {}) {
     })
     viewerRef.current = v
     const bump = () => setTick(t => t + 1)
+    // 导航器只在视口变化时重新量容器尺寸；容器被可拖拽面板改变大小后，要主动刷新，
+    // 否则缩略图会按旧尺寸裁切（表现为下边缘缺失，拖一下主图才恢复）
+    const refreshNavigator = () => {
+      const nav = (v as unknown as { navigator?: { update: (vp: OpenSeadragon.Viewport) => void } }).navigator
+      if (nav && v.viewport) nav.update(v.viewport)
+    }
     v.addHandler('update-viewport', bump)
-    v.addHandler('open', () => { setReady(true); bump() })
+    v.addHandler('open', () => {
+      setReady(true)
+      bump()
+      requestAnimationFrame(refreshNavigator)
+      window.setTimeout(refreshNavigator, 300)
+    })
     v.addHandler('open-failed', () => setReady(false))
     window.addEventListener('resize', bump)
+    const ro = new ResizeObserver(() => { refreshNavigator(); bump() })
+    ro.observe(hostRef.current)
     return () => {
+      ro.disconnect()
       window.removeEventListener('resize', bump)
       v.destroy()
       viewerRef.current = null

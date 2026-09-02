@@ -10,6 +10,7 @@ import { useApp } from './store/useApp'
 export default function App() {
   const page = useApp(s => s.page)
   const curStone = useApp(s => s.curStone)
+  const curAssetId = useApp(s => s.curAsset?.id ?? null)
   const boot = useApp(s => s.boot)
 
   useEffect(() => { boot() }, [boot])
@@ -19,7 +20,9 @@ export default function App() {
     <div className="shell">
       <TopBar />
       {page === 'research' && curStone
-        ? <ErrorBoundary area="研究模块"><ResearchPage key={curStone.id} stoneId={curStone.id} /></ErrorBoundary>
+        ? <ErrorBoundary area="研究模块">
+            <ResearchPage key={curStone.id} stoneId={curStone.id} initialAssetId={curAssetId} />
+          </ErrorBoundary>
         : <Workbench />}
       <Toaster />
     </div>
