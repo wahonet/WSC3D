@@ -173,7 +173,7 @@ export default function ResearchPage({ stoneId, initialAssetId }: { stoneId: num
       <div className="research-body">
         <Group orientation="horizontal" id="research3" defaultLayout={layout.defaultLayout} onLayoutChanged={layout.onLayoutChanged}>
           {/* ---------------- 左：标注栏 ---------------- */}
-          <Panel id="rannos" defaultSize="22%" minSize="260px" maxSize="40%">
+          <Panel id="rannos" className="panel-clip" defaultSize="22%" minSize="260px" maxSize="40%">
             <div className="rcol">
               <section className="rcard fill">
                 <div className="rcard-h">
@@ -251,7 +251,7 @@ export default function ResearchPage({ stoneId, initialAssetId }: { stoneId: num
           <Separator className="sep-h" />
 
           {/* ---------------- 中：图像 ---------------- */}
-          <Panel id="rviewer" minSize="30%">
+          <Panel id="rviewer" className="panel-clip" minSize="30%">
             <div className="center">
               <div className="rv-bar">
                 <Button size="sm" variant="ghost" icon={<ArrowLeft size={14} />} onClick={() => setPage('work')}>返回工作台</Button>
@@ -274,7 +274,7 @@ export default function ResearchPage({ stoneId, initialAssetId }: { stoneId: num
           <Separator className="sep-h" />
 
           {/* ---------------- 右：石头信息 + 简介 ---------------- */}
-          <Panel id="rside" defaultSize="30%" minSize="300px" maxSize="50%">
+          <Panel id="rside" className="panel-clip" defaultSize="30%" minSize="300px" maxSize="50%">
             <div className="rside">
               <section className="rcard">
                 <div className="rcard-h">

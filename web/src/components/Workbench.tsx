@@ -40,21 +40,21 @@ export default function Workbench() {
   return (
     <div className="body">
       <Group orientation="horizontal" id="outer" defaultLayout={outer.defaultLayout} onLayoutChanged={outer.onLayoutChanged}>
-        <Panel id="left" defaultSize="21%" minSize="240px" maxSize="40%">
+        <Panel id="left" className="panel-clip" defaultSize="21%" minSize="240px" maxSize="40%">
           <aside className="side">
             <Group orientation="vertical" id="left-v" defaultLayout={left.defaultLayout} onLayoutChanged={left.onLayoutChanged}>
-              <Panel id="tree" defaultSize="52%" minSize="20%">
+              <Panel id="tree" className="panel-clip" defaultSize="52%" minSize="20%">
                 <Pane title="画像石"><ErrorBoundary area="画像石列表"><StoneTree /></ErrorBoundary></Pane>
               </Panel>
               <Separator className="sep-v" />
-              <Panel id="tools" minSize="20%">
+              <Panel id="tools" className="panel-clip" minSize="20%">
                 <Pane title="工具"><ErrorBoundary area="工具面板"><ToolPanel /></ErrorBoundary></Pane>
               </Panel>
             </Group>
           </aside>
         </Panel>
         <Separator className="sep-h" />
-        <Panel id="center" minSize="30%">
+        <Panel id="center" className="panel-clip" minSize="30%">
           <main className="center">
             <ViewerBar />
             <ErrorBoundary area="查看器" resetKey={`${asset?.id ?? 0}:${showAlign ? 'align' : 'view'}`}>
@@ -66,14 +66,14 @@ export default function Workbench() {
           </main>
         </Panel>
         <Separator className="sep-h" />
-        <Panel id="right" defaultSize="25%" minSize="260px" maxSize="45%">
+        <Panel id="right" className="panel-clip" defaultSize="25%" minSize="260px" maxSize="45%">
           <aside className="side">
             <Group orientation="vertical" id="right-v" defaultLayout={right.defaultLayout} onLayoutChanged={right.onLayoutChanged}>
-              <Panel id="info" defaultSize="55%" minSize="20%">
+              <Panel id="info" className="panel-clip" defaultSize="55%" minSize="20%">
                 <Pane title="简介与释文"><ErrorBoundary area="简介"><InfoPanel /></ErrorBoundary></Pane>
               </Panel>
               <Separator className="sep-v" />
-              <Panel id="annos" minSize="20%">
+              <Panel id="annos" className="panel-clip" minSize="20%">
                 <Pane title="标注" count={asset ? `${annosCount} 条` : undefined}>
                   <ErrorBoundary area="标注面板"><AnnotationPanel /></ErrorBoundary>
                 </Pane>

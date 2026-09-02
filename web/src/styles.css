@@ -338,7 +338,10 @@ button:disabled { cursor: not-allowed; }
 /* ==========================================================================
    center viewport
    ========================================================================== */
-.center { height: 100%; display: flex; flex-direction: column; background: var(--viewport); min-width: 0; }
+.center { height: 100%; display: flex; flex-direction: column; background: var(--viewport); min-width: 0; overflow: hidden; }
+/* react-resizable-panels 的面板内层默认 overflow:auto；各面板都有自己的滚动区，这里一律裁切，
+   避免画布/查看器溢出几像素就弹出滚动条并引发尺寸振荡 */
+.panel-clip { overflow: hidden !important; }
 .vp-bar {
   height: 40px; flex-shrink: 0; display: flex; align-items: center; gap: 10px; padding: 0 12px;
   background: var(--bg-1); border-bottom: 1px solid var(--line); font-size: 12px; color: var(--text-2);
@@ -348,8 +351,9 @@ button:disabled { cursor: not-allowed; }
 .vp-bar .spacer { flex: 1; }
 .vp-bar .tool-state { display: flex; align-items: center; gap: 6px; font-size: 11.5px; }
 .vp-bar .group { display: flex; gap: 2px; padding: 2px; border-radius: 7px; background: var(--bg-2); border: 1px solid var(--line); }
-.viewport { flex: 1; position: relative; min-height: 0; background: var(--viewport); }
-.viewport .osd-host, .viewport .three-host { position: absolute; inset: 0; }
+.viewport { flex: 1; position: relative; min-height: 0; background: var(--viewport); overflow: hidden; }
+.viewport .osd-host, .viewport .three-host { position: absolute; inset: 0; overflow: hidden; }
+.viewport .three-host canvas { display: block; width: 100% !important; height: 100% !important; }
 .viewport .svg-overlay { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
 .viewport .svg-overlay .hit { pointer-events: auto; cursor: pointer; }
 .viewport .svg-overlay .hit:hover { filter: brightness(1.25); }

@@ -246,6 +246,9 @@ SQLite（`server/data/stonelab.db`），经 SQLAlchemy ORM，启动时自动轻�
 - 各面板都包在 `ErrorBoundary` 里：组件抛错只会在该区域显示错误卡片与"重置"按钮，控制台有堆栈。
 - 三维查看器卸载时会 `forceContextLoss()` 释放 WebGL 上下文；若浏览器仍回收了上下文，
   画面会提示并提供"重新加载模型"。开发模式下修改 `store/useApp.ts` 会触发整页刷新（避免过期 store）。
+- 查看器容器一律 `overflow: hidden`（`.viewport`、`.center`、面板的 `panel-clip`），three.js 用
+  `setSize(w, h, false)` 且 canvas 由 CSS 撑满：可拖拽面板的内层默认 `overflow: auto`，画布只要溢出
+  1 px 就会弹出滚动条并与 ResizeObserver 形成每帧振荡（整个窗口抖动、模型加载不出来）。
 - 后端依赖：`pip install -r server/requirements.txt`；分割环境另见 `server/app/config.py`。
 
 ## 十一、版本控制

@@ -73,9 +73,17 @@ export default function Viewer3D({ asset }: { asset: AssetBrief }) {
     ;(mk(new THREE.DirectionalLight(0xffffff, 0.45), 0.45) as THREE.DirectionalLight).position.set(-2, -1, -2)
     Object.assign(st, { scene, camera, renderer, controls })
 
+    // 注意：setSize 的第三个参数为 false —— 不写 canvas 的行内 style 尺寸，由 CSS 100% 撑满宿主。
+    // 否则 inline canvas 的基线空隙会让内容溢出几像素，面板容器弹出滚动条 -> 宿主变窄 ->
+    // 再次 setSize -> 溢出消失 -> 滚动条消失……每帧循环，表现为整个窗口疯狂抖动。
+    let lastW = 0, lastH = 0
     const resize = () => {
-      const w = host.clientWidth, h = host.clientHeight
-      renderer.setSize(w, h); camera.aspect = w / h; camera.updateProjectionMatrix()
+      const w = Math.max(1, Math.floor(host.clientWidth)), h = Math.max(1, Math.floor(host.clientHeight))
+      if (w === lastW && h === lastH) return
+      lastW = w; lastH = h
+      renderer.setSize(w, h, false)
+      camera.aspect = w / h
+      camera.updateProjectionMatrix()
     }
     resize()
     const ro = new ResizeObserver(resize); ro.observe(host)
