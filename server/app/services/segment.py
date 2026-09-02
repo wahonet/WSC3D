@@ -200,11 +200,21 @@ def point_segment(image_path: Path, points: list, labels: list) -> dict:
                      "points": points, "labels": labels})
 
 
-def text_segment(engine: str, image_path: Path, prompt: str,
-                 threshold: float, max_results: int) -> dict:
+def text_segment(engine: str, image_path: Path, prompt: str, threshold: float, max_results: int,
+                 boxes: list[dict] | None = None, preprocess: str = "none", invert: bool = False,
+                 tiling: str = "none") -> dict:
+    """SAM3 / SAM3.1 概念分割：文字提示 和/或 示例框；可选预处理与切块。"""
     if engine not in TEXT_ENGINES:
         return {"ok": False, "error": f"文本分割不支持引擎：{engine}"}
     if _engine_state[engine]["status"] != "ready":
         return {"ok": False, "error": f"{engine} 未就绪，请先在分割面板点「加载」"}
     return _request({"cmd": "text_segment", "engine": engine, "image": str(image_path),
-                     "prompt": prompt, "threshold": threshold, "max_results": max_results})
+                     "prompt": prompt, "threshold": threshold, "max_results": max_results,
+                     "boxes": boxes or [], "preprocess": preprocess, "invert": invert,
+                     "tiling": tiling})
+
+
+def preprocess_image(image_path: Path, mode: str, invert: bool, out_path: Path) -> dict:
+    """由工作进程生成预处理图（enhance / rubbing）到 out_path。不需要加载任何引擎。"""
+    return _request({"cmd": "preprocess", "image": str(image_path), "mode": mode,
+                     "invert": invert, "out": str(out_path)})

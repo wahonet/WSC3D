@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import OpenSeadragon from 'openseadragon'
-import { previewUrl } from '../../api'
 import type { Pt } from '../../lib/geometry'
 
 export interface OsdOptions {
@@ -11,9 +10,10 @@ export interface OsdOptions {
 
 /**
  * 管理一个 OpenSeadragon 查看器的生命周期，提供归一化坐标 <-> 元素像素 的换算。
+ * src 为图源 URL（预览图或预处理图，尺寸一致，标注坐标不受影响）。
  * 不使用 OSD 自带控件（避免依赖外网图标资源），缩放/复位由外部按钮调用 viewer API。
  */
-export function useOsd(assetId: number | null, opts: OsdOptions = {}) {
+export function useOsd(src: string | null, opts: OsdOptions = {}) {
   const hostRef = useRef<HTMLDivElement>(null)
   const viewerRef = useRef<OpenSeadragon.Viewer | null>(null)
   const [ready, setReady] = useState(false)
@@ -54,9 +54,9 @@ export function useOsd(assetId: number | null, opts: OsdOptions = {}) {
     const v = viewerRef.current
     if (!v) return
     setReady(false)
-    if (assetId == null) { v.close(); return }
-    v.open({ type: 'image', url: previewUrl(assetId) })
-  }, [assetId])
+    if (!src) { v.close(); return }
+    v.open({ type: 'image', url: src })
+  }, [src])
 
   /** 归一化坐标 -> 查看器元素像素 */
   const toEl = useCallback((p: Pt): Pt => {

@@ -91,11 +91,39 @@ export function ProjectedShape({ p, toEl }: { p: ProjectedAnnotation; toEl: ToEl
   return null
 }
 
-/** 分割候选掩膜（青色虚线） */
-export function SegCandidate({ poly, toEl }: { poly: Pt[]; toEl: ToEl }) {
+/** 分割候选掩膜：青色虚线；可点击剔除（剔除后红色淡显）；显示分数 */
+export function SegCandidate({ poly, score, excluded, interactive, onToggle, toEl }: {
+  poly: Pt[]; score?: number; excluded?: boolean; interactive?: boolean; onToggle?: () => void; toEl: ToEl
+}) {
+  const c = excluded ? COLORS.negPoint : COLORS.seg
+  const pts = poly.map(p => toEl(p))
+  let top = pts[0] ?? [0, 0]
+  for (const p of pts) if (p[1] < top[1]) top = p
   return (
-    <polygon points={poly.map(p => toEl(p).join(',')).join(' ')}
-      fill={COLORS.seg} fillOpacity={0.16} stroke={COLORS.seg} strokeWidth={2} strokeDasharray="7 4" />
+    <g className={interactive ? 'hit' : undefined}
+      onClick={interactive ? (e: MouseEvent) => { e.stopPropagation(); onToggle?.() } : undefined}>
+      <title>{excluded ? '已剔除，点击恢复' : `候选 ${score != null ? score.toFixed(2) : ''}（点击剔除）`}</title>
+      <polygon points={pts.map(p => p.join(',')).join(' ')}
+        fill={c} fillOpacity={excluded ? 0.05 : 0.16} stroke={c} strokeOpacity={excluded ? 0.5 : 1}
+        strokeWidth={2} strokeDasharray={excluded ? '3 5' : '7 4'} />
+      {score != null && !excluded && label(top[0], top[1] - 6, score.toFixed(2))}
+    </g>
+  )
+}
+
+/** SAM3 示例框：正例绿实线 / 负例红虚线 */
+export function ExemplarBoxShape({ box, index, toEl }: {
+  box: { cx: number; cy: number; w: number; h: number; label: 0 | 1 }; index: number; toEl: ToEl
+}) {
+  const [x1, y1] = toEl([box.cx - box.w / 2, box.cy - box.h / 2])
+  const [x2, y2] = toEl([box.cx + box.w / 2, box.cy + box.h / 2])
+  const c = box.label === 1 ? COLORS.posPoint : COLORS.negPoint
+  return (
+    <g>
+      <rect x={x1} y={y1} width={x2 - x1} height={y2 - y1} fill={c} fillOpacity={0.06}
+        stroke={c} strokeWidth={2} strokeDasharray={box.label === 1 ? undefined : '6 4'} />
+      {label(x1 + 22, y1 - 6, `${box.label === 1 ? '示例+' : '示例-'}${index + 1}`)}
+    </g>
   )
 }
 

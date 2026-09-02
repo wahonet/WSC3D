@@ -1,20 +1,23 @@
 import { useEffect, useRef, useState } from 'react'
 import OpenSeadragon from 'openseadragon'
-import { previewUrl } from '../../api'
+import { preprocessedUrl, previewUrl } from '../../api'
 import { COLORS } from '../../lib/constants'
 import { annotationBounds, type Pt } from '../../lib/geometry'
 import { clamp01 } from '../../lib/format'
 import { useApp } from '../../store/useApp'
 import type { AssetBrief } from '../../types'
 import { Spinner } from '../ui'
-import { AnnoShape, ProjectedShape, SegCandidate, SegPointMark, measureLabel } from './AnnotationShapes'
+import {
+  AnnoShape, ExemplarBoxShape, ProjectedShape, SegCandidate, SegPointMark, measureLabel,
+} from './AnnotationShapes'
 import { useOsd } from './useOsd'
 
 interface Draft {
-  kind: 'rect' | 'polygon' | 'line' | null
+  kind: 'rect' | 'polygon' | 'line' | 'segbox' | null
   start?: Pt
   cur?: Pt
   pts: Pt[]
+  negative?: boolean          // segbox：Alt 拖拽 = 负例
 }
 const EMPTY: Draft = { kind: null, pts: [] }
 
@@ -34,9 +37,15 @@ export default function Viewer2D({ asset }: { asset: AssetBrief }) {
   const select = useApp(s => s.select)
   const createShape = useApp(s => s.createShape)
   const addSegPoint = useApp(s => s.addSegPoint)
+  const addSegBox = useApp(s => s.addSegBox)
+  const toggleSegExcluded = useApp(s => s.toggleSegExcluded)
 
   const interactive = tool !== 'annotate' && tool !== 'measure' && tool !== 'segment'
-  const { hostRef, viewerRef, ready, toEl, toNorm, eventPos, zoomBy, goHome, fitNorm } = useOsd(asset.id)
+  const segTextEngine = seg.engine !== 'mobilesam'
+  const src = seg.viewPreprocessed && seg.preprocess !== 'none'
+    ? preprocessedUrl(asset.id, seg.preprocess, seg.invert)
+    : previewUrl(asset.id)
+  const { hostRef, viewerRef, ready, toEl, toNorm, eventPos, zoomBy, goHome, fitNorm } = useOsd(src)
   const overlayItemRef = useRef<OpenSeadragon.TiledImage | null>(null)
   const draftRef = useRef<Draft>(EMPTY)
   const [, forceDraft] = useState(0)
@@ -45,6 +54,8 @@ export default function Viewer2D({ asset }: { asset: AssetBrief }) {
   const toolRef = useRef(tool); toolRef.current = tool
   const shapeRef = useRef(shape); shapeRef.current = shape
   const assetRef = useRef(asset); assetRef.current = asset
+  const segModeRef = useRef<'point' | 'box' | 'none'>('none')
+  segModeRef.current = seg.engine === 'mobilesam' ? 'point' : seg.promptMode === 'box' ? 'box' : 'none'
 
   useEffect(() => {
     viewerRef.current?.setMouseNavEnabled(interactive)
@@ -117,7 +128,16 @@ export default function Viewer2D({ asset }: { asset: AssetBrief }) {
     const down = (e: PointerEvent) => {
       const t = toolRef.current
       if (e.button !== 0 || !viewerRef.current?.world.getItemAt(0)) return
-      if (t === 'segment') { addSegPoint(norm(e), e.altKey ? 0 : 1); return }
+      if (t === 'segment') {
+        const mode = segModeRef.current
+        if (mode === 'point') addSegPoint(norm(e), e.altKey ? 0 : 1)
+        else if (mode === 'box') {
+          const p = norm(e)
+          draftRef.current = { kind: 'segbox', start: p, cur: p, pts: [], negative: e.altKey }
+          forceDraft(x => x + 1)
+        }
+        return
+      }
       if (t !== 'annotate' && t !== 'measure') return
       const p = norm(e)
       const d = draftRef.current
@@ -147,10 +167,13 @@ export default function Viewer2D({ asset }: { asset: AssetBrief }) {
     }
     const up = () => {
       const d = draftRef.current
-      if (d.kind === 'rect' && d.start && d.cur) {
+      if ((d.kind === 'rect' || d.kind === 'segbox') && d.start && d.cur) {
         const x = Math.min(d.start[0], d.cur[0]), y = Math.min(d.start[1], d.cur[1])
         const w = Math.abs(d.cur[0] - d.start[0]), h = Math.abs(d.cur[1] - d.start[1])
-        if (w > 0.002 && h > 0.002) createShape({ atype: 'rect', geometry: { x, y, w, h } })
+        if (w > 0.002 && h > 0.002) {
+          if (d.kind === 'rect') createShape({ atype: 'rect', geometry: { x, y, w, h } })
+          else addSegBox({ cx: x + w / 2, cy: y + h / 2, w, h, label: d.negative ? 0 : 1 })
+        }
         draftRef.current = EMPTY
         forceDraft(x2 => x2 + 1)
       }
@@ -184,7 +207,7 @@ export default function Viewer2D({ asset }: { asset: AssetBrief }) {
       host.removeEventListener('dblclick', dbl)
       window.removeEventListener('keydown', key)
     }
-  }, [hostRef, viewerRef, toNorm, eventPos, createShape, addSegPoint])
+  }, [hostRef, viewerRef, toNorm, eventPos, createShape, addSegPoint, addSegBox])
 
   /* ---------------- 渲染 ---------------- */
   const d = draftRef.current
@@ -207,13 +230,18 @@ export default function Viewer2D({ asset }: { asset: AssetBrief }) {
           return <AnnoShape key={a.id} a={a} toEl={toEl} selected={a.id === selectedId}
             interactive={interactive} onSelect={select} />
         })}
-        {ready && seg.dets.map((det, i) => <SegCandidate key={`sc${i}`} poly={det.polygon} toEl={toEl} />)}
+        {ready && seg.dets.map((det, i) => (
+          <SegCandidate key={`sc${i}`} poly={det.polygon} score={det.score} excluded={seg.excluded.includes(i)}
+            interactive={tool === 'segment' && segTextEngine} onToggle={() => toggleSegExcluded(i)} toEl={toEl} />
+        ))}
         {ready && seg.points.map((sp, i) => <SegPointMark key={`sp${i}`} p={sp.p} positive={sp.label === 1} toEl={toEl} />)}
+        {ready && segTextEngine && seg.boxes.map((b, i) => <ExemplarBoxShape key={`eb${i}`} box={b} index={i} toEl={toEl} />)}
 
-        {ready && d.kind === 'rect' && d.start && d.cur && (() => {
+        {ready && (d.kind === 'rect' || d.kind === 'segbox') && d.start && d.cur && (() => {
           const [x1, y1] = toEl(d.start), [x2, y2] = toEl(d.cur)
+          const c = d.kind === 'rect' ? A : d.negative ? COLORS.negPoint : COLORS.posPoint
           return <rect x={Math.min(x1, x2)} y={Math.min(y1, y2)} width={Math.abs(x2 - x1)} height={Math.abs(y2 - y1)}
-            fill={A} fillOpacity={0.1} stroke={A} strokeWidth={1.5} strokeDasharray="5 4" />
+            fill={c} fillOpacity={0.1} stroke={c} strokeWidth={1.5} strokeDasharray="5 4" />
         })()}
         {ready && d.kind === 'polygon' && d.pts.length > 0 && (() => {
           const pts = [...d.pts, ...(d.cur ? [d.cur] : [])]
@@ -240,6 +268,14 @@ export default function Viewer2D({ asset }: { asset: AssetBrief }) {
           <span className="coords">{Math.round(cursor[0] * asset.width)}, {Math.round(cursor[1] * asset.height)} px</span>
           {d.kind === 'polygon' && <span className="muted">双击闭合 · Esc 取消</span>}
           {d.kind === 'line' && <span className="muted">再点一处结束测量</span>}
+          {tool === 'segment' && segModeRef.current === 'box' && !d.kind && (
+            <span className="muted">拖拽框住一个典型目标（Alt 拖拽 = 负例）</span>
+          )}
+        </div>
+      )}
+      {seg.viewPreprocessed && seg.preprocess !== 'none' && (
+        <div className="vp-float tl" style={{ pointerEvents: 'none' }}>
+          <b>预处理视图</b><span className="muted">{seg.preprocess === 'rubbing' ? '仿拓片' : '增强'}{seg.invert ? ' · 反相' : ''} · 模型看到的图</span>
         </div>
       )}
     </div>

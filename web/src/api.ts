@@ -1,6 +1,6 @@
 import type {
-  Annotation, ProjectedAnnotation, ScanReport, SegDetection, SegEngineState, SegStatus, Stats,
-  StoneInfo, StoneNode,
+  Annotation, ExemplarBox, ProjectedAnnotation, ScanReport, SegDetection, SegEngineState, SegPreprocess,
+  SegStatus, SegTiling, Stats, StoneInfo, StoneNode,
 } from './types'
 
 export class ApiError extends Error {
@@ -102,8 +102,26 @@ export const segUnload = (engine: string) => api.post<EnginesOut>(`/tools/segmen
 export const segPoint = (body: { asset_id: number; points: [number, number][]; labels: number[] }) =>
   api.post<{ ok: boolean; error?: string | null; polygons?: [number, number][][]; score?: number }>(
     '/tools/segment/point', body)
-export const segText = (body: { asset_id: number; prompt: string; engine: string; threshold: number; max_results: number }) =>
-  api.post<{ ok: boolean; error?: string | null; detections?: SegDetection[] }>('/tools/segment/text', body)
+export interface SegTextBody {
+  asset_id: number
+  prompt: string
+  engine: string
+  threshold: number
+  max_results: number
+  boxes?: ExemplarBox[]
+  preprocess?: SegPreprocess
+  invert?: boolean
+  tiling?: SegTiling
+}
+export const segText = (body: SegTextBody) =>
+  api.post<{
+    ok: boolean; error?: string | null; detections?: SegDetection[]
+    tiles?: number | null; exemplars?: number | null; preprocess?: string | null
+  }>('/tools/segment/text', body)
+
+/** 分割预处理效果图（与预览同尺寸，可直接替换查看器图源） */
+export const preprocessedUrl = (assetId: number, mode: SegPreprocess, invert: boolean) =>
+  `/api/assets/${assetId}/preprocessed?mode=${mode}&invert=${invert ? 'true' : 'false'}`
 
 /* ---- 对齐 / 投影 ---- */
 export const alignCommit = (body: {

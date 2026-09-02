@@ -9,8 +9,8 @@ from sqlalchemy.orm import Session
 from ..config import settings
 from ..db import get_db
 from ..models import Asset
-from ..schemas import ProjectedOut
-from ..services import alignment, previews
+from ..schemas import ProjectedOut, SegPreprocess
+from ..services import alignment, previews, segment
 from .deps import get_2d_asset, get_asset
 
 router = APIRouter(prefix="/assets", tags=["资产"])
@@ -31,6 +31,19 @@ def preview(a: Asset = Depends(get_2d_asset)):
 def thumb(a: Asset = Depends(get_2d_asset)):
     p = previews.ensure_thumb(a.id, a.relpath)
     return FileResponse(p, media_type="image/jpeg", headers=_CACHE)
+
+
+@router.get("/{asset_id}/preprocessed", summary="分割预处理效果图（enhance / rubbing，与预览同尺寸）")
+def preprocessed(mode: SegPreprocess = "enhance", invert: bool = False, a: Asset = Depends(get_2d_asset)):
+    """由分割工作进程生成并缓存；用于在查看器里直观比较"模型看到的图"。"""
+    if mode == "none":
+        return FileResponse(previews.ensure_preview(a.id, a.relpath), media_type="image/jpeg", headers=_CACHE)
+    out = previews.preprocessed_path(a.id, mode, invert)
+    if not out.exists():
+        r = segment.preprocess_image(previews.ensure_preview(a.id, a.relpath), mode, invert, out)
+        if not r.get("ok"):
+            raise HTTPException(503, r.get("error") or "预处理失败（分割工作环境不可用）")
+    return FileResponse(out, media_type="image/jpeg", headers=_CACHE)
 
 
 @router.get("/{asset_id}/model/{fname}", summary="三维模型文件（obj / mtl / 贴图）")

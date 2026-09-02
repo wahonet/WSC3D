@@ -40,7 +40,8 @@ def edge() -> str:
 
 
 def render(url: str, shot: pathlib.Path | None) -> str:
-    args = [edge(), "--headless=new", "--no-first-run", "--hide-scrollbars",
+    # --do-not-de-elevate：管理员权限的终端里 Edge 会自动降权重启成脱离的进程，导致拿不到输出
+    args = [edge(), "--headless=new", "--no-first-run", "--hide-scrollbars", "--do-not-de-elevate",
             "--use-angle=swiftshader", "--enable-unsafe-swiftshader",
             "--virtual-time-budget=15000", "--window-size=1680,1000"]
     if shot:

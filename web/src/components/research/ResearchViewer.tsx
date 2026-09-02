@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { Maximize, Minus, Plus } from 'lucide-react'
+import { previewUrl } from '../../api'
 import { annotationBounds } from '../../lib/geometry'
 import type { Annotation, AssetBrief } from '../../types'
 import { Button, Spinner } from '../ui'
@@ -14,7 +15,7 @@ export default function ResearchViewer({ asset, annos, selectedId, onSelect, foc
   /** 变化时把视图定位到选中标注 */
   focus: number
 }) {
-  const { hostRef, ready, toEl, zoomBy, goHome, fitNorm } = useOsd(asset.id)
+  const { hostRef, ready, toEl, zoomBy, goHome, fitNorm } = useOsd(previewUrl(asset.id))
 
   useEffect(() => {
     if (!ready || !focus || selectedId == null) return

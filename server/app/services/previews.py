@@ -42,15 +42,25 @@ def thumb_path(asset_id: int) -> Path:
     return settings.thumb_dir / f"{asset_id}.jpg"
 
 
+def work_path(asset_id: int) -> Path:
+    """高清工作图（长边 settings.work_long_edge），供切块推理使用。"""
+    return settings.preview_dir / f"{asset_id}_hires.jpg"
+
+
+def preprocessed_path(asset_id: int, mode: str, invert: bool) -> Path:
+    return settings.preview_dir / f"pp_{asset_id}_{mode}{'_inv' if invert else ''}.jpg"
+
+
 def has_preview(asset_id: int) -> bool:
     return preview_path(asset_id).exists()
 
 
 def invalidate(asset_id: int) -> bool:
-    """删除某资产的预览与缩略图缓存，返回是否删除了预览。"""
-    pv, th = preview_path(asset_id), thumb_path(asset_id)
+    """删除某资产的全部派生缓存（预览、缩略图、高清工作图、预处理图），返回是否删除了预览。"""
+    pv = preview_path(asset_id)
     removed = pv.exists()
-    for p in (pv, th):
+    for p in [pv, thumb_path(asset_id), work_path(asset_id),
+              *settings.preview_dir.glob(f"pp_{asset_id}_*.jpg")]:
         if p.exists():
             p.unlink()
     return removed
@@ -100,6 +110,22 @@ def ensure_preview(asset_id: int, relpath: str) -> Path:
     return dst
 
 
+def ensure_work_image(asset_id: int, relpath: str) -> Path:
+    """高清工作图：从原件生成长边 work_long_edge 的 sRGB JPEG（切块推理用，首次需数秒）。"""
+    dst = work_path(asset_id)
+    if dst.exists():
+        return dst
+    with _lock_for(f"w{asset_id}"):
+        if dst.exists():
+            return dst
+        src = settings.assets_root / relpath
+        with Image.open(src) as im:
+            img = _fit(_to_srgb(im), settings.work_long_edge)
+            _save_jpeg(img, dst, settings.preview_quality)
+        log.info("work image generated: asset %s", asset_id)
+    return dst
+
+
 def ensure_thumb(asset_id: int, relpath: str) -> Path:
     dst = thumb_path(asset_id)
     if dst.exists():
@@ -121,7 +147,7 @@ def cache_stats() -> tuple[int, int]:
     for d in (settings.preview_dir, settings.thumb_dir):
         for p in d.glob("*.jpg"):
             total += p.stat().st_size
-            if d == settings.preview_dir:
+            if d == settings.preview_dir and p.stem.isdigit():   # 只数标准预览，不数工作图/预处理图
                 n += 1
     return n, total
 

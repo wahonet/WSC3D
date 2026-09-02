@@ -81,6 +81,7 @@ cd web    ; npm run build                                                   # �
 | `STONELAB_DATA` | `<项目>/server/data` | 数据库与缓存目录 |
 | `STONELAB_CORS` | 5173 两个来源 | 允许的前端来源，逗号分隔 |
 | `STONELAB_PREVIEW_EDGE` / `STONELAB_THUMB_EDGE` | 2560 / 320 | 预览与缩略图长边像素 |
+| `STONELAB_WORK_EDGE` | 5120 | 切块推理用高清工作图长边 |
 | `STONELAB_SCAN_ON_STARTUP` / `STONELAB_WARM_PREVIEWS` | 1 / 1 | 启动扫描、后台预热 |
 | `STONELAB_SAM_PYTHON` | WSC3D venv | 分割工作进程的 Python 解释器 |
 
@@ -90,7 +91,8 @@ cd web    ; npm run build                                                   # �
 （可搜索，带缩略图与主图/链徽标）与「工具」面板；中央查看器（照片/拓片走 OpenSeadragon，
 三维低模走 three.js，附缩放/适应窗口按钮与光标原图像素坐标）；右侧「简介与释文」与「标注」。
 三栏及上下分区**可拖拽调整**，布局自动记住。未打开素材时中央显示全库统计与操作指引。
-地址栏 `#a=<资产id>` 记录当前打开的素材，刷新后自动恢复。
+地址栏 `#a=<资产id>` 记录当前打开的素材，刷新后自动恢复；`&p=research` 进研究模块，
+`&t=<工具>&e=<引擎>` 仅在启动时读取（如 `#a=5&t=segment&e=sam3` 直接打开分割面板）。
 
 **工具与快捷键**：
 
@@ -110,11 +112,26 @@ cd web    ; npm run build                                                   # �
 **图层**（工具面板底部）：标注与测量 / 分割图层（虚线）/ 跨图投影（点划线）三个开关，
 以及对齐叠加的透明度。
 
-**分割**：预设概念词（人物/马/车/鸟/龙/鱼/树/文字）或手输英文概念词，阈值默认 0.10；
-点选模式单击加正点、`Alt`+单击加负点，可撤销上一点。模型按需加载/卸载（卸载即释放显存）。
-候选掩膜为青色虚线，一次批量保存进入"分割图层"，`note` 中自动记 `machine_proposal`
-与分数——机器候选须人工核对。推理运行在独立 Python 环境的 sidecar 进程中
+**分割**：三个引擎——点选（MobileSAM，CPU）、SAM3 / SAM3.1（文字与示例框概念分割，GPU）。
+模型按需加载/卸载（卸载即释放显存）。推理运行在独立 Python 环境的 sidecar 进程中
 （含 CUDA torch 与 sam3/mobile_sam 包），路径不存在时设 `STONELAB_SAM_PYTHON`。
+
+- 点选：单击加正点、`Alt`+单击加负点，可撤销上一点；
+- SAM3 / SAM3.1 的四组选项，专为"拓片能识别、照片识别不出"的域差距而设：
+  - **提示方式**：文字（预设人物/马/车/鸟/龙/鱼/树/文字，或手输英文概念词）；
+    **文字 + 示例框**——在图上拖拽框住一个典型目标作正例（`Alt` 拖拽为负例），模型按
+    "这块石头上的人长什么样"找同类，与文字叠加效果最好；纯示例框可用但噪声偏多；
+  - **预处理**：原图 / 增强（去光照渐变 + CLAHE）/ 仿拓片（再自适应二值化成黑底白图形，
+    光照相反时勾"反相"）；"查看预处理图"可把查看器切到模型实际看到的图；
+  - **推理范围**：整图 / 切块 2560 / 切块 5120。SAM3 内部把整图缩到 1008 px，全幅照片里
+    每个人物只剩几十像素；切块模式 = 整图一遍（负责大目标）+ 约 1024 px 切块各一遍
+    （负责小目标），结果按掩膜包含关系合并，块状伪检出自动过滤。示例框的特征来自本图，
+    有示例框时按整图推理；
+  - **阈值**：默认 0.10（照片建议 0.05–0.2 起试）。注意旧版存在缺陷：模型内部按 0.5 先过滤，
+    界面阈值低于 0.5 的部分从未生效，现已修正——这是"照片一个也识别不出"的主要原因之一。
+- 候选掩膜为青色虚线并标注分数，**点击可剔除 / 恢复**；保存时只保存未剔除的候选，
+  一次批量进入"分割图层"，`note` 中自动记 `machine_proposal`、分数、预处理与切块参数——
+  机器候选须人工核对。`scripts/bench_photo_seg.py` 可在一张照片上对照各配置的检出数与耗时。
 
 **对齐与统一坐标系**：
 
@@ -171,9 +188,9 @@ SQLite（`server/data/stonelab.db`），经 SQLAlchemy ORM，启动时自动轻�
 |---|---|
 | 系统 | `GET /api/health` · `GET /api/stats` · `POST /api/scan[?warm=]` |
 | 石头 | `GET /api/stones` · `GET/PATCH /api/stones/{id}` · `PATCH /api/stones/{id}/layers/{seq}` · `GET /api/stones/{id}/annotations` · `POST /api/stones/{id}/master/{asset_id}` |
-| 资产 | `GET /api/assets/{id}/preview` · `GET /api/assets/{id}/thumb` · `GET /api/assets/{id}/model/{fname}` · `GET /api/assets/{id}/projected` |
+| 资产 | `GET /api/assets/{id}/preview` · `GET /api/assets/{id}/thumb` · `GET /api/assets/{id}/preprocessed?mode=&invert=` · `GET /api/assets/{id}/model/{fname}` · `GET /api/assets/{id}/projected` |
 | 标注 | `GET /api/annotations?asset_id=` · `POST /api/annotations` · `POST /api/annotations/batch` · `PATCH/DELETE /api/annotations/{id}` |
-| 分割 | `GET /api/tools/segment/status` · `POST /api/tools/segment/load|unload/{engine}` · `POST /api/tools/segment/point|text` |
+| 分割 | `GET /api/tools/segment/status` · `POST /api/tools/segment/load|unload/{engine}` · `POST /api/tools/segment/point` · `POST /api/tools/segment/text`（`prompt` / `boxes[]` / `preprocess` / `invert` / `tiling`） |
 | 对齐 | `POST /api/align/commit` |
 
 错误统一为 `{"detail": "中文说明"}`：404 不存在、409 图文关联冲突、422 参数/区间非法。
@@ -184,6 +201,7 @@ SQLite（`server/data/stonelab.db`），经 SQLAlchemy ORM，启动时自动轻�
 |---|---|
 | `check_encoding.py` | 全项目 GBK→UTF-8 修复 + 中文损毁（连续问号）扫描，**改完代码必跑** |
 | `smoke_ui.py [--dev] [--shots 目录]` | 用本机 Edge 无头渲染首页/2D/3D/研究页，统计关键 DOM 并可截图 |
+| `bench_photo_seg.py [--engine] [--prompt] [--asset]` | 同一张照片上对照 整图/切块 x 原图/增强/仿拓片 的检出数、分数与耗时（需 GPU 环境） |
 | `verify_research.py` | 研究模块（字段编辑/图文关联/锁定保护）验证 |
 | `verify_frame.py` | 统一坐标系（对齐入链+跨图投影）数学验证，用后自动清理 |
 | `verify_master.py` | 主图切换/复原验证 |

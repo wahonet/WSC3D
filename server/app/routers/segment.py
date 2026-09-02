@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""分割工具：引擎状态 / 加载 / 卸载 / 点选分割 / 文本概念分割。"""
+"""分割工具：引擎状态 / 加载 / 卸载 / 点选分割 / 文本与示例框概念分割。"""
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -13,13 +13,13 @@ from ..services import previews, segment
 router = APIRouter(prefix="/tools/segment", tags=["分割"])
 
 
-def _preview_for(asset_id: int, db: Session):
+def _asset_2d(asset_id: int, db: Session) -> Asset:
     a = db.get(Asset, asset_id)
     if not a:
         raise HTTPException(404, "资产不存在")
     if a.is_model:
         raise HTTPException(400, "三维资产不支持 2D 分割")
-    return previews.ensure_preview(a.id, a.relpath)
+    return a
 
 
 @router.get("/status", response_model=SegStatusOut, summary="工作进程 / 权重 / 引擎状态")
@@ -41,13 +41,21 @@ def unload(engine: str):
 def point(body: PointSegIn, db: Session = Depends(get_db)):
     if not body.points or len(body.points) != len(body.labels):
         raise HTTPException(422, "points 与 labels 数量须一致且非空")
-    return segment.point_segment(_preview_for(body.asset_id, db), body.points, body.labels)
+    a = _asset_2d(body.asset_id, db)
+    return segment.point_segment(previews.ensure_preview(a.id, a.relpath), body.points, body.labels)
 
 
-@router.post("/text", response_model=TextSegOut, summary="SAM3 / SAM3.1 文本概念分割")
+@router.post("/text", response_model=TextSegOut, summary="SAM3 / SAM3.1 概念分割（文字 和/或 示例框）")
 def text(body: TextSegIn, db: Session = Depends(get_db)):
+    """- prompt 与 boxes 至少给一个；示例框给出时按整图推理（示例特征来自本图）
+    - preprocess：照片上建议先试 enhance / rubbing
+    - tiling=hires 首次会从原件生成 5120 长边工作图（数秒到数十秒）"""
     prompt = body.prompt.strip()
-    if not prompt:
-        raise HTTPException(422, "prompt 不能为空")
-    return segment.text_segment(body.engine, _preview_for(body.asset_id, db), prompt,
-                                body.threshold, body.max_results)
+    if not prompt and not body.boxes:
+        raise HTTPException(422, "需要文字提示或至少一个示例框")
+    a = _asset_2d(body.asset_id, db)
+    path = (previews.ensure_work_image(a.id, a.relpath) if body.tiling == "hires" and not body.boxes
+            else previews.ensure_preview(a.id, a.relpath))
+    return segment.text_segment(body.engine, path, prompt, body.threshold, body.max_results,
+                                boxes=[b.model_dump() for b in body.boxes],
+                                preprocess=body.preprocess, invert=body.invert, tiling=body.tiling)

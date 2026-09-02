@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import OpenSeadragon from 'openseadragon'
 import { Check, Eraser, Undo2, X } from 'lucide-react'
-import { alignCommit } from '../api'
+import { alignCommit, previewUrl } from '../api'
 import { COLORS, MAX_PAIRS, MIN_PAIRS } from '../lib/constants'
 import { alignGeomToOverlay, solveSimilarity, type Pt } from '../lib/geometry'
 import { selectTwoDAssets, useApp } from '../store/useApp'
@@ -17,7 +17,7 @@ function Pane({ asset, color, pts, onPick, sideLabel, active, highlight }: {
   asset: AssetBrief; color: string; pts: Pt[]; onPick: (p: Pt) => void
   sideLabel: string; active: boolean; highlight: number | null
 }) {
-  const { hostRef, viewerRef, ready, toEl, toNorm, eventPos } = useOsd(asset.id, { navigator: false, dragToPan: false })
+  const { hostRef, viewerRef, ready, toEl, toNorm, eventPos } = useOsd(previewUrl(asset.id), { navigator: false, dragToPan: false })
   const onPickRef = useRef(onPick); onPickRef.current = onPick
 
   useEffect(() => {

@@ -141,7 +141,17 @@ export interface SegStatus {
 }
 
 export interface SegPoint { p: [number, number]; label: 0 | 1 }
-export interface SegDetection { polygon: [number, number][]; score: number }
+export interface SegDetection {
+  polygon: [number, number][]
+  score: number
+  box?: [number, number, number, number] | null   // 归一化 x0,y0,x1,y1
+}
+
+/** SAM3 示例框：归一化中心 + 宽高；label 1 正例 / 0 负例 */
+export interface ExemplarBox { cx: number; cy: number; w: number; h: number; label: 0 | 1 }
+export type SegPreprocess = 'none' | 'enhance' | 'rubbing'
+export type SegTiling = 'none' | 'preview' | 'hires'
+export type SegPromptMode = 'text' | 'box'
 
 /* ---------------- 对齐 ---------------- */
 export interface AlignGeometry {

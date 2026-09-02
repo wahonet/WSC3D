@@ -8,6 +8,7 @@
     STONELAB_CORS                        允许的前端来源，逗号分隔
     STONELAB_PREVIEW_EDGE                2D 预览长边像素（默认 2560）
     STONELAB_THUMB_EDGE                  缩略图长边像素（默认 320）
+    STONELAB_WORK_EDGE                   切块推理用高清工作图长边（默认 5120）
     STONELAB_SCAN_ON_STARTUP             启动时自动扫描素材（默认 1）
     STONELAB_WARM_PREVIEWS               扫描后后台预热预览缓存（默认 1）
     STONELAB_SAM_PYTHON                  分割工作进程使用的 Python 解释器
@@ -64,6 +65,7 @@ class Settings:
     preview_long_edge: int = _env_int("STONELAB_PREVIEW_EDGE", 2560)
     preview_quality: int = 86
     thumb_long_edge: int = _env_int("STONELAB_THUMB_EDGE", 320)
+    work_long_edge: int = _env_int("STONELAB_WORK_EDGE", 5120)     # 切块推理用高清工作图
 
     scan_on_startup: bool = _env_bool("STONELAB_SCAN_ON_STARTUP", True)
     warm_previews: bool = _env_bool("STONELAB_WARM_PREVIEWS", True)

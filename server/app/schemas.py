@@ -224,12 +224,29 @@ class PointSegIn(BaseModel):
     labels: list[int] = Field(description="1=正点（要这里） 0=负点（不要这里）")
 
 
+SegPreprocess = Literal["none", "enhance", "rubbing"]
+SegTiling = Literal["none", "preview", "hires"]
+
+
+class ExemplarBox(BaseModel):
+    """SAM3 示例框：归一化中心点与宽高（0..1），label 1=正例 0=负例。"""
+    cx: float = Field(ge=0.0, le=1.0)
+    cy: float = Field(ge=0.0, le=1.0)
+    w: float = Field(gt=0.0, le=1.0)
+    h: float = Field(gt=0.0, le=1.0)
+    label: int = Field(1, ge=0, le=1)
+
+
 class TextSegIn(BaseModel):
     asset_id: int
-    prompt: str
+    prompt: str = ""
     engine: Literal["sam3", "sam3.1"] = "sam3"
     threshold: float = Field(0.5, ge=0.0, le=1.0)
     max_results: int = Field(20, ge=1, le=100)
+    boxes: list[ExemplarBox] = Field(default_factory=list, description="示例框；给出时按整图推理")
+    preprocess: SegPreprocess = Field("none", description="none 原图 / enhance 去光照+CLAHE / rubbing 仿拓片二值化")
+    invert: bool = Field(False, description="仿拓片反相（光照相反时）")
+    tiling: SegTiling = Field("none", description="none 整图 / preview 切块(2560 预览) / hires 切块(5120 工作图)")
 
 
 class LooseModel(BaseModel):
@@ -275,6 +292,7 @@ class SegEnginesOut(BaseModel):
 class SegDetection(BaseModel):
     polygon: list[list[float]]
     score: float
+    box: list[float] | None = None      # 归一化 [x0, y0, x1, y1]
 
 
 class PointSegOut(LooseModel):
@@ -291,3 +309,6 @@ class TextSegOut(LooseModel):
     size: list[int] | None = None
     model: str | None = None
     prompt: str | None = None
+    tiles: int | None = None
+    preprocess: str | None = None
+    exemplars: int | None = None

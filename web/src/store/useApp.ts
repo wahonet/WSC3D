@@ -6,8 +6,9 @@ import {
 } from '../api'
 import { alignGeomToOverlay } from '../lib/geometry'
 import type {
-  AlignGeometry, Annotation, AnnotateShape, AssetBrief, OverlaySpec, OverlayTransform,
-  ProjectedAnnotation, SegDetection, SegEngine, SegPoint, Stats, StoneInfo, StoneNode, Tool,
+  AlignGeometry, Annotation, AnnotateShape, AssetBrief, ExemplarBox, OverlaySpec, OverlayTransform,
+  ProjectedAnnotation, SegDetection, SegEngine, SegPoint, SegPreprocess, SegPromptMode, SegTiling, Stats,
+  StoneInfo, StoneNode, Tool,
 } from '../types'
 import { toast } from './useToast'
 
@@ -23,11 +24,25 @@ export interface CreateShape {
 
 interface SegState {
   engine: SegEngine
-  points: SegPoint[]
+  points: SegPoint[]          // MobileSAM 点提示
+  boxes: ExemplarBox[]        // SAM3 示例框
+  promptMode: SegPromptMode   // 文字 / 文字+示例框（仅文本引擎）
+  preprocess: SegPreprocess
+  invert: boolean
+  tiling: SegTiling
+  viewPreprocessed: boolean   // 查看器显示预处理图而非原图
   dets: SegDetection[]
+  excluded: number[]          // 被人工剔除的候选下标
   busy: boolean
   prompt: string
   threshold: number
+  lastInfo: string            // 上次推理的切块/示例信息
+}
+
+const SEG_DEFAULT: SegState = {
+  engine: 'mobilesam', points: [], boxes: [], promptMode: 'text', preprocess: 'none', invert: false,
+  tiling: 'none', viewPreprocessed: false, dets: [], excluded: [], busy: false, prompt: '', threshold: 0.1,
+  lastInfo: '',
 }
 
 interface AppState {
@@ -87,8 +102,16 @@ interface AppState {
   setSegEngine: (e: SegEngine) => void
   setSegPrompt: (s: string) => void
   setSegThreshold: (v: number) => void
+  setSegPromptMode: (m: SegPromptMode) => void
+  setSegPreprocess: (p: SegPreprocess) => void
+  setSegInvert: (v: boolean) => void
+  setSegTiling: (t: SegTiling) => void
+  setViewPreprocessed: (v: boolean) => void
   addSegPoint: (p: [number, number], label: 0 | 1) => void
   undoSegPoint: () => void
+  addSegBox: (b: ExemplarBox) => void
+  undoSegBox: () => void
+  toggleSegExcluded: (i: number) => void
   clearSeg: () => void
   runPointSeg: () => Promise<void>
   runTextSeg: () => Promise<void>
@@ -101,10 +124,20 @@ const initialTheme = (): Theme => (localStorage.getItem(THEME_KEY) === 'light' ?
 const is2d = (a: AssetBrief | null) => a != null && !a.kind.startsWith('model')
 
 /* 地址栏 hash 记录当前资产与页面：#a=<assetId>&p=research，刷新后可恢复 */
-function readHash(): { assetId: number | null; page: Page } {
+const TOOLS: Tool[] = ['select', 'annotate', 'measure', 'segment', 'align']
+const ENGINES: SegEngine[] = ['mobilesam', 'sam3', 'sam3.1']
+function readHash(): { assetId: number | null; page: Page; tool: Tool | null; engine: SegEngine | null } {
   const q = new URLSearchParams(location.hash.replace(/^#/, ''))
   const a = Number(q.get('a'))
-  return { assetId: a > 0 ? a : null, page: q.get('p') === 'research' ? 'research' : 'work' }
+  const t = q.get('t') as Tool | null
+  const e = q.get('e') as SegEngine | null
+  return {
+    assetId: a > 0 ? a : null,
+    page: q.get('p') === 'research' ? 'research' : 'work',
+    // t / e 仅启动时读取（如 #a=5&t=segment&e=sam3），不回写
+    tool: t && TOOLS.includes(t) ? t : null,
+    engine: e && ENGINES.includes(e) ? e : null,
+  }
 }
 function writeHash(assetId: number | null, page: Page) {
   const q = new URLSearchParams()
@@ -134,7 +167,7 @@ export const useApp = create<AppState>((set, get) => ({
   projOn: false,
   projItems: [],
   projReason: '',
-  seg: { engine: 'mobilesam', points: [], dets: [], busy: false, prompt: '', threshold: 0.1 },
+  seg: SEG_DEFAULT,
   flyTo: null,
   viewerCmd: null,
 
@@ -149,7 +182,7 @@ export const useApp = create<AppState>((set, get) => ({
       }
       set({ backendOk: true })
       get().loadStats().catch(() => undefined)
-      const { assetId, page } = readHash()
+      const { assetId, page, tool, engine } = readHash()
       if (assetId) {
         for (const stone of list) {
           const asset = stone.groups.flatMap(g => g.assets).find(a => a.id === assetId)
@@ -157,6 +190,11 @@ export const useApp = create<AppState>((set, get) => ({
         }
       }
       if (page === 'research' && get().curStone) set({ page: 'research' })
+      if (tool && get().curAsset) {
+        const ok2d = is2d(get().curAsset)
+        if (ok2d || (tool !== 'segment' && tool !== 'align')) set({ tool })
+      }
+      if (engine) get().setSegEngine(engine)
     } catch (e) {
       set({ backendOk: false })
       toast.error(e)
@@ -193,7 +231,7 @@ export const useApp = create<AppState>((set, get) => ({
     set({
       curStone: stone, curAsset: asset, selectedId: null, overlay: null, annos: [],
       projOn: false, projItems: [], projReason: '',
-      seg: { ...get().seg, points: [], dets: [] },
+      seg: { ...get().seg, points: [], boxes: [], dets: [], excluded: [], viewPreprocessed: false, lastInfo: '' },
       tool: get().tool === 'align' && !is2d(asset) ? 'select' : get().tool,
     })
     writeHash(asset.id, get().page)
@@ -312,13 +350,28 @@ export const useApp = create<AppState>((set, get) => ({
   },
 
   /* ------------------------------------------------ 分割 */
-  setSegEngine: e => set(s => ({ seg: { ...s.seg, engine: e, points: [], dets: [] } })),
+  setSegEngine: e => set(s => ({ seg: { ...s.seg, engine: e, points: [], boxes: [], dets: [], excluded: [], lastInfo: '' } })),
   setSegPrompt: p => set(s => ({ seg: { ...s.seg, prompt: p } })),
   setSegThreshold: v => set(s => ({ seg: { ...s.seg, threshold: v } })),
+  setSegPromptMode: m => set(s => ({ seg: { ...s.seg, promptMode: m } })),
+  setSegPreprocess: p => set(s => ({
+    seg: { ...s.seg, preprocess: p, viewPreprocessed: p === 'none' ? false : s.seg.viewPreprocessed },
+  })),
+  setSegInvert: v => set(s => ({ seg: { ...s.seg, invert: v } })),
+  setSegTiling: t => set(s => ({ seg: { ...s.seg, tiling: t } })),
+  setViewPreprocessed: v => set(s => ({ seg: { ...s.seg, viewPreprocessed: v } })),
   addSegPoint: (p, label) => set(s => s.seg.engine === 'mobilesam'
     ? { seg: { ...s.seg, points: [...s.seg.points, { p, label }] } } : {}),
   undoSegPoint: () => set(s => ({ seg: { ...s.seg, points: s.seg.points.slice(0, -1) } })),
-  clearSeg: () => set(s => ({ seg: { ...s.seg, points: [], dets: [] } })),
+  addSegBox: b => set(s => ({ seg: { ...s.seg, boxes: [...s.seg.boxes, b] } })),
+  undoSegBox: () => set(s => ({ seg: { ...s.seg, boxes: s.seg.boxes.slice(0, -1) } })),
+  toggleSegExcluded: i => set(s => ({
+    seg: {
+      ...s.seg,
+      excluded: s.seg.excluded.includes(i) ? s.seg.excluded.filter(x => x !== i) : [...s.seg.excluded, i],
+    },
+  })),
+  clearSeg: () => set(s => ({ seg: { ...s.seg, points: [], boxes: [], dets: [], excluded: [], lastInfo: '' } })),
 
   runPointSeg: async () => {
     const { curAsset, seg } = get()
@@ -336,36 +389,48 @@ export const useApp = create<AppState>((set, get) => ({
   runTextSeg: async () => {
     const { curAsset, seg } = get()
     const prompt = seg.prompt.trim()
-    if (!curAsset || !prompt) return
+    const boxes = seg.promptMode === 'box' ? seg.boxes : []
+    if (!curAsset || (!prompt && boxes.length === 0)) return
     set(s => ({ seg: { ...s.seg, busy: true } }))
     try {
       const r = await segText({
         asset_id: curAsset.id, prompt, engine: seg.engine === 'mobilesam' ? 'sam3' : seg.engine,
-        threshold: seg.threshold, max_results: 20,
+        threshold: seg.threshold, max_results: 60,
+        boxes, preprocess: seg.preprocess, invert: seg.invert, tiling: seg.tiling,
       })
       if (!r.ok) { toast.error(r.error ?? '分割失败'); return }
       const dets = r.detections ?? []
-      set(s => ({ seg: { ...s.seg, dets } }))
-      if (dets.length === 0) toast.warn(`「${prompt}」未检出目标，可降低阈值重试`)
-      else toast.ok(`检出 ${dets.length} 个候选`)
+      const info = [
+        r.tiles ? `整图 + ${r.tiles} 切块` : '整图',
+        r.exemplars ? `${r.exemplars} 示例框` : '',
+        r.preprocess && r.preprocess !== 'none' ? (r.preprocess === 'rubbing' ? '仿拓片' : '增强') : '',
+      ].filter(Boolean).join(' · ')
+      set(s => ({ seg: { ...s.seg, dets, excluded: [], lastInfo: info } }))
+      if (dets.length === 0) toast.warn(`未检出目标（${info}），可降低阈值、换预处理或加示例框重试`)
+      else toast.ok(`检出 ${dets.length} 个候选（${info}），点击候选可剔除`)
     } catch (e) { toast.error(e) } finally { set(s => ({ seg: { ...s.seg, busy: false } })) }
   },
 
   saveSeg: async () => {
     const { curStone, curAsset, seg } = get()
-    if (!curStone || !curAsset || seg.dets.length === 0) return
+    const keep = seg.dets.filter((_, i) => !seg.excluded.includes(i))
+    if (!curStone || !curAsset || keep.length === 0) return
     try {
-      const label = seg.engine === 'mobilesam' ? 'SAM点选' : `${seg.engine}:${seg.prompt.trim()}`
-      await createAnnotations(seg.dets.map(d => ({
+      const prompt = seg.prompt.trim()
+      const label = seg.engine === 'mobilesam' ? 'SAM点选'
+        : `${seg.engine}:${prompt || '示例框'}`
+      const extra = seg.engine === 'mobilesam' ? ''
+        : ` pre=${seg.preprocess} tiling=${seg.tiling}${seg.promptMode === 'box' ? ` exemplars=${seg.boxes.length}` : ''}`
+      await createAnnotations(keep.map(d => ({
         stone_id: curStone.id, asset_id: curAsset.id, tool: 'segment', atype: 'polygon',
         geometry: { points: d.polygon }, label,
-        note: `machine_proposal score=${d.score.toFixed(3)} engine=${seg.engine}`,
+        note: `machine_proposal score=${d.score.toFixed(3)} engine=${seg.engine}${extra}`,
         color: '#39c2d7',
       })))
-      set(s => ({ seg: { ...s.seg, points: [], dets: [] } }))
+      set(s => ({ seg: { ...s.seg, points: [], dets: [], excluded: [] } }))
       await get().refreshAnnos()
       get().loadStones().catch(() => undefined)
-      toast.ok(`已保存 ${seg.dets.length} 个掩膜为分割图层（机器候选，须人工核对）`)
+      toast.ok(`已保存 ${keep.length} 个掩膜为分割图层（机器候选，须人工核对）`)
     } catch (e) { toast.error(e) }
   },
 }))
