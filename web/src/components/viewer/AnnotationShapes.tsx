@@ -65,13 +65,13 @@ export function AnnoShape({ a, toEl, selected, interactive, onSelect, linkedTint
   return null
 }
 
-/** 跨图投影标注：紫色点划线，来自同石其他照片/拓片；可选中（研究模块）与高亮 */
+/** 跨图投影标注：沿用标注自身颜色、以点划线表示"投影自其他图层"；可选中（研究模块）与高亮 */
 export function ProjectedShape({ p, toEl, selected, linkedTint, interactive, onSelect }: {
   p: ProjectedAnnotation; toEl: ToEl; selected?: boolean; linkedTint?: boolean
   interactive?: boolean; onSelect?: (id: number) => void
 }) {
   const g = p.geometry as Record<string, unknown>
-  const c = selected ? COLORS.select : linkedTint ? COLORS.linked : COLORS.proj
+  const c = selected ? COLORS.select : linkedTint ? COLORS.linked : (p.color || COLORS.proj)
   const style = {
     stroke: c, strokeWidth: selected ? 2.6 : 1.7, strokeDasharray: selected ? '5 3' : '2 4',
     fill: c, fillOpacity: selected ? 0.18 : 0.07,

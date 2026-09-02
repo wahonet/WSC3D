@@ -199,7 +199,7 @@ export default function ResearchPage({ stoneId, initialAssetId }: { stoneId: num
                     <div key={a.id} className={`ra-row${a.id === selectedId ? ' on' : ''}`}
                       onClick={() => setSelectedId(a.id === selectedId ? null : a.id)}
                       title={projectedFrom ? `投影自 ${projectedFrom}` : undefined}>
-                      <span className="sw" style={{ background: a.desc_text ? COLORS.linked : projectedFrom ? COLORS.proj : a.color }} />
+                      <span className="sw" style={{ background: a.desc_text ? COLORS.linked : a.color }} />
                       <span className="lb">{a.label}</span>
                       {projectedFrom && <Badge tone="violet" title={`投影自 ${projectedFrom}`}>投影</Badge>}
                       {a.desc_text && <Badge tone="amber"><Link2 size={10} /></Badge>}

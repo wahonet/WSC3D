@@ -1,9 +1,10 @@
 import { create } from 'zustand'
 import {
   createAnnotation, createAnnotations, deleteAnnotation, getProjected, getStats, getStone, listAnnotations,
-  listStones, patchAnnotation, scanAssets, segPoint, segText, setMaster,
+  listStones, patchAnnotation, patchAnnotations, scanAssets, segPoint, segText, setMaster,
   type AnnotationPatchBody,
 } from '../api'
+import { PALETTE, pickColor, pickColors } from '../lib/constants'
 import { alignGeomToOverlay } from '../lib/geometry'
 import type {
   AlignGeometry, Annotation, AnnotateShape, AssetBrief, ExemplarBox, OverlaySpec, OverlayTransform,
@@ -96,6 +97,7 @@ interface AppState {
   createShape: (c: CreateShape) => Promise<void>
   updateAnnotation: (id: number, body: AnnotationPatchBody) => Promise<void>
   removeAnnotation: (id: number) => Promise<void>
+  recolorAll: () => Promise<void>
   makeMaster: () => Promise<void>
   onAligned: (anno: Annotation, overlayAssetId: number, t: OverlayTransform) => Promise<void>
 
@@ -306,6 +308,7 @@ export const useApp = create<AppState>((set, get) => ({
         stone_id: curStone.id, asset_id: curAsset.id,
         tool: isLine ? 'measure' : 'annotate', atype: c.atype, geometry: c.geometry,
         label: isLine ? '测量' : '未命名', value: c.value ?? null, unit: c.unit ?? '',
+        color: pickColor(get().annos.filter(a => a.atype !== 'align').map(a => a.color)),
       })
       await get().refreshAnnos()
       set({ selectedId: created.id })
@@ -327,6 +330,17 @@ export const useApp = create<AppState>((set, get) => ({
       await get().refreshAnnos()
       get().loadStones().catch(() => undefined)
       get().loadStats().catch(() => undefined)
+    } catch (e) { toast.error(e) }
+  },
+
+  /** 给当前资产的全部标注（对齐记录除外）按调色板顺序重新配色，相邻标注颜色不同 */
+  recolorAll: async () => {
+    const rows = get().annos.filter(a => a.atype !== 'align')
+    if (rows.length === 0) return
+    try {
+      await patchAnnotations(rows.map((a, i) => ({ id: a.id, color: PALETTE[i % PALETTE.length] })))
+      await get().refreshAnnos()
+      toast.ok(`已为 ${rows.length} 条标注重新配色（${Math.min(rows.length, PALETTE.length)} 色循环）`)
     } catch (e) { toast.error(e) }
   },
 
@@ -421,11 +435,12 @@ export const useApp = create<AppState>((set, get) => ({
         : `${seg.engine}:${prompt || '示例框'}`
       const extra = seg.engine === 'mobilesam' ? ''
         : ` pre=${seg.preprocess} tiling=${seg.tiling}${seg.promptMode === 'box' ? ` exemplars=${seg.boxes.length}` : ''}`
-      await createAnnotations(keep.map(d => ({
+      const colors = pickColors(get().annos.filter(a => a.atype !== 'align').map(a => a.color), keep.length)
+      await createAnnotations(keep.map((d, i) => ({
         stone_id: curStone.id, asset_id: curAsset.id, tool: 'segment', atype: 'polygon',
         geometry: { points: d.polygon }, label,
         note: `machine_proposal score=${d.score.toFixed(3)} engine=${seg.engine}${extra}`,
-        color: '#39c2d7',
+        color: colors[i],
       })))
       set(s => ({ seg: { ...s.seg, points: [], dets: [], excluded: [] } }))
       await get().refreshAnnos()

@@ -152,6 +152,18 @@ class AnnotationBatchCreate(BaseModel):
     items: list[AnnotationCreate] = Field(min_length=1, max_length=500)
 
 
+class AnnotationBatchPatchItem(BaseModel):
+    """批量修改的一项：只允许改名称 / 内容 / 颜色（图文关联请走单条 PATCH）。"""
+    id: int
+    label: str | None = None
+    note: str | None = None
+    color: str | None = None
+
+
+class AnnotationBatchPatch(BaseModel):
+    items: list[AnnotationBatchPatchItem] = Field(min_length=1, max_length=1000)
+
+
 class AnnotationPatch(BaseModel):
     label: str | None = None
     note: str | None = None

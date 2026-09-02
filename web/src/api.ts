@@ -92,6 +92,8 @@ export const createAnnotation = (a: NewAnnotation) => api.post<Annotation>('/ann
 export const createAnnotations = (items: NewAnnotation[]) => api.post<Annotation[]>('/annotations/batch', { items })
 export const patchAnnotation = (id: number, body: AnnotationPatchBody) =>
   api.patch<Annotation>(`/annotations/${id}`, body)
+export const patchAnnotations = (items: { id: number; label?: string; note?: string; color?: string }[]) =>
+  api.patch<Annotation[]>('/annotations/batch', { items })
 export const deleteAnnotation = (id: number) => api.del<{ ok: boolean }>(`/annotations/${id}`)
 
 /* ---- 分割 ---- */

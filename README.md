@@ -112,7 +112,11 @@ cd web    ; npm run build                                                   # �
 | 删除 | `Del` 两次 | 删除选中标注（面板内删除需二次确认） | 同 |
 
 **标注面板**：按 全部/标注/测量/分割/对齐 过滤；选中后可 **定位**（视图飞到该标注）、
-改名（或双击名称）、换颜色、删除。
+改名（或双击名称）、换颜色（18 色调色板）、删除。
+
+**颜色**：新建标注（手画或批量保存分割候选）自动从调色板中分配当前图上用得最少的颜色，
+相邻标注互不相同；跨图投影沿用各标注自身颜色（点划线只表示"投影"）。「自动配色」可给本图
+全部标注按调色板重新分配（会覆盖手动选的颜色）；正红保留给选中态、橙色保留给已图文关联。
 
 **图层**（工具面板底部）：标注与测量 / 分割图层（虚线）/ 跨图投影（点划线）三个开关，
 以及对齐叠加的透明度。
@@ -147,8 +151,8 @@ cd web    ; npm run build                                                   # �
   悬停黄圈联动；最少 4 对、至多 20 对，实时 RMSE（绿/黄/红提示精度）；"确定对齐"求解
   相似变换（Umeyama 最小二乘）并保存；
 - 配对双方任一已连主图，另一方自动**接入坐标链**（绿色"链"徽标），链可传播；
-- **跨图投影**：默认开启（图层栏可关，偏好会记住），同石其他已入链图上的标注以紫色点划线
-  投影到当前图，悬停显示来源——在主图上做的标注会自动出现在所有已对齐的照片/拓片上；
+- **跨图投影**：默认开启（图层栏可关，偏好会记住），同石其他已入链图上的标注以点划线
+  （沿用各自颜色）投影到当前图，悬停显示来源——在主图上做的标注会自动出现在所有已对齐的照片/拓片上；
 - 对齐记录存于标注列表，点选即可重新应用叠加（透明度可调）。
 
 ## 四、研究模块（模块二）
@@ -157,10 +161,10 @@ cd web    ; npm run build                                                   # �
 已入链的图进入时，直接在该图层上打开。三栏可拖拽：
 
 - **左侧 · 标注栏**：当前图层可见的全部标注——本图层自有的，加上其他已入链图层（通常是主图）
-  **投影**过来的（紫色"投影"徽标）；可按名称/内容筛选、按已关联/未关联过滤；下方是编辑区
+  **投影**过来的（带"投影"徽标）；可按名称/内容筛选、按已关联/未关联过滤；下方是编辑区
   （改名、填写内容、定位、取消关联）；
-- **中间 · 图像**：顶栏切换**已对齐入链**的图层；图上显示自有标注（实线）与投影标注（点划线），
-  点击均可选中；右上缩放按钮；
+- **中间 · 图像**：顶栏切换**已对齐入链**的图层；图上显示自有标注（实线）与投影标注（点划线，
+  沿用各自颜色），点击均可选中；右上缩放按钮；
 - **右侧**：石头信息（尺寸/年代/材质/刻法/位置，改后出现"保存信息"）；简介与释文
   （总述 + 各层释文，逐段编辑）；
 - **图文关联**：选中标注（自有或投影的都可以）→ 在任一段落中拖选文字 → "关联到「标注名」"→
@@ -198,7 +202,7 @@ SQLite（`server/data/stonelab.db`），经 SQLAlchemy ORM，启动时自动轻�
 | 系统 | `GET /api/health` · `GET /api/stats` · `POST /api/scan[?warm=]` |
 | 石头 | `GET /api/stones` · `GET/PATCH /api/stones/{id}` · `PATCH /api/stones/{id}/layers/{seq}` · `GET /api/stones/{id}/annotations` · `POST /api/stones/{id}/master/{asset_id}` |
 | 资产 | `GET /api/assets/{id}/preview` · `GET /api/assets/{id}/thumb` · `GET /api/assets/{id}/preprocessed?mode=&invert=` · `GET /api/assets/{id}/model/{fname}` · `GET /api/assets/{id}/projected` |
-| 标注 | `GET /api/annotations?asset_id=` · `POST /api/annotations` · `POST /api/annotations/batch` · `PATCH/DELETE /api/annotations/{id}` |
+| 标注 | `GET /api/annotations?asset_id=` · `POST /api/annotations` · `POST /api/annotations/batch` · `PATCH /api/annotations/batch`（批量改名称/内容/颜色） · `PATCH/DELETE /api/annotations/{id}` |
 | 分割 | `GET /api/tools/segment/status` · `POST /api/tools/segment/load|unload/{engine}` · `POST /api/tools/segment/point` · `POST /api/tools/segment/text`（`prompt` / `boxes[]` / `preprocess` / `invert` / `tiling`） |
 | 对齐 | `POST /api/align/commit` |
 

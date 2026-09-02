@@ -52,7 +52,7 @@ export default function ResearchViewer({ asset, annos, projected, linkedIds, sel
       <div className="vp-float bl">
         <span className="muted">
           点击图形选中标注 · <b style={{ color: '#e08c1a' }}>橙色</b>为已图文关联
-          {projected.length > 0 && <> · <b style={{ color: '#a06be0' }}>点划线</b>为主图等图层投影（{projected.length} 条）</>}
+          {projected.length > 0 && <> · <b>点划线</b>为主图等图层的投影标注（{projected.length} 条，沿用各自颜色）</>}
         </span>
       </div>
     </div>

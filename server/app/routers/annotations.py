@@ -7,7 +7,9 @@ from sqlalchemy.orm import Session
 
 from ..db import get_db
 from ..models import Annotation, Asset
-from ..schemas import AnnotationBatchCreate, AnnotationCreate, AnnotationOut, AnnotationPatch, OkOut
+from ..schemas import (
+    AnnotationBatchCreate, AnnotationBatchPatch, AnnotationCreate, AnnotationOut, AnnotationPatch, OkOut,
+)
 from ..services import textlinks
 from ..services.serialize import annotation_out
 from .deps import get_annotation
@@ -45,6 +47,23 @@ def create_batch(body: AnnotationBatchCreate, db: Session = Depends(get_db)):
     rows = [_new(db, item) for item in body.items]
     db.commit()
     return [annotation_out(x) for x in rows]
+
+
+@router.patch("/batch", response_model=list[AnnotationOut], summary="批量修改名称 / 内容 / 颜色（如自动配色）")
+def patch_batch(body: AnnotationBatchPatch, db: Session = Depends(get_db)):
+    ids = [it.id for it in body.items]
+    rows = {x.id: x for x in db.query(Annotation).filter(Annotation.id.in_(ids)).all()}
+    missing = [i for i in ids if i not in rows]
+    if missing:
+        raise HTTPException(404, f"标注不存在：{missing[:5]}")
+    for it in body.items:
+        x = rows[it.id]
+        for k in ("label", "note", "color"):
+            v = getattr(it, k)
+            if v is not None:
+                setattr(x, k, v)
+    db.commit()
+    return [annotation_out(rows[i]) for i in ids]
 
 
 @router.patch("/{anno_id}", response_model=AnnotationOut, summary="编辑标注 / 图文关联")

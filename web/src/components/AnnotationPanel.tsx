@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
-import { Crosshair, Link2, ListChecks, Pencil, Trash2 } from 'lucide-react'
-import { ATYPE_LABEL, COLORS, SWATCHES } from '../lib/constants'
+import { Crosshair, Link2, ListChecks, Palette, Pencil, Trash2 } from 'lucide-react'
+import { ATYPE_LABEL, COLORS, PALETTE } from '../lib/constants'
 import { fmtTime, fmtValue } from '../lib/format'
 import { selectIs2d, useApp } from '../store/useApp'
 import type { Annotation } from '../types'
@@ -18,11 +18,13 @@ export default function AnnotationPanel() {
   const flyTo = useApp(s => s.flyToAnnotation)
   const update = useApp(s => s.updateAnnotation)
   const remove = useApp(s => s.removeAnnotation)
+  const recolorAll = useApp(s => s.recolorAll)
 
   const [filter, setFilter] = useState<Filter>('all')
   const [editing, setEditing] = useState<number | null>(null)
   const [draft, setDraft] = useState('')
   const [confirmDel, setConfirmDel] = useState<number | null>(null)
+  const [confirmRecolor, setConfirmRecolor] = useState(false)
 
   const counts = useMemo(() => {
     const c: Record<Filter, number> = { all: annos.length, annotate: 0, measure: 0, segment: 0, align: 0 }
@@ -51,6 +53,16 @@ export default function AnnotationPanel() {
         {FILTERS.filter(([k]) => k === 'all' || counts[k] > 0).map(([k, lb]) => (
           <Chip key={k} size="sm" on={filter === k} onClick={() => setFilter(k)}>{lb} {counts[k]}</Chip>
         ))}
+        <span style={{ flex: 1 }} />
+        {confirmRecolor ? (
+          <>
+            <Button size="xs" variant="primary" onClick={() => { recolorAll(); setConfirmRecolor(false) }}>确认重配色</Button>
+            <Button size="xs" variant="ghost" onClick={() => setConfirmRecolor(false)}>取消</Button>
+          </>
+        ) : (
+          <Button size="xs" variant="ghost" icon={<Palette size={12} />} onClick={() => setConfirmRecolor(true)}
+            title="按调色板给本图全部标注重新分配互不相同的颜色（会覆盖已手动选择的颜色）">自动配色</Button>
+        )}
       </div>
       <div className="anno-list">
         {shown.map(a => {
@@ -88,7 +100,7 @@ export default function AnnotationPanel() {
                   <Button size="xs" icon={<Pencil size={12} />} onClick={() => { setEditing(a.id); setDraft(a.label) }}>改名</Button>
                   {!isAlign && (
                     <span className="swatches" title="标注颜色">
-                      {SWATCHES.map(c => (
+                      {PALETTE.map(c => (
                         <button key={c} className={a.color === c ? 'on' : ''} style={{ background: c }}
                           onClick={() => update(a.id, { color: c })} aria-label={c} />
                       ))}
