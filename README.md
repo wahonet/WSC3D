@@ -34,24 +34,29 @@ stonelab/
 │  │  ├─ routers/              system / stones / assets / annotations / segment / alignment
 │  │  ├─ services/             scanner / previews / alignment / transforms / textlinks / segment / serialize
 │  │  └─ sam_worker.py         SAM 推理子进程（独立 Python 环境中运行）
-│  ├─ data/                    stonelab.db · previews/ · thumbs/ · sam_worker.log
+│  ├─ data/                    stonelab.db · previews/（预览、_hires 工作图、pp_ 预处理图）· thumbs/ · sam_worker.log
 │  └─ requirements.txt
 ├─ web/                        前端
 │  ├─ src/
 │  │  ├─ App.tsx · api.ts · types.ts · styles.css（设计系统）
 │  │  ├─ store/                useApp（应用状态与动作） · useToast
-│  │  ├─ components/           TopBar / Workbench / Home / StoneTree / InfoPanel / AnnotationPanel / AlignView / Toaster / ui
+│  │  ├─ components/           TopBar / Workbench / Home / StoneTree / InfoPanel / AnnotationPanel / AlignView /
+│  │  │  │                     ErrorBoundary / Toaster / ui
 │  │  │  ├─ viewer/            Viewer2D / Viewer3D / ViewerBar / AnnotationShapes / useOsd
 │  │  │  ├─ tools/             ToolPanel / SegmentPanel
 │  │  │  └─ research/          ResearchPage / ResearchViewer / TextCard
 │  │  ├─ hooks/useShortcuts.ts
 │  │  └─ lib/                  constants / format / geometry（Umeyama 求解、叠加换算、外接矩形）
-│  └─ dist/                    npm run build 产物（后端可直接托管）
+│  └─ dist/                    npm run build 产物（后端可直接托管，不入库）
 ├─ scripts/                    校验与运维脚本（见第八节）
-├─ _backup/                    重构前源码快照 zip（可删）
+├─ _backup/                    重构前源码快照 zip（可删，不入库）
+├─ .gitignore · .gitattributes · .editorconfig · .vscode/settings.json   仓库与编辑器约定（UTF-8、LF）
 ├─ 启动平台.ps1
 └─ README.md
 ```
+
+素材（照片/拓片/三维）、模型权重、数据库与缓存**不进 Git**，仓库只版本化程序与各石的 `meta.json`；
+见第十一节。
 
 ## 二、启动
 
@@ -220,6 +225,8 @@ SQLite（`server/data/stonelab.db`），经 SQLAlchemy ORM，启动时自动轻�
 - 三维查看用低模；816 MB 高模不进浏览器；三维与照片的坐标打通（相机位姿配准）未做，
   跨图投影目前仅覆盖 2D；
 - 测量无比例尺标定：2D 为原图像素，3D 为模型单位；
+- 跨图投影用的是对齐求得的相似变换（旋转 + 缩放 + 平移）；拓纸伸缩、镜头畸变等局部形变
+  会带来像素级偏差，属对齐精度范围（可增加对应点、参考 RMSE）；
 - 图文关联覆盖总述与各层释文；分割候选保存后即为普通多边形标注。
 
 ## 十、开发注意
@@ -228,5 +235,20 @@ SQLite（`server/data/stonelab.db`），经 SQLAlchemy ORM，启动时自动轻�
   约定：**每次改完代码立即运行 `python scripts/check_encoding.py`**；该脚本会自动转码并在发现
   "连续问号"式损毁时以非零码退出。此外避免在含中文的文件里使用 GBK 之外的符号
   （如 U+2218 复合算符、U+2713 对勾、U+26A0 警告号、emoji），它们会在转码中变成问号。
-- 前端类型检查：`cd web ; npm run typecheck`；构建：`npm run build`。
+  仓库内的 `.editorconfig` 与 `.vscode/settings.json` 已把编码钉为 UTF-8，新环境一般不会再遇到。
+- 前端类型检查：`cd web ; npm run typecheck`；构建：`npm run build`；界面冒烟：`python scripts/smoke_ui.py`。
+- zustand 选择器**只能返回原始值或 store 内既有引用**，不能每次返回新数组/对象（会触发无限重渲染，
+  整棵树被卸载成黑屏）；派生列表请在组件里 `useMemo`。
+- 各面板都包在 `ErrorBoundary` 里：组件抛错只会在该区域显示错误卡片与"重置"按钮，控制台有堆栈。
+- 三维查看器卸载时会 `forceContextLoss()` 释放 WebGL 上下文；若浏览器仍回收了上下文，
+  画面会提示并提供"重新加载模型"。开发模式下修改 `store/useApp.ts` 会触发整页刷新（避免过期 store）。
 - 后端依赖：`pip install -r server/requirements.txt`；分割环境另见 `server/app/config.py`。
+
+## 十一、版本控制
+
+- 仓库：https://github.com/wahonet/WSC3D （`main` 为当前程序；旧项目历史保留在 `legacy/wsc3d` 分支）。
+- 不入库：`assets/stones/**`（仅保留各石 `meta.json`）、`ml/`、`server/data/`（数据库、缓存、日志）、
+  `web/node_modules`、`web/dist`、`_backup/`。如需把标注数据库也纳入备份，把 `.gitignore` 中的
+  `server/data/` 改为只忽略 `previews/`、`thumbs/` 与 `*.log`。
+- 本机 git 全局配置了代理 `127.0.0.1:18081`；代理未开时推送需临时绕过：
+  `git -c http.proxy= -c https.proxy= push origin main`。
