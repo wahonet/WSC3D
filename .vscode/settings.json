@@ -1,0 +1,23 @@
+{
+  "files.encoding": "utf8",
+  "files.autoGuessEncoding": false,
+  "files.eol": "\n",
+  "files.insertFinalNewline": true,
+  "[powershell]": {
+    "files.encoding": "utf8bom",
+    "files.eol": "\r\n"
+  },
+  "files.exclude": {
+    "**/__pycache__": true,
+    "web/node_modules": true
+  },
+  "search.exclude": {
+    "web/node_modules": true,
+    "web/dist": true,
+    "server/data": true,
+    "ml": true,
+    "assets": true,
+    "_backup": true
+  },
+  "python.analysis.extraPaths": ["server"]
+}

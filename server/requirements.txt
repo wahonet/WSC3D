@@ -1,0 +1,10 @@
+# StoneLab 后端（主环境）。安装：pip install -r requirements.txt
+fastapi>=0.135.0
+uvicorn>=0.44.0
+sqlalchemy>=2.0.50
+pillow>=12.0.0
+pydantic>=2.12.0
+
+# 分割推理不在此环境运行：由 app/sam_worker.py 在独立的 Python（含 CUDA torch、sam3、
+# mobile_sam、safetensors、opencv）中作为子进程执行，路径见 app/config.py 或环境变量
+# STONELAB_SAM_PYTHON。

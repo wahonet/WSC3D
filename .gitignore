@@ -1,0 +1,33 @@
+# ---- Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+
+# ---- Node / Vite / TypeScript
+web/node_modules/
+web/dist/
+web/.vite/
+*.tsbuildinfo
+npm-debug.log*
+
+# ---- Runtime data: SQLite db, preview/thumb caches, logs (see README section 6)
+server/data/
+
+# ---- Model weights (multi-GB; see README section 1 for expected layout under ml/)
+ml/
+
+# ---- Stone assets: photos / rubbings / 3D models stay on disk; only meta.json is versioned
+assets/stones/*/*
+!assets/stones/*/meta.json
+
+# ---- Local backups and scratch
+_backup/
+
+# ---- OS / editor noise
+.DS_Store
+Thumbs.db
+desktop.ini
+*.swp
+.idea/

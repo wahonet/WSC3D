@@ -1,0 +1,100 @@
+# -*- coding: utf-8 -*-
+"""前端冒烟测试：用本机 Edge 无头渲染各页面，统计关键 DOM 标记并可截图。
+
+用法：
+    python scripts/smoke_ui.py                 # 走后端托管的 web/dist（http://127.0.0.1:8020/）
+    python scripts/smoke_ui.py --dev           # 走 Vite 开发服务器（http://127.0.0.1:5173/）
+    python scripts/smoke_ui.py --shots out/    # 同时把截图写到 out/ 目录
+需要后端已启动。深链形式：#a=<资产id>&p=research
+"""
+import argparse
+import pathlib
+import re
+import subprocess
+import sys
+import urllib.request
+
+EDGE_CANDIDATES = [
+    r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
+    r"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
+]
+MARKERS = [
+    ("vp-bar name", r'class="name"'),
+    ("osd canvas", r"openseadragon-canvas"),
+    ("three canvas", r'three-host"><canvas'),
+    ("svg hit shapes", r'class="hit"'),
+    ("anno cards", r'class="anno(\s|")'),
+    ("loading-mask", r"loading-mask"),
+    ("toast error", r'class="toast error"'),
+    ("research rcard", r'class="rcard"'),
+    ("ra-row", r'class="ra-row'),
+    ("leaf", r'class="leaf'),
+]
+
+
+def edge() -> str:
+    for p in EDGE_CANDIDATES:
+        if pathlib.Path(p).exists():
+            return p
+    sys.exit("未找到 Edge 浏览器")
+
+
+def render(url: str, shot: pathlib.Path | None) -> str:
+    args = [edge(), "--headless=new", "--no-first-run", "--hide-scrollbars",
+            "--use-angle=swiftshader", "--enable-unsafe-swiftshader",
+            "--virtual-time-budget=15000", "--window-size=1680,1000"]
+    if shot:
+        subprocess.run(args + [f"--screenshot={shot}", url], capture_output=True, timeout=180)
+    out = subprocess.run(args + ["--dump-dom", url], capture_output=True, timeout=180)
+    return out.stdout.decode("utf-8", errors="replace")
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--dev", action="store_true", help="使用 Vite 开发服务器 5173")
+    ap.add_argument("--shots", default="", help="截图输出目录")
+    a = ap.parse_args()
+    base = "http://127.0.0.1:5173/" if a.dev else "http://127.0.0.1:8020/"
+
+    stones = urllib.request.urlopen("http://127.0.0.1:8020/api/stones", timeout=30).read()
+    import json
+    stones = json.loads(stones)
+    if not stones:
+        sys.exit("库中没有石头，先扫描素材")
+    st = stones[0]
+    two_d = [x for g in st["groups"] if g["key"] != "model" for x in g["assets"]]
+    model = [x for g in st["groups"] if g["key"] == "model" for x in g["assets"]]
+    master = next((x for x in two_d if x["is_master"]), two_d[0] if two_d else None)
+
+    cases = {"home": ""}
+    if master:
+        cases["master-2d"] = f"#a={master['id']}"
+        cases["research"] = f"#a={master['id']}&p=research"
+    if model:
+        cases["model-3d"] = f"#a={model[0]['id']}"
+
+    shots_dir = pathlib.Path(a.shots) if a.shots else None
+    if shots_dir:
+        shots_dir.mkdir(parents=True, exist_ok=True)
+
+    failed = False
+    for name, frag in cases.items():
+        html = render(base + frag, (shots_dir / f"{name}.png").resolve() if shots_dir else None)
+        print(f"== {name}  ({len(html)} chars)")
+        if 'id="root"></div>' in html or len(html) < 2000:
+            print("   !! React 未渲染")
+            failed = True
+        for label, pat in MARKERS:
+            n = len(re.findall(pat, html))
+            if n:
+                print(f"   {label:16} {n}")
+            if label == "toast error" and n:
+                failed = True
+        for t in re.findall(r'class="toast [a-z]+"[^>]*>.*?<span>(.*?)</span>', html, re.S):
+            print("   TOAST:", re.sub(r"<[^>]+>", "", t)[:160])
+    print("完成" if not failed else "完成（有失败项）")
+    return 1 if failed else 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
