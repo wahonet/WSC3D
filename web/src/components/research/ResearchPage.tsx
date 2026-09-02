@@ -4,7 +4,8 @@ import { ArrowLeft, Crosshair, Link2, Save, Search, Unlink } from 'lucide-react'
 import {
   getProjected, getStone, listStones, patchAnnotation, patchLayer, patchStone, stoneAnnotations,
 } from '../../api'
-import { ATYPE_LABEL, COLORS } from '../../lib/constants'
+import { ATYPE_LABEL } from '../../lib/constants'
+import { rgba } from '../../lib/format'
 import { useApp } from '../../store/useApp'
 import { toast } from '../../store/useToast'
 import type { Annotation, ProjectedAnnotation, StoneInfo, StoneNode } from '../../types'
@@ -199,7 +200,7 @@ export default function ResearchPage({ stoneId, initialAssetId }: { stoneId: num
                     <div key={a.id} className={`ra-row${a.id === selectedId ? ' on' : ''}`}
                       onClick={() => setSelectedId(a.id === selectedId ? null : a.id)}
                       title={projectedFrom ? `投影自 ${projectedFrom}` : undefined}>
-                      <span className="sw" style={{ background: a.desc_text ? COLORS.linked : a.color }} />
+                      <span className="sw" style={{ background: a.color }} />
                       <span className="lb">{a.label}</span>
                       {projectedFrom && <Badge tone="violet" title={`投影自 ${projectedFrom}`}>投影</Badge>}
                       {a.desc_text && <Badge tone="amber"><Link2 size={10} /></Badge>}
@@ -225,7 +226,10 @@ export default function ResearchPage({ stoneId, initialAssetId }: { stoneId: num
                     <div className="hint" style={{ fontWeight: 600 }}>标注内容</div>
                     {selected.desc_text ? (
                       <>
-                        <div className="ra-linkedtext">{selected.desc_text}</div>
+                        <div className="ra-linkedtext"
+                          style={{ background: rgba(selected.color, 0.16), borderColor: rgba(selected.color, 0.6) }}>
+                          {selected.desc_text}
+                        </div>
                         <div className="rrow" style={{ marginTop: 4 }}>
                           <span className="hint" style={{ flex: 1 }}>来自「{sourceTitle(selected.desc_source)}」的关联文字（锁定）</span>
                           <Button size="xs" variant="danger" icon={<Unlink size={12} />} onClick={() => doUnlink(selected.id)}>取消关联</Button>

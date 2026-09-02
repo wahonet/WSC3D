@@ -536,12 +536,13 @@ button:disabled { cursor: not-allowed; }
 .rsec-h .ops { margin-left: auto; display: flex; gap: 5px; }
 .rdesc { font-size: 12.6px; line-height: 1.95; color: var(--text-2); text-align: justify; user-select: text; cursor: text; max-height: 260px; overflow-y: auto; padding-right: 4px; }
 .rdesc:empty::before { content: "（暂无内容，点击编辑填写）"; color: var(--text-3); }
+/* 已关联文字：底色与下划线取对应标注的颜色（行内 style 注入），选中时加同色描边 */
 .dlink {
-  background: rgba(232, 140, 26, .28); border-bottom: 2px solid var(--linked, #e08c1a); border-radius: 3px;
-  padding: 0 1px; cursor: pointer; transition: background .12s; color: var(--text);
+  border-bottom: 2px solid transparent; border-radius: 3px;
+  padding: 0 1px; cursor: pointer; transition: filter .12s; color: var(--text);
 }
-.dlink:hover { background: rgba(232, 140, 26, .45); }
-.dlink.on { background: rgba(232, 140, 26, .75); color: #1e1408; box-shadow: 0 0 0 1px #e08c1a; }
+.dlink:hover { filter: brightness(1.15); }
+.dlink.on { font-weight: 600; }
 .rpending {
   display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 10px; padding: 9px 11px; font-size: 12px;
   color: var(--text); background: rgba(232, 163, 61, .1); border: 1px solid rgba(232, 163, 61, .4); border-radius: var(--radius);
@@ -557,6 +558,7 @@ button:disabled { cursor: not-allowed; }
 .ra-row .sw { width: 9px; height: 9px; border-radius: 3px; flex-shrink: 0; }
 .ra-row .lb { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
 .ra-editor { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); display: flex; flex-direction: column; gap: 8px; }
+/* 编辑区里的关联文字框：背景/边框色由行内 style 按标注颜色注入 */
 .ra-linkedtext {
   font-size: 12.5px; line-height: 1.85; text-align: justify; padding: 9px 11px; border-radius: var(--radius);
   background: rgba(232, 140, 26, .14); border: 1px solid rgba(232, 140, 26, .45); color: var(--text);

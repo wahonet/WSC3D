@@ -37,11 +37,10 @@ export default function ResearchViewer({ asset, annos, projected, linkedIds, sel
       {!ready && <div className="loading-mask"><Spinner />载入预览…</div>}
       <svg className="svg-overlay">
         {ready && projected.map(p => (
-          <ProjectedShape key={`pj${p.id}`} p={p} toEl={toEl} selected={p.id === selectedId}
-            linkedTint={linkedIds.has(p.id)} interactive onSelect={onSelect} />
+          <ProjectedShape key={`pj${p.id}`} p={p} toEl={toEl} selected={p.id === selectedId} interactive onSelect={onSelect} />
         ))}
         {ready && annos.map(a => (
-          <AnnoShape key={a.id} a={a} toEl={toEl} selected={a.id === selectedId} interactive linkedTint onSelect={onSelect} />
+          <AnnoShape key={a.id} a={a} toEl={toEl} selected={a.id === selectedId} interactive onSelect={onSelect} />
         ))}
       </svg>
       <div className="vp-float tr" style={{ padding: 3, gap: 2 }}>
@@ -51,8 +50,8 @@ export default function ResearchViewer({ asset, annos, projected, linkedIds, sel
       </div>
       <div className="vp-float bl">
         <span className="muted">
-          点击图形选中标注 · <b style={{ color: '#e08c1a' }}>橙色</b>为已图文关联
-          {projected.length > 0 && <> · <b>点划线</b>为主图等图层的投影标注（{projected.length} 条，沿用各自颜色）</>}
+          点击图形选中标注 · 图形、列表色块与右侧关联文字同色{linkedIds.size > 0 && <>（已关联 {linkedIds.size} 条）</>}
+          {projected.length > 0 && <> · <b>点划线</b>为主图等图层的投影（{projected.length} 条）</>}
         </span>
       </div>
     </div>

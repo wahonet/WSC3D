@@ -1,12 +1,13 @@
 import { useRef, useState } from 'react'
 import { Link2, Pencil, X } from 'lucide-react'
+import { rgba } from '../../lib/format'
 import type { Annotation, StoneInfo } from '../../types'
 import { Button } from '../ui'
 
 export interface TextSource { key: string; title: string; seq: number | null; text: string }
 export interface PendingSel { source: string; start: number; end: number; text: string }
 
-interface Seg { start: number; end: number; annoId: number | null; label?: string }
+interface Seg { start: number; end: number; annoId: number | null; label?: string; color?: string }
 
 export function buildSources(info: StoneInfo): TextSource[] {
   return [
@@ -22,7 +23,7 @@ function buildSegments(text: string, links: Annotation[]): Seg[] {
   for (const a of sorted) {
     const s = a.desc_start ?? 0, e = a.desc_end ?? 0
     if (s > pos) segs.push({ start: pos, end: s, annoId: null })
-    segs.push({ start: s, end: e, annoId: a.id, label: a.label })
+    segs.push({ start: s, end: e, annoId: a.id, label: a.label, color: a.color })
     pos = e
   }
   if (pos < text.length) segs.push({ start: pos, end: text.length, annoId: null })
@@ -118,8 +119,11 @@ export default function TextCard({ sources, links, selectedId, selectedLabel, pe
                   {segs.map((sg, i) => {
                     const t = src.text.slice(sg.start, sg.end)
                     if (sg.annoId == null) return <span key={i} data-s={sg.start}>{t}</span>
+                    const c = sg.color || '#e08c1a'
+                    const on = sg.annoId === selectedId
                     return (
-                      <span key={i} data-s={sg.start} className={`dlink${sg.annoId === selectedId ? ' on' : ''}`}
+                      <span key={i} data-s={sg.start} className={`dlink${on ? ' on' : ''}`}
+                        style={{ background: rgba(c, on ? 0.5 : 0.28), borderBottomColor: c, boxShadow: on ? `0 0 0 1.5px ${c}` : undefined }}
                         title={`已关联标注：${sg.label ?? ''}（点击选中）`}
                         onClick={() => onSelectAnno(sg.annoId!)}>{t}</span>
                     )
@@ -145,7 +149,8 @@ export default function TextCard({ sources, links, selectedId, selectedLabel, pe
         </div>
       )}
       <div className="hint" style={{ marginTop: 8 }}>
-        橙色文字为已关联（锁定）：编辑时删改这些文字会被拒绝保存；其他改动正常保存并自动重定位关联区间。
+        带底色的文字为已关联（底色与对应标注同色，锁定）：编辑时删改这些文字会被拒绝保存；
+        其他改动正常保存并自动重定位关联区间。
       </div>
     </section>
   )
