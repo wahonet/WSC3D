@@ -445,8 +445,6 @@ async function fetchProjected(assetId: number, set: (p: Partial<AppState>) => vo
   return true
 }
 
-/* ---- 派生选择器 ---- */
+/* ---- 派生选择器（只能返回原始值或 store 内既有引用；派生数组请在组件里 useMemo）---- */
 export const selectIs2d = (s: AppState) => is2d(s.curAsset)
 export const selectIs3d = (s: AppState) => s.curAsset != null && s.curAsset.kind.startsWith('model')
-export const selectTwoDAssets = (s: AppState) =>
-  s.curStone ? s.curStone.groups.filter(g => g.key !== 'model').flatMap(g => g.assets) : []

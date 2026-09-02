@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import ErrorBoundary from './components/ErrorBoundary'
 import ResearchPage from './components/research/ResearchPage'
 import Toaster from './components/Toaster'
 import TopBar from './components/TopBar'
@@ -18,7 +19,7 @@ export default function App() {
     <div className="shell">
       <TopBar />
       {page === 'research' && curStone
-        ? <ResearchPage key={curStone.id} stoneId={curStone.id} />
+        ? <ErrorBoundary area="研究模块"><ResearchPage key={curStone.id} stoneId={curStone.id} /></ErrorBoundary>
         : <Workbench />}
       <Toaster />
     </div>

@@ -2,6 +2,7 @@ import { Group, Panel, Separator, useDefaultLayout } from 'react-resizable-panel
 import { selectIs2d, selectIs3d, useApp } from '../store/useApp'
 import AlignView from './AlignView'
 import AnnotationPanel from './AnnotationPanel'
+import ErrorBoundary from './ErrorBoundary'
 import Home from './Home'
 import InfoPanel from './InfoPanel'
 import StoneTree from './StoneTree'
@@ -43,11 +44,11 @@ export default function Workbench() {
           <aside className="side">
             <Group orientation="vertical" id="left-v" defaultLayout={left.defaultLayout} onLayoutChanged={left.onLayoutChanged}>
               <Panel id="tree" defaultSize="52%" minSize="20%">
-                <Pane title="画像石"><StoneTree /></Pane>
+                <Pane title="画像石"><ErrorBoundary area="画像石列表"><StoneTree /></ErrorBoundary></Pane>
               </Panel>
               <Separator className="sep-v" />
               <Panel id="tools" minSize="20%">
-                <Pane title="工具"><ToolPanel /></Pane>
+                <Pane title="工具"><ErrorBoundary area="工具面板"><ToolPanel /></ErrorBoundary></Pane>
               </Panel>
             </Group>
           </aside>
@@ -56,10 +57,12 @@ export default function Workbench() {
         <Panel id="center" minSize="30%">
           <main className="center">
             <ViewerBar />
-            {!asset ? <Home />
-              : showAlign ? <AlignView leftAsset={asset} />
-                : is3d ? <Viewer3D key={asset.id} asset={asset} />
-                  : <Viewer2D asset={asset} />}
+            <ErrorBoundary area="查看器" key={`${asset?.id ?? 0}:${showAlign ? 'align' : 'view'}`}>
+              {!asset ? <Home />
+                : showAlign ? <AlignView leftAsset={asset} />
+                  : is3d ? <Viewer3D key={asset.id} asset={asset} />
+                    : <Viewer2D asset={asset} />}
+            </ErrorBoundary>
           </main>
         </Panel>
         <Separator className="sep-h" />
@@ -67,11 +70,13 @@ export default function Workbench() {
           <aside className="side">
             <Group orientation="vertical" id="right-v" defaultLayout={right.defaultLayout} onLayoutChanged={right.onLayoutChanged}>
               <Panel id="info" defaultSize="55%" minSize="20%">
-                <Pane title="简介与释文"><InfoPanel /></Pane>
+                <Pane title="简介与释文"><ErrorBoundary area="简介"><InfoPanel /></ErrorBoundary></Pane>
               </Panel>
               <Separator className="sep-v" />
               <Panel id="annos" minSize="20%">
-                <Pane title="标注" count={asset ? `${annosCount} 条` : undefined}><AnnotationPanel /></Pane>
+                <Pane title="标注" count={asset ? `${annosCount} 条` : undefined}>
+                  <ErrorBoundary area="标注面板"><AnnotationPanel /></ErrorBoundary>
+                </Pane>
               </Panel>
             </Group>
           </aside>

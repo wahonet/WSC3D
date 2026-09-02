@@ -4,7 +4,7 @@ import { Check, Eraser, Undo2, X } from 'lucide-react'
 import { alignCommit, previewUrl } from '../api'
 import { COLORS, MAX_PAIRS, MIN_PAIRS } from '../lib/constants'
 import { alignGeomToOverlay, solveSimilarity, type Pt } from '../lib/geometry'
-import { selectTwoDAssets, useApp } from '../store/useApp'
+import { useApp } from '../store/useApp'
 import { toast } from '../store/useToast'
 import type { AlignGeometry, AssetBrief } from '../types'
 import { Badge, Button, Empty, Spinner } from './ui'
@@ -89,7 +89,9 @@ function Pane({ asset, color, pts, onPick, sideLabel, active, highlight }: {
 
 export default function AlignView({ leftAsset }: { leftAsset: AssetBrief }) {
   const stone = useApp(s => s.curStone)!
-  const candidates = useApp(selectTwoDAssets)
+  // 注意：zustand 选择器不能每次返回新数组（会无限重渲染），派生列表用 useMemo
+  const candidates = useMemo(
+    () => stone.groups.filter(g => g.key !== 'model').flatMap(g => g.assets), [stone])
   const onAligned = useApp(s => s.onAligned)
   const setTool = useApp(s => s.setTool)
 
