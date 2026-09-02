@@ -57,7 +57,7 @@ export default function Workbench() {
         <Panel id="center" minSize="30%">
           <main className="center">
             <ViewerBar />
-            <ErrorBoundary area="查看器" key={`${asset?.id ?? 0}:${showAlign ? 'align' : 'view'}`}>
+            <ErrorBoundary area="查看器" resetKey={`${asset?.id ?? 0}:${showAlign ? 'align' : 'view'}`}>
               {!asset ? <Home />
                 : showAlign ? <AlignView leftAsset={asset} />
                   : is3d ? <Viewer3D key={asset.id} asset={asset} />

@@ -6,7 +6,7 @@ import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js'
 import { modelUrl } from '../../api'
 import { useApp } from '../../store/useApp'
 import type { AssetBrief } from '../../types'
-import { Range, Spinner } from '../ui'
+import { Button, Range, Spinner } from '../ui'
 
 const AMBER = 0xe8a33d
 const BLUE = 0x2b8ac9
@@ -32,8 +32,9 @@ export default function Viewer3D({ asset }: { asset: AssetBrief }) {
   const createShape = useApp(s => s.createShape)
 
   const hostRef = useRef<HTMLDivElement>(null)
-  const [status, setStatus] = useState<'loading' | 'ready' | string>('loading')
+  const [status, setStatus] = useState<'loading' | 'ready' | 'lost' | string>('loading')
   const [brightness, setBrightness] = useState(1.2)
+  const [reloadNonce, setReloadNonce] = useState(0)
   const S = useRef<Stash>({ markers: new Map(), lights: [], tempObjs: [], raf: 0, diag: 1 })
 
   const toolRef = useRef(tool); toolRef.current = tool
@@ -189,6 +190,9 @@ export default function Viewer3D({ asset }: { asset: AssetBrief }) {
     }
     renderer.domElement.addEventListener('pointerdown', onDown)
     renderer.domElement.addEventListener('pointerup', onUp)
+    // 浏览器最多保留约 16 个 WebGL 上下文，超出时会丢弃最老的：给出明确提示而不是黑屏
+    const onLost = (e: Event) => { e.preventDefault(); setStatus('lost') }
+    renderer.domElement.addEventListener('webglcontextlost', onLost)
 
     function drawSaved() {
       st.markers.forEach(o => scene.remove(o)); st.markers.clear()
@@ -224,14 +228,27 @@ export default function Viewer3D({ asset }: { asset: AssetBrief }) {
     return () => {
       cancelAnimationFrame(st.raf)
       ro.disconnect()
+      controls.dispose()
       renderer.domElement.removeEventListener('pointerdown', onDown)
       renderer.domElement.removeEventListener('pointerup', onUp)
+      renderer.domElement.removeEventListener('webglcontextlost', onLost)
+      scene.traverse(o => {
+        const m = o as THREE.Mesh
+        if (m.geometry) m.geometry.dispose()
+        const mats = Array.isArray(m.material) ? m.material : m.material ? [m.material] : []
+        for (const mat of mats) {
+          const pm = mat as THREE.MeshPhongMaterial
+          pm.map?.dispose()
+          pm.dispose()
+        }
+      })
       renderer.dispose()
+      renderer.forceContextLoss()          // dispose() 不会释放 WebGL 上下文，必须显式丢弃
       host.innerHTML = ''
       S.current = { markers: new Map(), lights: [], tempObjs: [], raf: 0, diag: 1 }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [asset.id])
+  }, [asset.id, reloadNonce])
 
   useEffect(() => { S.current.drawSaved?.() }, [annos, selectedId])
 
@@ -246,7 +263,15 @@ export default function Viewer3D({ asset }: { asset: AssetBrief }) {
       <div className="three-host" ref={hostRef} />
       {status !== 'ready' && (
         <div className="loading-mask">
-          {status === 'loading' ? <><Spinner />载入三维低模…</> : status}
+          {status === 'loading' ? <><Spinner />载入三维低模…</>
+            : status === 'lost' ? (
+              <>
+                <span>WebGL 上下文已被浏览器回收（同页打开的画布过多）</span>
+                <Button size="sm" variant="primary" onClick={() => { setStatus('loading'); setReloadNonce(n => n + 1) }}>
+                  重新加载模型
+                </Button>
+              </>
+            ) : status}
         </div>
       )}
       <div className="vp-float bl">

@@ -447,6 +447,12 @@ async function fetchProjected(assetId: number, set: (p: Partial<AppState>) => vo
   return true
 }
 
+// 开发模式：store 模块被热更新时会生成一个全新的空状态，而已挂载的组件仍持有旧引用，
+// 页面会进入半失效状态；这里改为整页刷新（地址栏 hash 会恢复当前资产）
+if (import.meta.hot) {
+  import.meta.hot.accept(() => window.location.reload())
+}
+
 /* ---- 派生选择器（只能返回原始值或 store 内既有引用；派生数组请在组件里 useMemo）---- */
 export const selectIs2d = (s: AppState) => is2d(s.curAsset)
 export const selectIs3d = (s: AppState) => s.curAsset != null && s.curAsset.kind.startsWith('model')

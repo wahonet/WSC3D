@@ -2,12 +2,13 @@ import { Component, type ErrorInfo, type ReactNode } from 'react'
 import { AlertTriangle, RotateCcw } from 'lucide-react'
 import { useApp } from '../store/useApp'
 
-interface Props { children: ReactNode; area?: string }
+interface Props { children: ReactNode; area?: string; resetKey?: string | number }
 interface State { error: Error | null }
 
 /**
  * 局部错误边界：某个面板抛错时只显示错误卡片，不让整棵树被卸载成黑屏。
- * "重置"会切回选中工具并清空错误，多数渲染期错误由此恢复。
+ * "重置"会切回选中工具并清空错误；resetKey 变化（如切换资产）时也自动清空错误，
+ * 但不会像 key 那样强制重建子树（重建会反复新建 WebGL 上下文）。
  */
 export default class ErrorBoundary extends Component<Props, State> {
   state: State = { error: null }
@@ -18,6 +19,10 @@ export default class ErrorBoundary extends Component<Props, State> {
 
   componentDidCatch(error: Error, info: ErrorInfo) {
     console.error(`[StoneLab] ${this.props.area ?? 'ui'} crashed:`, error, info.componentStack)
+  }
+
+  componentDidUpdate(prev: Props) {
+    if (this.state.error && prev.resetKey !== this.props.resetKey) this.setState({ error: null })
   }
 
   reset = () => {
