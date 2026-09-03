@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Group, Panel, Separator, useDefaultLayout } from 'react-resizable-panels'
 import { BookOpen, Link2 } from 'lucide-react'
+import { listDocPages } from '../api'
 import { isStructural } from '../lib/tree'
 import { useApp } from '../store/useApp'
 import CenterView from '../components/CenterView'
@@ -27,8 +28,15 @@ export default function LibraryPage() {
     if (fromHash === 'books' || fromHash === 'link') return fromHash
     return (localStorage.getItem('stonelab.library.mode') as Mode) || 'link'
   })
-  const [docId, setDocId] = useState<number | null>(() => Number(localStorage.getItem('stonelab.library.doc')) || null)
+  const hashQ = new URLSearchParams(location.hash.replace(/^#/, ''))
+  const [docId, setDocId] = useState<number | null>(() => Number(hashQ.get('doc')) || Number(localStorage.getItem('stonelab.library.doc')) || null)
   const [pageId, setPageId] = useState<number | null>(null)
+  // 深链 &doc=<id>&pg=<物理页> 直接打开某页
+  useEffect(() => {
+    const d = Number(hashQ.get('doc')), pg = Number(hashQ.get('pg'))
+    if (d && pg) listDocPages(d, pg - 1, 1).then(rows => { if (rows[0]) setPageId(rows[0].id) }).catch(() => undefined)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   const outer = useDefaultLayout({ id: 'stonelab.layout.library', storage: localStorage })
   const books = useDefaultLayout({ id: 'stonelab.layout.library-books', storage: localStorage })
 

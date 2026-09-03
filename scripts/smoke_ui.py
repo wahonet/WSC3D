@@ -36,6 +36,8 @@ MARKERS = [
     ("shape tools", r'class="tool shape'),
     ("shelf docs", r'class="shelf-doc'),
     ("page grid", r'class="pg'),
+    ("segment cards", r'class="segc'),
+    ("figure cards", r'class="figc"'),
 ]
 
 
@@ -81,7 +83,7 @@ def main() -> int:
         cases["segment"] = f"#a={master['id']}&p=segment"
         cases["annotate"] = f"#a={master['id']}&p=annotate"
         cases["library"] = f"#a={master['id']}&p=library"
-        cases["books"] = f"#a={master['id']}&p=library&lib=books"
+        cases["books"] = f"#a={master['id']}&p=library&lib=books&doc=1&pg=16"
     if model:
         cases["model-3d"] = f"#a={model[0]['id']}"
 

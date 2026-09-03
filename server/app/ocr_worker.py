@@ -2,12 +2,14 @@
 """OCR 工作进程（sidecar）：在独立 Python 环境中运行，不在 StoneLab 主环境。
 
 两个引擎，各自一个进程（环境不同）：
-- mineru : 现代横排书籍。MinerU（版面分析 + 文字 / 表格 / 公式识别 + 阅读顺序），直接读 PDF，
+- mineru : 现代横排书籍。MinerU（版面分析 + 文字 / 表格识别 + 阅读顺序），直接读 PDF，
            输出带坐标的版面块与裁好的插图；默认 hybrid-engine 后端（有文字层的页直接抽字，扫描页走 VLM）。
 - ndl    : 古籍竖排。NDL-KotenOCR Lite（RTMDet 版面 + PARSeq 识别 + 古典籍阅读顺序，ONNX CPU），
            输入为渲染好的页图，输出按阅读顺序排好的行。
 
-协议：stdin 每行一个 JSON 请求，stdout 每行一个 JSON 响应（顺序一一对应）；库的杂散输出全部重定向到 stderr。
+协议：stdin 每行一个 JSON 请求，stdout 每行一个 JSON 响应（顺序一一对应）。
+协议管道只由 _PROTO 写：启动时把 fd 1 复制给 _PROTO，再把 fd 1 指向 stderr，
+这样库的 print、C 层输出、子进程继承的 stdout 都进日志而不会污染协议。
 两个引擎都输出同一套"页级契约"（见 normalize_* 函数）：
     {page_no, width, height, engine, seconds, text,
      blocks:  [{seq, kind, text, bbox:[x0,y0,x1,y1] 归一化, confidence, extra}],
@@ -21,13 +23,14 @@ import inspect
 import json
 import os
 import re
+import shutil
 import sys
+import tempfile
 import time
 import traceback
 from pathlib import Path
 
-_PROTO = os.fdopen(os.dup(sys.stdout.fileno()), "w", encoding="utf-8", newline="\n")
-sys.stdout = sys.stderr
+_PROTO = None
 
 
 def send(obj: dict) -> None:
@@ -37,13 +40,6 @@ def send(obj: dict) -> None:
 
 def log(msg: str) -> None:
     print(f"[ocr-worker] {msg}", file=sys.stderr, flush=True)
-
-
-ap = argparse.ArgumentParser()
-ap.add_argument("--engine", choices=["mineru", "ndl"], required=True)
-ap.add_argument("--ndl-root", default="")
-ap.add_argument("--models-dir", default="")
-args = ap.parse_args()
 
 
 def sha256_file(p: str) -> str:
@@ -119,11 +115,41 @@ def _join(v) -> str:
     return str(v or "")
 
 
+_SUP_RE = re.compile(r"\$\s*\^\{\s*\[?([0-9]{1,3})\]?\s*\}\s*\$")
+_CJK = "\u4e00-\u9fff\u3000-\u303f\uff00-\uffef"
+
+
+def _clean_text(t: str) -> str:
+    """MinerU 把脚注号写成行内公式 $^{[1]}$：还原成 [1]，并去掉中文之间多出的空格。"""
+    t = _SUP_RE.sub(r"[\1]", t)
+    t = re.sub(rf"(?<=[{_CJK}])\s+(?=[{_CJK}\[])", "", t)
+    t = re.sub(rf"(?<=\])\s+(?=[{_CJK}])", "", t)
+    return t.strip()
+
+
+def _patch_fasttext_for_nonascii_path() -> None:
+    """fasttext（C++）打不开含中文的路径：把小语种模型拷到 ASCII 临时目录并预先放进 fast_langdetect 的缓存。"""
+    try:
+        import fasttext
+        import fast_langdetect.ft_detect.infer as fli
+        src = Path(fli.LOCAL_SMALL_MODEL_PATH)
+        dst = Path(tempfile.gettempdir()) / "stonelab-lid.176.ftz"
+        if not dst.exists() or dst.stat().st_size != src.stat().st_size:
+            shutil.copy2(src, dst)
+        model = fasttext.load_model(str(dst))
+        fli._model_cache.cache_model("low_memory", model)
+        fli._model_cache.cache_model("high_memory", model)
+        log(f"fasttext lid model preloaded from {dst}")
+    except Exception as e:
+        log(f"fasttext preload skipped: {type(e).__name__}: {e}")
+
+
 class MinerUEngine:
     def __init__(self, models_dir: str):
         os.environ.setdefault("MINERU_MODEL_SOURCE", "modelscope")
         if models_dir:
             os.environ.setdefault("MINERU_MODELS_DIR", models_dir)
+        _patch_fasttext_for_nonascii_path()
         import mineru  # noqa: F401  (校验环境)
         from mineru.cli.common import do_parse, read_fn
         self._do_parse = do_parse
@@ -141,10 +167,12 @@ class MinerUEngine:
         start, end = min(pages), max(pages)
         pdf_path = Path(pdf)
         out = Path(out_dir) / f"p{start:04d}-{end:04d}"
+        if out.exists():
+            shutil.rmtree(out, ignore_errors=True)
         out.mkdir(parents=True, exist_ok=True)
         pdf_bytes = self._read_fn(pdf_path) if self._read_fn else pdf_path.read_bytes()
         kw = {
-            "output_dir": str(out), "pdf_file_names": [pdf_path.stem], "pdf_bytes_list": [pdf_bytes],
+            "output_dir": str(out), "pdf_file_names": ["doc"], "pdf_bytes_list": [pdf_bytes],
             "p_lang_list": [lang or "ch"], "backend": backend or "hybrid-engine", "parse_method": "auto",
             "formula_enable": False, "table_enable": True,
             "start_page_id": start - 1, "end_page_id": end - 1,
@@ -156,8 +184,8 @@ class MinerUEngine:
         t0 = time.perf_counter()
         self._do_parse(**kw)
         seconds = time.perf_counter() - t0
-        # 找输出：<out>/<stem>/<method>/<stem>_content_list(_v2).json
-        cl_files = sorted(out.rglob("*_content_list_v2.json")) or sorted(out.rglob("*_content_list.json"))
+        # 优先 v1 平铺清单（文档化的 type/bbox/page_idx 结构），没有再退到 v2
+        cl_files = [p for p in sorted(out.rglob("*_content_list.json"))] or sorted(out.rglob("*_content_list_v2.json"))
         if not cl_files:
             raise RuntimeError(f"MinerU 未产出 content_list：{out}")
         cl_path = cl_files[0]
@@ -165,10 +193,15 @@ class MinerUEngine:
         if isinstance(blocks, dict):          # v2 可能是 {"pages": [...]} 之类的包装
             blocks = blocks.get("content_list") or blocks.get("blocks") or blocks.get("pages") or []
         images_dir = cl_path.parent / "images"
+        # page_idx 一般是本次解析范围内的相对序号（从 0 起）；若超出范围则视为绝对页索引
+        idxs = [int(b.get("page_idx", 0)) for b in blocks if isinstance(b, dict)]
+        absolute = bool(idxs) and max(idxs) >= len(pages)
         per_page: dict[int, dict] = {}
         for b in blocks:
+            if not isinstance(b, dict):
+                continue
             idx = int(b.get("page_idx", 0))
-            page_no = start + idx
+            page_no = (idx + 1) if absolute else (start + idx)
             per_page.setdefault(page_no, {"blocks": [], "figures": []})
             self._absorb_block(b, per_page[page_no], images_dir)
         result: dict[str, dict] = {}
@@ -224,12 +257,13 @@ class MinerUEngine:
         text = _join(b.get("text") if b.get("text") is not None else b.get("content"))
         if btype == "list" and b.get("list_items"):
             text = "\n".join(_join(x) for x in b["list_items"])
-        if not text.strip():
+        text = _clean_text(text)
+        if not text:
             return
         kind = KIND_MAP.get(btype, "other")
         if btype == "text" and int(b.get("text_level") or 0) >= 1:
             kind = "title"
-        acc["blocks"].append({"kind": kind, "text": text.strip(), "bbox": bbox, "confidence": None,
+        acc["blocks"].append({"kind": kind, "text": text, "bbox": bbox, "confidence": None,
                               "extra": {k: b[k] for k in ("text_level", "sub_type") if k in b}})
 
 
@@ -303,45 +337,70 @@ class NdlEngine:
 
 
 # ================================================================ 主循环
-engine_obj = None
-boot = {"ok": True, "engine": args.engine, "python": sys.executable, **gpu_info()}
-try:
-    if args.engine == "mineru":
-        engine_obj = MinerUEngine(args.models_dir)
-        boot["version"] = engine_obj.version
-    else:
-        engine_obj = NdlEngine(args.ndl_root)
-        boot["version"] = "ndlkotenocr-lite"
-except Exception as e:
-    boot = {"ok": False, "engine": args.engine, "error": f"{type(e).__name__}: {e}", "trace": traceback.format_exc()[-1500:]}
-send(boot)
-if not boot.get("ok"):
-    sys.exit(1)
+def main() -> None:
+    global _PROTO
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--engine", choices=["mineru", "ndl"], required=True)
+    ap.add_argument("--ndl-root", default="")
+    ap.add_argument("--models-dir", default="")
+    args = ap.parse_args()
 
-for raw in sys.stdin:
-    raw = raw.strip()
-    if not raw:
-        continue
+    # 协议通道：复制 fd 1 给自己用，然后把 fd 1 指向 stderr（库的一切输出都进日志）
+    _PROTO = os.fdopen(os.dup(sys.stdout.fileno()), "w", encoding="utf-8", newline="\n")
+    os.dup2(sys.stderr.fileno(), sys.stdout.fileno())
+    sys.stdout = sys.stderr
+
+    engine_obj = None
+    boot = {"ok": True, "engine": args.engine, "python": sys.executable, **gpu_info()}
     try:
-        req = json.loads(raw)
-        cmd = req.get("cmd")
-        if cmd == "status":
-            send({"ok": True, **gpu_info(), "engine": args.engine})
-        elif cmd == "shutdown":
-            send({"ok": True})
-            break
-        elif cmd == "render":
-            send(render_page(req["pdf"], int(req["page_no"]), int(req.get("dpi", 300)), req["out"]))
-        elif cmd == "pdf_info":
-            send(pdf_info(req["pdf"]))
-        elif cmd == "ocr_pages" and args.engine == "mineru":
-            r = engine_obj.parse_pages(req["pdf"], [int(p) for p in req["pages"]], req["out_dir"],
-                                       req.get("backend", ""), req.get("lang", "ch"))
-            send({"ok": True, "pages": r})
-        elif cmd == "ocr_image" and args.engine == "ndl":
-            send({"ok": True, **engine_obj.ocr_image(req["image"])})
+        if args.engine == "mineru":
+            engine_obj = MinerUEngine(args.models_dir)
+            boot["version"] = engine_obj.version
         else:
-            send({"ok": False, "error": f"unknown-or-unsupported cmd: {cmd} for engine {args.engine}"})
+            engine_obj = NdlEngine(args.ndl_root)
+            boot["version"] = "ndlkotenocr-lite"
     except Exception as e:
-        log(traceback.format_exc())
-        send({"ok": False, "error": f"{type(e).__name__}: {e}"})
+        boot = {"ok": False, "engine": args.engine, "error": f"{type(e).__name__}: {e}", "trace": traceback.format_exc()[-1500:]}
+    send(boot)
+    if not boot.get("ok"):
+        os._exit(1)
+
+    for raw in sys.stdin:
+        raw = raw.strip()
+        if not raw:
+            continue
+        try:
+            req = json.loads(raw)
+            cmd = req.get("cmd")
+            if cmd == "status":
+                send({"ok": True, **gpu_info(), "engine": args.engine})
+            elif cmd == "shutdown":
+                send({"ok": True})
+                break
+            elif cmd == "render":
+                send(render_page(req["pdf"], int(req["page_no"]), int(req.get("dpi", 300)), req["out"]))
+            elif cmd == "pdf_info":
+                send(pdf_info(req["pdf"]))
+            elif cmd == "ocr_pages" and args.engine == "mineru":
+                r = engine_obj.parse_pages(req["pdf"], [int(p) for p in req["pages"]], req["out_dir"],
+                                           req.get("backend", ""), req.get("lang", "ch"))
+                send({"ok": True, "pages": r})
+            elif cmd == "ocr_image" and args.engine == "ndl":
+                send({"ok": True, **engine_obj.ocr_image(req["image"])})
+            else:
+                send({"ok": False, "error": f"unknown-or-unsupported cmd: {cmd} for engine {args.engine}"})
+        except Exception as e:
+            log(traceback.format_exc())
+            try:
+                send({"ok": False, "error": f"{type(e).__name__}: {e}"})
+            except Exception:
+                os._exit(2)
+    # 不等待库的后台线程（ray 等），直接退出
+    try:
+        _PROTO.flush()
+    finally:
+        os._exit(0)
+
+
+if __name__ == "__main__":
+    main()
