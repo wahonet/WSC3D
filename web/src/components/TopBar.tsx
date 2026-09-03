@@ -1,7 +1,9 @@
-import { BookOpen, ChevronRight, ExternalLink, LayoutGrid, Moon, RefreshCw, Sun } from 'lucide-react'
+import { ChevronRight, ExternalLink, Moon, RefreshCw, Sun } from 'lucide-react'
+import { PAGES } from '../lib/constants'
 import { useApp } from '../store/useApp'
 import { Badge, Button } from './ui'
 
+/** 顶栏：品牌 · 流水线导航（首页 / 1 对齐 / 2 分割 / 3 标注 / 4 文献）· 面包屑 · 系统按钮 */
 export default function TopBar() {
   const page = useApp(s => s.page)
   const setPage = useApp(s => s.setPage)
@@ -21,14 +23,17 @@ export default function TopBar() {
         <small>汉画像石研究平台</small>
       </div>
 
-      <nav className="tabs">
-        <button className={`tab${page === 'work' ? ' on' : ''}`} onClick={() => setPage('work')}>
-          <LayoutGrid size={14} />工作台
-        </button>
-        <button className={`tab${page === 'research' ? ' on' : ''}`} onClick={() => setPage('research')}
-          disabled={!curStone} title={curStone ? '图文关联研究' : '先在工作台选择一块画像石'}>
-          <BookOpen size={14} />研究
-        </button>
+      <nav className="pipeline" aria-label="工作流水线">
+        {PAGES.map((p, i) => (
+          <span key={p.id} className="pl-item">
+            {i === 1 && <span className="pl-gap" />}
+            {i > 1 && <ChevronRight size={12} className="pl-arrow" />}
+            <button className={`pl-btn${page === p.id ? ' on' : ''}${p.step ? ' step' : ''}`} onClick={() => setPage(p.id)} title={p.desc}>
+              {p.step != null && <span className="pl-num">{p.step}</span>}
+              {p.label}
+            </button>
+          </span>
+        ))}
       </nav>
 
       <div className="crumb">
@@ -36,10 +41,10 @@ export default function TopBar() {
           <>
             <b>{curStone.name}</b>
             <span className="mono muted">{curStone.code}</span>
-            {curAsset && page === 'work' && (
+            {curAsset && (
               <>
                 <ChevronRight size={13} className="sep" />
-                <span className="truncate" style={{ maxWidth: 260 }}>{curAsset.filename}</span>
+                <span className="truncate" style={{ maxWidth: 220 }}>{curAsset.filename}</span>
                 {curAsset.is_master && <Badge tone="accent">主图</Badge>}
               </>
             )}

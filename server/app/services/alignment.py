@@ -133,6 +133,8 @@ def _project_geometry(atype: str, geom: dict, src: Asset, dst: Asset,
         x, y, w, h = geom["x"], geom["y"], geom["w"], geom["h"]
         corners = [[x, y], [x + w, y], [x + w, y + h], [x, y + h]]
         return "polygon", {"points": [to_dst(p) for p in corners]}
+    if atype == "ellipse":
+        return "polygon", {"points": [to_dst(p) for p in tf.ellipse_points(geom)]}
     if atype == "polygon":
         return "polygon", {"points": [to_dst(p) for p in geom["points"]]}
     if atype == "point":
@@ -174,5 +176,6 @@ def project_annotations(db: Session, target: Asset) -> ProjectedOut:
             id=x.id, label=x.label, color=x.color, tool=x.tool,
             atype=ptype, geometry=pgeom,
             source_asset_id=src.id, source_filename=src.filename,
-            value=x.value, unit=x.unit or ""))
+            value=x.value, unit=x.unit or "",
+            level=x.level or "", review_status=x.review_status or "reviewed"))
     return ProjectedOut(ok=True, items=items, skipped_unaligned=skipped)

@@ -1,5 +1,5 @@
 import type { MouseEvent } from 'react'
-import { COLORS } from '../../lib/constants'
+import { COLORS, LEVEL_STYLE } from '../../lib/constants'
 import type { Pt } from '../../lib/geometry'
 import type { Annotation, ProjectedAnnotation } from '../../types'
 
@@ -10,35 +10,77 @@ const label = (x: number, y: number, text: string, key?: string) => (
     fontSize={12} fontWeight={600} textAnchor="middle" fontFamily="var(--font-mono)">{text}</text>
 )
 
-/** 已保存的 2D 标注（矩形 / 多边形 / 点 / 测距线） */
-export function AnnoShape({ a, toEl, selected, interactive, onSelect, linkedTint }: {
+/** 节点名称：贴在图形左上角，图形在屏幕上太小时不画（避免密集区糊成一团） */
+function nameTag(x: number, y: number, w: number, text: string, color: string, key?: string) {
+  if (w < 34 || !text) return null
+  const t = text.length > 12 ? text.slice(0, 12) + '…' : text
+  return (
+    <text key={key} x={x + 3} y={y - 4} fill={color} stroke="#14120f" strokeWidth={2.5} paintOrder="stroke"
+      fontSize={11} fontWeight={600} fontFamily="var(--font-sans)" style={{ pointerEvents: 'none' }}>{t}</text>
+  )
+}
+
+function polyTopLeft(pts: Pt[]): [number, number, number] {
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity
+  for (const [x, y] of pts) { x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x) }
+  return [x0, y0, x1 - x0]
+}
+
+/** 已保存的 2D 标注（矩形 / 多边形 / 点 / 测距线）；无几何的骨架节点不绘制 */
+export function AnnoShape({ a, toEl, selected, interactive, onSelect, linkedTint, showLabel }: {
   a: Annotation; toEl: ToEl; selected: boolean; interactive: boolean
   onSelect?: (id: number) => void
   /** 研究模块：已图文关联的标注用橙色 */
   linkedTint?: boolean
+  /** 在图形旁显示节点名称 */
+  showLabel?: boolean
 }) {
-  if (a.atype === 'align' || a.atype === 'point3d' || a.atype === 'line3d') return null
-  const isSeg = a.tool === 'segment'
+  if (a.atype === 'align' || a.atype === 'point3d' || a.atype === 'line3d' || a.atype === 'none') return null
+  const isCand = a.review_status === 'candidate'
+  const ls = LEVEL_STYLE[a.level] ?? LEVEL_STYLE['']
   const stroke = selected ? COLORS.select : linkedTint && a.desc_text ? COLORS.linked : (a.color || COLORS.amber)
   const common = {
-    stroke, strokeWidth: selected ? 2.6 : isSeg ? 1.8 : 1.6,
-    fill: stroke, fillOpacity: selected ? 0.2 : isSeg ? 0.13 : 0.11,
-    strokeDasharray: isSeg ? '7 5' : undefined,
+    stroke, strokeWidth: selected ? 2.6 : isCand ? 1.8 : ls.width,
+    fill: stroke, fillOpacity: selected ? 0.2 : isCand ? 0.13 : ls.fill,
+    strokeDasharray: isCand ? '7 5' : ls.dash,
     strokeLinejoin: 'round' as const,
     className: interactive ? 'hit' : undefined,
     onClick: interactive ? (e: MouseEvent) => { e.stopPropagation(); onSelect?.(a.id) } : undefined,
   }
   const g = a.geometry as Record<string, unknown>
-  const title = <title>{a.label}{a.note && !isSeg ? ` - ${a.note.slice(0, 60)}` : ''}</title>
+  const title = <title>{a.label}{a.note && !isCand ? ` - ${a.note.slice(0, 60)}` : ''}</title>
+  const tagText = showLabel && !isCand ? a.label : ''
 
   if (a.atype === 'rect') {
     const [x1, y1] = toEl([g.x as number, g.y as number])
     const [x2, y2] = toEl([(g.x as number) + (g.w as number), (g.y as number) + (g.h as number)])
-    return <rect x={x1} y={y1} width={x2 - x1} height={y2 - y1} rx={1.5} {...common}>{title}</rect>
+    return (
+      <g>
+        <rect x={x1} y={y1} width={x2 - x1} height={y2 - y1} rx={1.5} {...common}>{title}</rect>
+        {nameTag(x1, y1, x2 - x1, tagText, stroke)}
+      </g>
+    )
+  }
+  if (a.atype === 'ellipse') {
+    const cx = g.cx as number, cy = g.cy as number, rx = g.rx as number, ry = g.ry as number
+    const [x1, y1] = toEl([cx - rx, cy - ry]), [x2, y2] = toEl([cx + rx, cy + ry])
+    return (
+      <g>
+        <ellipse cx={(x1 + x2) / 2} cy={(y1 + y2) / 2} rx={Math.abs(x2 - x1) / 2} ry={Math.abs(y2 - y1) / 2} {...common}>{title}</ellipse>
+        {nameTag(x1, y1, x2 - x1, tagText, stroke)}
+      </g>
+    )
   }
   if (a.atype === 'polygon') {
-    const pts = (g.points as Pt[]).map(p => toEl(p).join(',')).join(' ')
-    return <polygon points={pts} {...common}>{title}</polygon>
+    const el = (g.points as Pt[]).map(p => toEl(p))
+    const pts = el.map(p => p.join(',')).join(' ')
+    const [tx, ty, tw] = polyTopLeft(el)
+    return (
+      <g>
+        <polygon points={pts} {...common}>{title}</polygon>
+        {nameTag(tx, ty, tw, tagText, stroke)}
+      </g>
+    )
   }
   if (a.atype === 'point') {
     const [x, y] = toEl(g.p as Pt)
@@ -65,25 +107,29 @@ export function AnnoShape({ a, toEl, selected, interactive, onSelect, linkedTint
   return null
 }
 
-/** 跨图投影标注：沿用标注自身颜色、以点划线表示"投影自其他图层"；可选中（研究模块）与高亮 */
-export function ProjectedShape({ p, toEl, selected, linkedTint, interactive, onSelect }: {
+/** 跨图投影标注：沿用标注自身颜色、以点划线表示"投影自其他图层"；可选中与高亮 */
+export function ProjectedShape({ p, toEl, selected, linkedTint, interactive, onSelect, showLabel }: {
   p: ProjectedAnnotation; toEl: ToEl; selected?: boolean; linkedTint?: boolean
-  interactive?: boolean; onSelect?: (id: number) => void
+  interactive?: boolean; onSelect?: (id: number) => void; showLabel?: boolean
 }) {
   const g = p.geometry as Record<string, unknown>
   const c = selected ? COLORS.select : linkedTint ? COLORS.linked : (p.color || COLORS.proj)
+  const ls = LEVEL_STYLE[p.level] ?? LEVEL_STYLE['']
   const style = {
-    stroke: c, strokeWidth: selected ? 2.6 : 1.7, strokeDasharray: selected ? '5 3' : '2 4',
-    fill: c, fillOpacity: selected ? 0.18 : 0.07,
+    stroke: c, strokeWidth: selected ? 2.6 : Math.max(1.4, ls.width - 0.2), strokeDasharray: selected ? '5 3' : '2 4',
+    fill: c, fillOpacity: selected ? 0.18 : Math.min(ls.fill, 0.07),
   }
   const groupProps = {
     className: interactive ? 'hit' : undefined,
     onClick: interactive ? (e: MouseEvent) => { e.stopPropagation(); onSelect?.(p.id) } : undefined,
   }
   const title = <title>{`[投影自 ${p.source_filename}] ${p.label}`}</title>
+  const tagText = showLabel && p.review_status !== 'candidate' ? p.label : ''
   if (p.atype === 'polygon') {
-    const pts = (g.points as Pt[]).map(q => toEl(q).join(',')).join(' ')
-    return <g {...groupProps}>{title}<polygon points={pts} {...style} /></g>
+    const el = (g.points as Pt[]).map(q => toEl(q))
+    const pts = el.map(q => q.join(',')).join(' ')
+    const [tx, ty, tw] = polyTopLeft(el)
+    return <g {...groupProps}>{title}<polygon points={pts} {...style} />{nameTag(tx, ty, tw, tagText, c)}</g>
   }
   if (p.atype === 'point') {
     const [x, y] = toEl(g.p as Pt)

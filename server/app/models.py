@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""ORM 模型：石头 / 分层释文 / 资产 / 标注。
+"""ORM 模型：石头 / 分层释文 / 资产 / 标注（结构树节点） / 概念 / 标注-概念关联。
 
 表结构与既有数据库兼容；新增列一律通过 migrations.py 以 ALTER 补齐。
 """
@@ -85,14 +85,19 @@ class Asset(Base):
 
 
 class Annotation(Base):
+    """标注 = 图像结构树的节点。
+
+    几何（asset_id / atype / geometry）可为空（atype='none'）：这类"骨架节点"先由释文生成，
+    之后再在图上绘制或从机器候选并入几何。
+    """
     __tablename__ = "annotations"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     stone_id: Mapped[int] = mapped_column(ForeignKey("stones.id"), index=True)
     asset_id: Mapped[int] = mapped_column(ForeignKey("assets.id"), index=True)
     tool: Mapped[str] = mapped_column(String(16))      # annotate / measure / segment / align
-    atype: Mapped[str] = mapped_column(String(16))     # rect / polygon / point / line / point3d / line3d / align
-    geometry: Mapped[dict] = mapped_column(JSON)       # 2D 用 0..1 归一化坐标
+    atype: Mapped[str] = mapped_column(String(16))     # rect / polygon / point / line / point3d / line3d / align / none
+    geometry: Mapped[dict] = mapped_column(JSON)       # 2D 用 0..1 归一化坐标；none 时为 {}
     label: Mapped[str] = mapped_column(String(256), default="未命名")
     note: Mapped[str] = mapped_column(Text, default="")
     color: Mapped[str] = mapped_column(String(16), default="#e8a33d")
@@ -104,11 +109,60 @@ class Annotation(Base):
     desc_start: Mapped[int | None] = mapped_column(Integer, nullable=True)
     desc_end: Mapped[int | None] = mapped_column(Integer, nullable=True)
     desc_text: Mapped[str] = mapped_column(Text, default="")
+    # 结构树（沿用 WSC3D 标注 SOP）：父节点 / 结构层级 / 一层类别 / 同级次序 / 审核状态 / 质量 / 几何语义
+    parent_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    level: Mapped[str] = mapped_column(String(16), default="")           # constants.LEVELS，空 = 未定
+    category: Mapped[str] = mapped_column(String(32), default="")        # constants.CATEGORIES，空 = 未定
+    seq: Mapped[int | None] = mapped_column(Integer, nullable=True)      # 同级次序；层节点 = 释文层号
+    review_status: Mapped[str] = mapped_column(String(16), default="reviewed")
+    quality: Mapped[str] = mapped_column(String(8), default="")
+    geometry_intent: Mapped[str] = mapped_column(String(24), default="")
+    # 图像志三层文本 + 榜题：{pre_iconographic, iconographic, iconological,
+    #                        inscription: {transcription, translation, notes}}
+    semantics: Mapped[dict] = mapped_column(JSON, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=now, onupdate=now)
 
     asset: Mapped[Asset] = relationship(back_populates="annotations")
+    concept_links: Mapped[list["AnnotationConcept"]] = relationship(
+        back_populates="annotation", cascade="all, delete-orphan")
 
     @property
     def is_linked(self) -> bool:
         return bool(self.desc_text) and self.desc_start is not None
+
+    @property
+    def has_geometry(self) -> bool:
+        return self.atype not in ("none", "") and bool(self.geometry)
+
+    @property
+    def is_structural(self) -> bool:
+        """结构树节点：排除测量与对齐记录。"""
+        return self.tool in ("annotate", "segment") and self.atype != "align"
+
+
+class Concept(Base):
+    """概念词：挂在 knowledge.CONCEPT_CATEGORIES 的末级分类下，跨石头共享。"""
+    __tablename__ = "concepts"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String(128), unique=True, index=True)
+    category_id: Mapped[str] = mapped_column(String(48), index=True, default="")
+    aliases: Mapped[list] = mapped_column(JSON, default=list)
+    description: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=now, onupdate=now)
+
+    links: Mapped[list["AnnotationConcept"]] = relationship(
+        back_populates="concept", cascade="all, delete-orphan")
+
+
+class AnnotationConcept(Base):
+    __tablename__ = "annotation_concepts"
+
+    annotation_id: Mapped[int] = mapped_column(ForeignKey("annotations.id"), primary_key=True)
+    concept_id: Mapped[int] = mapped_column(ForeignKey("concepts.id"), primary_key=True)
+    role: Mapped[str] = mapped_column(String(16), default="subject")   # subject / attribute / motif
+
+    annotation: Mapped[Annotation] = relationship(back_populates="concept_links")
+    concept: Mapped[Concept] = relationship(back_populates="links")

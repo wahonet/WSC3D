@@ -7,9 +7,12 @@ from sqlalchemy.orm import Session
 
 from ..db import get_db
 from ..models import Annotation, Asset, Stone
-from ..schemas import AnnotationOut, LayerPatch, SetMasterOut, StoneDetail, StoneNode, StonePatch
-from ..services import alignment, textlinks
-from ..services.serialize import annotation_out, stone_detail, stone_node
+from ..schemas import (
+    AnnotationOut, AutoParentIn, AutoParentOut, LayerPatch, SetMasterOut, SkeletonCreateIn, SkeletonCreateOut,
+    SkeletonPreview, StoneDetail, StoneNode, StonePatch,
+)
+from ..services import alignment, structure, textlinks
+from ..services.serialize import annotations_out, stone_detail, stone_node
 from .deps import get_stone
 
 router = APIRouter(prefix="/stones", tags=["石头"])
@@ -50,10 +53,30 @@ def patch_layer(seq: int, body: LayerPatch, s: Stone = Depends(get_stone),
     return stone_detail(s, db)
 
 
-@router.get("/{stone_id}/annotations", response_model=list[AnnotationOut], summary="石头全部标注")
+@router.get("/{stone_id}/annotations", response_model=list[AnnotationOut], summary="石头全部标注（结构树数据源）")
 def stone_annotations(s: Stone = Depends(get_stone), db: Session = Depends(get_db)):
     rows = db.query(Annotation).filter(Annotation.stone_id == s.id).order_by(Annotation.id).all()
-    return [annotation_out(x) for x in rows]
+    return annotations_out(db, rows)
+
+
+@router.post("/{stone_id}/structure/auto-parent", response_model=AutoParentOut,
+             summary="按几何包含自动归类：把节点挂到最贴合的容器节点下")
+def auto_parent(body: AutoParentIn, s: Stone = Depends(get_stone), db: Session = Depends(get_db)):
+    return structure.auto_parent(db, s.id, body)
+
+
+@router.get("/{stone_id}/structure/skeleton", response_model=SkeletonPreview,
+            summary="从总述与分层释文解析出骨架节点（预览，不落库）")
+def skeleton_preview(s: Stone = Depends(get_stone), db: Session = Depends(get_db)):
+    """识别"一则/二则"（场景）、"首刻/次一人"（人物）、"数词+名词"枚举与榜题引文，
+    给出层 -> 场景 -> 人物 / 榜题 的节点清单；已有同名节点的标 exists。"""
+    return structure.skeleton_preview(db, s)
+
+
+@router.post("/{stone_id}/structure/skeleton", response_model=SkeletonCreateOut,
+             summary="按选定的骨架清单创建节点（无几何，之后在图上绘制或并入候选）")
+def skeleton_create(body: SkeletonCreateIn, s: Stone = Depends(get_stone), db: Session = Depends(get_db)):
+    return structure.skeleton_create(db, s, body.items, body.asset_id)
 
 
 @router.post("/{stone_id}/master/{asset_id}", response_model=SetMasterOut, summary="设为主图")

@@ -21,7 +21,7 @@ from .config import APP_NAME, APP_VERSION, settings
 from .db import Base, SessionLocal, engine
 from .migrations import migrate
 from .routers import api
-from .services import scanner, segment
+from .services import scanner, seeds, segment
 
 logging.basicConfig(
     level=logging.INFO,
@@ -36,6 +36,11 @@ async def lifespan(_: FastAPI):
     Base.metadata.create_all(engine)
     migrate(engine)
     log.info("%s %s · assets=%s · db=%s", APP_NAME, APP_VERSION, settings.assets_root, settings.db_path)
+    with SessionLocal() as db:
+        try:
+            seeds.seed_concepts(db)
+        except Exception as e:  # 播种失败不应阻止服务启动
+            log.exception("概念播种失败：%s", e)
     if settings.scan_on_startup:
         with SessionLocal() as db:
             try:
@@ -49,13 +54,15 @@ async def lifespan(_: FastAPI):
 app = FastAPI(
     title=APP_NAME,
     version=APP_VERSION,
-    description="汉画像石研究平台后端：素材入库、预览、标注、SAM 分割、统一坐标系对齐、图文关联。",
+    description="汉画像石研究平台后端：素材入库、预览、结构化标注（结构树 / 概念 / 图像志）、"
+                "SAM 分割、统一坐标系对齐、图文关联。",
     lifespan=lifespan,
     openapi_tags=[
         {"name": "系统", "description": "健康检查、统计、素材扫描"},
-        {"name": "石头", "description": "石头树、详情、元数据与释文编辑、主图"},
+        {"name": "石头", "description": "石头树、详情、元数据与释文编辑、主图、结构骨架与自动归类"},
         {"name": "资产", "description": "预览、缩略图、模型文件、跨图投影"},
-        {"name": "标注", "description": "标注 CRUD 与图文关联"},
+        {"name": "标注", "description": "结构节点 CRUD、图文关联、父级建议、候选并入"},
+        {"name": "概念", "description": "分类骨架与概念词表"},
         {"name": "分割", "description": "MobileSAM / SAM3 / SAM3.1"},
         {"name": "对齐", "description": "对应点配准与坐标链"},
     ],

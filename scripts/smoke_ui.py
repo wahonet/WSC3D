@@ -5,7 +5,7 @@
     python scripts/smoke_ui.py                 # 走后端托管的 web/dist（http://127.0.0.1:8020/）
     python scripts/smoke_ui.py --dev           # 走 Vite 开发服务器（http://127.0.0.1:5173/）
     python scripts/smoke_ui.py --shots out/    # 同时把截图写到 out/ 目录
-需要后端已启动。深链形式：#a=<资产id>&p=research
+需要后端已启动。深链形式：#a=<资产id>&p=align|segment|annotate|library
 """
 import argparse
 import pathlib
@@ -26,9 +26,14 @@ MARKERS = [
     ("anno cards", r'class="anno(\s|")'),
     ("loading-mask", r"loading-mask"),
     ("toast error", r'class="toast error"'),
-    ("research rcard", r'class="rcard"'),
-    ("ra-row", r'class="ra-row'),
+    ("text card", r'class="rcard"'),
     ("leaf", r'class="leaf'),
+    ("tree rows", r'class="tn(\s|")'),
+    ("node detail", r'class="ndetail"'),
+    ("pipeline nav", r'class="pl-btn'),
+    ("layer rows", r'class="layer-row"'),
+    ("align panes", r'class="align-pane'),
+    ("shape tools", r'class="tool shape'),
 ]
 
 
@@ -69,8 +74,11 @@ def main() -> int:
 
     cases = {"home": ""}
     if master:
-        cases["master-2d"] = f"#a={master['id']}"
-        cases["research"] = f"#a={master['id']}&p=research"
+        cases["home-2d"] = f"#a={master['id']}"
+        cases["align"] = f"#a={master['id']}&p=align"
+        cases["segment"] = f"#a={master['id']}&p=segment"
+        cases["annotate"] = f"#a={master['id']}&p=annotate"
+        cases["library"] = f"#a={master['id']}&p=library"
     if model:
         cases["model-3d"] = f"#a={model[0]['id']}"
 

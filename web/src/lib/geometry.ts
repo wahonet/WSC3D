@@ -1,6 +1,36 @@
-import type { AlignGeometry, Annotation, OverlayTransform } from '../types'
+import type { AlignChain, AlignGeometry, Annotation, AssetBrief, OverlayTransform } from '../types'
 
 export type Pt = [number, number]
+
+type Sim = { s: number; theta_deg: number; tx: number; ty: number }
+
+/** 先 b 后 a：compose(a, b)(p) = a(b(p))（与后端 transforms.compose 一致） */
+export function composeSim(a: Sim, b: Sim): Sim {
+  const th = (a.theta_deg * Math.PI) / 180
+  const c = Math.cos(th), s = Math.sin(th)
+  return {
+    s: a.s * b.s, theta_deg: a.theta_deg + b.theta_deg,
+    tx: a.s * (c * b.tx - s * b.ty) + a.tx, ty: a.s * (s * b.tx + c * b.ty) + a.ty,
+  }
+}
+export function invertSim(t: Sim): Sim {
+  const th = (t.theta_deg * Math.PI) / 180
+  const c = Math.cos(th), s = Math.sin(th)
+  const k = 1 / t.s
+  return { s: k, theta_deg: -t.theta_deg, tx: -k * (c * t.tx + s * t.ty), ty: -k * (-s * t.tx + c * t.ty) }
+}
+
+/** 由两张已入链图的坐标链算出把 other 叠到 base 上的叠加参数（other 像素 -> base 像素） */
+export function overlayFromChains(base: AssetBrief, other: AssetBrief): OverlayTransform | null {
+  const cb = base.extra.align_to_master as AlignChain | null | undefined
+  const co = other.extra.align_to_master as AlignChain | null | undefined
+  if (!cb || !co) return null
+  const t = composeSim(invertSim(cb), co)
+  return alignGeomToOverlay({
+    target_asset_id: other.id, pairs: [], s: t.s, theta_deg: t.theta_deg, tx: t.tx, ty: t.ty, rmse_px: 0,
+    wl: base.width, hl: base.height, wr: other.width, hr: other.height,
+  })
+}
 
 /** 由保存的对齐几何计算 OSD 叠加参数（左图视口宽 = 1） */
 export function alignGeomToOverlay(g: AlignGeometry): OverlayTransform {
@@ -49,6 +79,10 @@ export function annotationBounds(a: Pick<Annotation, 'atype' | 'geometry'>): [nu
   if (a.atype === 'rect') {
     const x = g.x as number, y = g.y as number, w = g.w as number, h = g.h as number
     return [x, y, w, h]
+  }
+  if (a.atype === 'ellipse') {
+    const cx = g.cx as number, cy = g.cy as number, rx = g.rx as number, ry = g.ry as number
+    return [cx - rx, cy - ry, 2 * rx, 2 * ry]
   }
   if (a.atype === 'polygon') pts = g.points as Pt[]
   else if (a.atype === 'point') pts = [g.p as Pt]

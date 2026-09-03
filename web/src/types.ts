@@ -82,7 +82,27 @@ export interface Stats {
   version: string
 }
 
-export type AType = 'rect' | 'polygon' | 'point' | 'line' | 'point3d' | 'line3d' | 'align'
+/** ellipse = 圆 / 椭圆 {cx,cy,rx,ry}；none = 尚无几何的骨架节点（先由释文生成，之后绘制或并入候选几何） */
+export type AType = 'rect' | 'ellipse' | 'polygon' | 'point' | 'line' | 'point3d' | 'line3d' | 'align' | 'none'
+
+/* ---------------- 结构树（沿用 WSC3D 标注 SOP） ---------------- */
+export type Level = '' | 'whole' | 'band' | 'layer' | 'scene' | 'figure' | 'component' | 'inscription' | 'trace' | 'damage'
+export type ReviewStatus = 'candidate' | 'reviewed' | 'approved' | 'rejected'
+export type Quality = '' | 'weak' | 'silver' | 'gold'
+export type GeometryIntent = '' | 'visible_trace' | 'semantic_extent' | 'reconstructed_extent'
+
+export interface InscriptionSem { transcription: string; translation: string; notes: string }
+/** 图像志三层文本（Panofsky）+ 榜题 */
+export interface Semantics {
+  pre_iconographic: string
+  iconographic: string
+  iconological: string
+  inscription: InscriptionSem
+}
+export const EMPTY_SEMANTICS: Semantics = {
+  pre_iconographic: '', iconographic: '', iconological: '',
+  inscription: { transcription: '', translation: '', notes: '' },
+}
 
 export interface Annotation {
   id: number
@@ -100,6 +120,15 @@ export interface Annotation {
   desc_start: number | null
   desc_end: number | null
   desc_text: string
+  parent_id: number | null
+  level: Level
+  category: string
+  seq: number | null
+  review_status: ReviewStatus
+  quality: Quality
+  geometry_intent: GeometryIntent
+  semantics: Semantics
+  concept_ids: number[]
   created_at: string
   updated_at: string | null
 }
@@ -115,10 +144,50 @@ export interface ProjectedAnnotation {
   source_filename: string
   value: number | null
   unit: string
+  level: Level
+  review_status: ReviewStatus
 }
 
-export type Tool = 'select' | 'annotate' | 'measure' | 'segment' | 'align'
-export type AnnotateShape = 'rect' | 'polygon' | 'point'
+export interface ParentSuggestion { id: number; label: string; level: Level; ratio: number; area_ratio: number }
+
+export interface SkeletonItem {
+  key: string
+  parent_key: string | null
+  parent_label: string
+  level: Level
+  label: string
+  seq: number | null
+  category: string
+  desc_source: string | null
+  desc_start: number | null
+  desc_end: number | null
+  transcription: string
+  concept_names: string[]
+  exists: boolean
+  excerpt: string
+}
+
+/* ---------------- 概念 ---------------- */
+export interface ConceptCategory { id: string; name: string; parent_id: string | null }
+export interface Concept {
+  id: number
+  name: string
+  category_id: string
+  aliases: string[]
+  description: string
+  usage: number
+}
+export interface Taxonomy {
+  categories: ConceptCategory[]
+  levels: Record<string, string>
+  sop_categories: Record<string, string>
+  review_statuses: Record<string, string>
+  qualities: Record<string, string>
+  geometry_intents: Record<string, string>
+}
+
+export type Tool = 'select' | 'annotate' | 'measure' | 'segment'
+export type AnnotateShape = 'rect' | 'ellipse' | 'polygon' | 'point'
 
 /* ---------------- 分割 ---------------- */
 export type SegEngine = 'mobilesam' | 'sam3' | 'sam3.1'

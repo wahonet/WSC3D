@@ -45,3 +45,9 @@ def invert(t: Sim) -> Sim:
     tx = -k * (c * t["tx"] + s * t["ty"])
     ty = -k * (-s * t["tx"] + c * t["ty"])
     return {"s": k, "theta_deg": -t["theta_deg"], "tx": tx, "ty": ty}
+
+
+def ellipse_points(g: dict, n: int = 32) -> list[list[float]]:
+    """椭圆 {cx, cy, rx, ry}（归一化）采样为多边形顶点：投影与包含判断统一按多边形处理。"""
+    cx, cy, rx, ry = g["cx"], g["cy"], g["rx"], g["ry"]
+    return [[cx + rx * math.cos(2 * math.pi * i / n), cy + ry * math.sin(2 * math.pi * i / n)] for i in range(n)]

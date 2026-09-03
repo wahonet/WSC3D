@@ -1,29 +1,29 @@
 import { useEffect } from 'react'
 import ErrorBoundary from './components/ErrorBoundary'
-import ResearchPage from './components/research/ResearchPage'
 import Toaster from './components/Toaster'
 import TopBar from './components/TopBar'
-import Workbench from './components/Workbench'
 import { useShortcuts } from './hooks/useShortcuts'
+import AlignPage from './pages/AlignPage'
+import AnnotatePage from './pages/AnnotatePage'
+import HomePage from './pages/HomePage'
+import LibraryPage from './pages/LibraryPage'
+import SegmentPage from './pages/SegmentPage'
 import { useApp } from './store/useApp'
+
+const PAGES = { home: HomePage, align: AlignPage, segment: SegmentPage, annotate: AnnotatePage, library: LibraryPage }
 
 export default function App() {
   const page = useApp(s => s.page)
-  const curStone = useApp(s => s.curStone)
-  const curAssetId = useApp(s => s.curAsset?.id ?? null)
   const boot = useApp(s => s.boot)
 
   useEffect(() => { boot() }, [boot])
-  useShortcuts(page === 'work')
+  useShortcuts(true)
 
+  const Page = PAGES[page]
   return (
     <div className="shell">
       <TopBar />
-      {page === 'research' && curStone
-        ? <ErrorBoundary area="研究模块">
-            <ResearchPage key={curStone.id} stoneId={curStone.id} initialAssetId={curAssetId} />
-          </ErrorBoundary>
-        : <Workbench />}
+      <ErrorBoundary area="页面" resetKey={page}><Page /></ErrorBoundary>
       <Toaster />
     </div>
   )

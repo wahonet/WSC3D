@@ -1,6 +1,7 @@
 import type {
-  Annotation, ExemplarBox, ProjectedAnnotation, ScanReport, SegDetection, SegEngineState, SegPreprocess,
-  SegStatus, SegTiling, Stats, StoneInfo, StoneNode,
+  Annotation, Concept, ExemplarBox, GeometryIntent, Level, ParentSuggestion, ProjectedAnnotation, Quality,
+  ReviewStatus, ScanReport, SegDetection, SegEngineState, SegPreprocess, SegStatus, SegTiling, Semantics,
+  SkeletonItem, Stats, StoneInfo, StoneNode, Taxonomy,
 } from './types'
 
 export class ApiError extends Error {
@@ -68,7 +69,7 @@ export const patchLayer = (stoneId: number, seq: number, summary: string) =>
 export const setMaster = (stoneId: number, assetId: number) =>
   api.post<{ ok: boolean; message: string; rebased: number }>(`/stones/${stoneId}/master/${assetId}`)
 
-/* ---- 标注 ---- */
+/* ---- 标注 / 结构节点 ---- */
 export interface NewAnnotation {
   stone_id: number
   asset_id: number
@@ -80,11 +81,32 @@ export interface NewAnnotation {
   color?: string
   value?: number | null
   unit?: string
+  parent_id?: number | null
+  level?: Level
+  category?: string
+  seq?: number | null
+  review_status?: ReviewStatus
+  concept_ids?: number[]
+  /** 未给 parent_id 时按几何包含自动挂到最贴合的容器节点并推断层级 */
+  auto_parent?: boolean
 }
 export interface AnnotationPatchBody {
   label?: string; note?: string; color?: string
   desc_source?: string; desc_start?: number; desc_end?: number; desc_text?: string
   clear_link?: boolean
+  parent_id?: number; clear_parent?: boolean
+  level?: Level; category?: string; seq?: number; clear_seq?: boolean
+  review_status?: ReviewStatus; quality?: Quality; geometry_intent?: GeometryIntent
+  semantics?: Semantics
+  concept_ids?: number[]
+  /** 三者齐全即给节点挂接（替换）几何 */
+  asset_id?: number; atype?: Annotation['atype']; geometry?: Record<string, unknown>
+}
+export interface AnnotationBatchItem {
+  id: number
+  label?: string; note?: string; color?: string
+  parent_id?: number; clear_parent?: boolean
+  level?: Level; category?: string; seq?: number; review_status?: ReviewStatus
 }
 
 export const listAnnotations = (assetId: number) => api.get<Annotation[]>(`/annotations?asset_id=${assetId}`)
@@ -92,9 +114,32 @@ export const createAnnotation = (a: NewAnnotation) => api.post<Annotation>('/ann
 export const createAnnotations = (items: NewAnnotation[]) => api.post<Annotation[]>('/annotations/batch', { items })
 export const patchAnnotation = (id: number, body: AnnotationPatchBody) =>
   api.patch<Annotation>(`/annotations/${id}`, body)
-export const patchAnnotations = (items: { id: number; label?: string; note?: string; color?: string }[]) =>
+export const patchAnnotations = (items: AnnotationBatchItem[]) =>
   api.patch<Annotation[]>('/annotations/batch', { items })
-export const deleteAnnotation = (id: number) => api.del<{ ok: boolean }>(`/annotations/${id}`)
+export const deleteAnnotation = (id: number) => api.del<{ ok: boolean; message: string }>(`/annotations/${id}`)
+export const deleteAnnotations = (ids: number[]) =>
+  api.post<{ ok: boolean; message: string }>('/annotations/batch-delete', { ids })
+export const parentSuggestions = (id: number) => api.get<ParentSuggestion[]>(`/annotations/${id}/parent-suggestions`)
+export const adoptGeometry = (id: number, sourceId: number) =>
+  api.post<Annotation>(`/annotations/${id}/adopt`, { source_id: sourceId })
+
+/* ---- 结构：自动归类 / 骨架 ---- */
+export const autoParent = (stoneId: number, body: { ids?: number[]; only_orphans?: boolean; min_ratio?: number; include_candidates?: boolean }) =>
+  api.post<{ assigned: number; skipped: number; details: string[] }>(`/stones/${stoneId}/structure/auto-parent`, body)
+export const skeletonPreview = (stoneId: number) =>
+  api.get<{ items: SkeletonItem[]; asset_id: number | null }>(`/stones/${stoneId}/structure/skeleton`)
+export const skeletonCreate = (stoneId: number, items: SkeletonItem[], assetId: number | null) =>
+  api.post<{ created: number; linked: number; skipped_links: string[]; annotations: Annotation[] }>(
+    `/stones/${stoneId}/structure/skeleton`, { items, asset_id: assetId })
+
+/* ---- 概念 ---- */
+export const getTaxonomy = () => api.get<Taxonomy>('/concepts/taxonomy')
+export const listConcepts = () => api.get<Concept[]>('/concepts')
+export const createConcept = (body: { name: string; category_id: string; aliases?: string[]; description?: string }) =>
+  api.post<Concept>('/concepts', body)
+export const patchConcept = (id: number, body: { name?: string; category_id?: string; aliases?: string[]; description?: string }) =>
+  api.patch<Concept>(`/concepts/${id}`, body)
+export const deleteConcept = (id: number) => api.del<{ ok: boolean; message: string }>(`/concepts/${id}`)
 
 /* ---- 分割 ---- */
 type EnginesOut = { ok: boolean; error?: string | null; engines: Record<string, SegEngineState> }

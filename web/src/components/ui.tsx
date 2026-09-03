@@ -78,3 +78,17 @@ export function Field({ label, row, children }: { label: string; row?: boolean; 
 export function Note({ tone, children }: { tone?: 'warn' | 'error' | 'ok'; children: ReactNode }) {
   return <div className={`note-box${tone ? ` ${tone}` : ''}`}>{children}</div>
 }
+
+/** 侧栏分区：标题条 + 可滚动内容 */
+export function Pane({ title, count, children }: { title: ReactNode; count?: number | string; children: ReactNode }) {
+  return (
+    <section className="pane">
+      <div className="pane-h">
+        {title}
+        <span className="grow" />
+        {count != null && <span className="count">{count}</span>}
+      </div>
+      <div className="pane-b">{children}</div>
+    </section>
+  )
+}

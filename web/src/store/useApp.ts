@@ -1,23 +1,25 @@
 import { create } from 'zustand'
 import {
-  createAnnotation, createAnnotations, deleteAnnotation, getProjected, getStats, getStone, listAnnotations,
-  listStones, patchAnnotation, patchAnnotations, scanAssets, segPoint, segText, setMaster,
-  type AnnotationPatchBody,
+  adoptGeometry, autoParent, createAnnotation, createAnnotations, createConcept, deleteAnnotation,
+  deleteAnnotations, getProjected, getStats, getStone, getTaxonomy, listAnnotations, listConcepts, listStones,
+  patchAnnotation, patchAnnotations, scanAssets, segPoint, segText, setMaster, stoneAnnotations,
+  type AnnotationBatchItem, type AnnotationPatchBody,
 } from '../api'
-import { PALETTE, pickColor, pickColors } from '../lib/constants'
-import { alignGeomToOverlay } from '../lib/geometry'
+import { PAGE_TOOLS, PALETTE, pickColor, pickColors, type Page } from '../lib/constants'
+import { alignGeomToOverlay, overlayFromChains } from '../lib/geometry'
+import { hasGeometry } from '../lib/tree'
 import type {
-  AlignGeometry, Annotation, AnnotateShape, AssetBrief, ExemplarBox, OverlaySpec, OverlayTransform,
-  ProjectedAnnotation, SegDetection, SegEngine, SegPoint, SegPreprocess, SegPromptMode, SegTiling, Stats,
-  StoneInfo, StoneNode, Tool,
+  AlignGeometry, Annotation, AnnotateShape, AssetBrief, Concept, ExemplarBox, Level, OverlaySpec,
+  OverlayTransform, ProjectedAnnotation, SegDetection, SegEngine, SegPoint, SegPreprocess, SegPromptMode,
+  SegTiling, Stats, StoneInfo, StoneNode, Taxonomy, Tool,
 } from '../types'
 import { toast } from './useToast'
 
-export type Page = 'work' | 'research'
+export type { Page }
 export type Theme = 'dark' | 'light'
 
 export interface CreateShape {
-  atype: 'rect' | 'polygon' | 'point' | 'line' | 'point3d' | 'line3d'
+  atype: 'rect' | 'ellipse' | 'polygon' | 'point' | 'line' | 'point3d' | 'line3d'
   geometry: Record<string, unknown>
   value?: number
   unit?: string
@@ -53,8 +55,13 @@ interface AppState {
   stoneInfo: StoneInfo | null
   curStone: StoneNode | null
   curAsset: AssetBrief | null
-  annos: Annotation[]
+  annos: Annotation[]               // 当前资产自有的标注（查看器绘制用）
+  stoneAnnos: Annotation[]          // 当前石头的全部标注（结构树数据源）
+  concepts: Concept[]
+  taxonomy: Taxonomy | null
   selectedId: number | null
+  multiSel: number[]                // 结构树多选（批量处置）
+  treeOrder: number[]               // 结构树当前可见顺序（键盘上下移动用）
   backendOk: boolean
 
   /* ---- 界面 ---- */
@@ -64,7 +71,9 @@ interface AppState {
   shape: AnnotateShape
   overlay: OverlaySpec | null
   showAnnoLayer: boolean
-  showSegLayer: boolean
+  showCandidates: boolean           // 机器候选（虚线）
+  showLabels: boolean               // 图上显示节点名称
+  hiddenLevels: Level[]             // 图层面板里关掉的结构层级
   projOn: boolean
   projItems: ProjectedAnnotation[]
   projReason: string
@@ -76,27 +85,42 @@ interface AppState {
   boot: () => Promise<void>
   loadStones: () => Promise<StoneNode[]>
   loadStats: () => Promise<void>
+  loadConcepts: () => Promise<void>
   rescan: () => Promise<void>
   openAsset: (stone: StoneNode, asset: AssetBrief) => Promise<void>
   closeAsset: () => void
   refreshAnnos: () => Promise<void>
+  refreshStoneAnnos: () => Promise<void>
   refreshStoneInfo: () => Promise<void>
   select: (id: number | null) => void
+  toggleMulti: (id: number) => void
+  setMultiSel: (ids: number[]) => void
+  setTreeOrder: (ids: number[]) => void
   setTool: (t: Tool) => void
   setShape: (s: AnnotateShape) => void
   setPage: (p: Page) => void
   toggleTheme: () => void
+  setOverlayAsset: (assetId: number | null) => void
+  setOverlaySpec: (o: OverlaySpec | null) => void
   setOverlayOpacity: (v: number) => void
   removeOverlay: () => void
   setShowAnnoLayer: (v: boolean) => void
-  setShowSegLayer: (v: boolean) => void
+  setShowCandidates: (v: boolean) => void
+  setShowLabels: (v: boolean) => void
+  toggleLevel: (lv: Level) => void
   toggleProj: (v: boolean) => Promise<void>
   flyToAnnotation: (id: number) => void
   sendViewerCmd: (cmd: 'zoomIn' | 'zoomOut' | 'fit') => void
 
   createShape: (c: CreateShape) => Promise<void>
-  updateAnnotation: (id: number, body: AnnotationPatchBody) => Promise<void>
+  createPlaceholder: (parentId: number | null, level: Level, label: string) => Promise<Annotation | null>
+  updateAnnotation: (id: number, body: AnnotationPatchBody) => Promise<Annotation | null>
   removeAnnotation: (id: number) => Promise<void>
+  removeAnnotations: (ids: number[]) => Promise<void>
+  batchPatch: (items: AnnotationBatchItem[]) => Promise<void>
+  adopt: (targetId: number, sourceId: number) => Promise<void>
+  runAutoParent: (ids?: number[]) => Promise<void>
+  addConcept: (name: string, categoryId: string) => Promise<Concept | null>
   recolorAll: () => Promise<void>
   makeMaster: () => Promise<void>
   onAligned: (anno: Annotation, overlayAssetId: number, t: OverlayTransform) => Promise<void>
@@ -125,28 +149,33 @@ const initialTheme = (): Theme => (localStorage.getItem(THEME_KEY) === 'light' ?
 
 const is2d = (a: AssetBrief | null) => a != null && !a.kind.startsWith('model')
 
-/* 地址栏 hash 记录当前资产与页面：#a=<assetId>&p=research，刷新后可恢复 */
-const TOOLS: Tool[] = ['select', 'annotate', 'measure', 'segment', 'align']
+/* 地址栏 hash：#a=<assetId>&p=<page>，刷新后可恢复 */
+const PAGE_IDS: Page[] = ['home', 'align', 'segment', 'annotate', 'library']
+const LEGACY_PAGE: Record<string, Page> = { work: 'home', research: 'library' }
 const ENGINES: SegEngine[] = ['mobilesam', 'sam3', 'sam3.1']
-function readHash(): { assetId: number | null; page: Page; tool: Tool | null; engine: SegEngine | null } {
+function readHash(): { assetId: number | null; page: Page; engine: SegEngine | null } {
   const q = new URLSearchParams(location.hash.replace(/^#/, ''))
   const a = Number(q.get('a'))
-  const t = q.get('t') as Tool | null
+  const p = q.get('p') ?? ''
   const e = q.get('e') as SegEngine | null
   return {
     assetId: a > 0 ? a : null,
-    page: q.get('p') === 'research' ? 'research' : 'work',
-    // t / e 仅启动时读取（如 #a=5&t=segment&e=sam3），不回写
-    tool: t && TOOLS.includes(t) ? t : null,
-    engine: e && ENGINES.includes(e) ? e : null,
+    page: PAGE_IDS.includes(p as Page) ? (p as Page) : LEGACY_PAGE[p] ?? 'home',
+    engine: e && ENGINES.includes(e) ? e : null,   // 仅启动时读取，不回写
   }
 }
 function writeHash(assetId: number | null, page: Page) {
   const q = new URLSearchParams()
   if (assetId) q.set('a', String(assetId))
-  if (page === 'research') q.set('p', 'research')
+  if (page !== 'home') q.set('p', page)
   const h = q.toString()
   history.replaceState(null, '', h ? `#${h}` : location.pathname)
+}
+
+/** 进入某模块时的默认工具：分割模块直接进入绘制，其余回到选中 */
+const defaultTool = (page: Page, prev: Tool): Tool => {
+  if (page === 'segment') return prev === 'segment' || prev === 'annotate' ? prev : 'annotate'
+  return PAGE_TOOLS[page].includes(prev) ? prev : 'select'
 }
 
 export const useApp = create<AppState>((set, get) => ({
@@ -156,16 +185,23 @@ export const useApp = create<AppState>((set, get) => ({
   curStone: null,
   curAsset: null,
   annos: [],
+  stoneAnnos: [],
+  concepts: [],
+  taxonomy: null,
   selectedId: null,
+  multiSel: [],
+  treeOrder: [],
   backendOk: true,
 
-  page: 'work',
+  page: 'home',
   theme: initialTheme(),
   tool: 'select',
   shape: 'rect',
   overlay: null,
   showAnnoLayer: true,
-  showSegLayer: true,
+  showCandidates: true,
+  showLabels: localStorage.getItem('stonelab.labels') !== 'off',
+  hiddenLevels: [],
   projOn: localStorage.getItem('stonelab.proj') !== 'off',   // 跨图投影：默认开启，偏好跨资产记忆
   projItems: [],
   projReason: '',
@@ -184,17 +220,14 @@ export const useApp = create<AppState>((set, get) => ({
       }
       set({ backendOk: true })
       get().loadStats().catch(() => undefined)
-      const { assetId, page, tool, engine } = readHash()
+      get().loadConcepts().catch(() => undefined)
+      const { assetId, page, engine } = readHash()
+      set({ page, tool: defaultTool(page, 'select') })
       if (assetId) {
         for (const stone of list) {
           const asset = stone.groups.flatMap(g => g.assets).find(a => a.id === assetId)
           if (asset) { await get().openAsset(stone, asset); break }
         }
-      }
-      if (page === 'research' && get().curStone) set({ page: 'research' })
-      if (tool && get().curAsset) {
-        const ok2d = is2d(get().curAsset)
-        if (ok2d || (tool !== 'segment' && tool !== 'align')) set({ tool })
       }
       if (engine) get().setSegEngine(engine)
     } catch (e) {
@@ -217,6 +250,11 @@ export const useApp = create<AppState>((set, get) => ({
     try { set({ stats: await getStats() }) } catch { /* 统计非关键 */ }
   },
 
+  loadConcepts: async () => {
+    const [concepts, taxonomy] = await Promise.all([listConcepts(), get().taxonomy ? Promise.resolve(get().taxonomy!) : getTaxonomy()])
+    set({ concepts, taxonomy })
+  },
+
   rescan: async () => {
     try {
       const r = await scanAssets()
@@ -231,30 +269,44 @@ export const useApp = create<AppState>((set, get) => ({
   openAsset: async (stone, asset) => {
     const sameStone = get().curStone?.id === stone.id
     set({
-      curStone: stone, curAsset: asset, selectedId: null, overlay: null, annos: [],
+      curStone: stone, curAsset: asset, overlay: null, annos: [],
+      selectedId: sameStone ? get().selectedId : null, multiSel: sameStone ? get().multiSel : [],
+      stoneAnnos: sameStone ? get().stoneAnnos : [],
       projItems: [], projReason: '',
       seg: { ...get().seg, points: [], boxes: [], dets: [], excluded: [], viewPreprocessed: false, lastInfo: '' },
-      tool: get().tool === 'align' && !is2d(asset) ? 'select' : get().tool,
     })
     writeHash(asset.id, get().page)
-    get().refreshAnnos().catch(toast.error)   // 内含按 projOn 拉取跨图投影
+    get().refreshAnnos().catch(toast.error)   // 内含按 projOn 拉取跨图投影，并刷新全石标注
     if (!sameStone || !get().stoneInfo) {
       try { set({ stoneInfo: await getStone(stone.id) }) } catch (e) { toast.error(e) }
     }
   },
 
   closeAsset: () => {
-    set({ curAsset: null, annos: [], selectedId: null, overlay: null, projOn: false, projItems: [] })
+    set({ curAsset: null, annos: [], selectedId: null, overlay: null, projItems: [] })
     writeHash(null, get().page)
   },
 
   refreshAnnos: async () => {
     const a = get().curAsset
     if (!a) return
-    const annos = await listAnnotations(a.id)
+    const [annos] = await Promise.all([listAnnotations(a.id), get().refreshStoneAnnos()])
     if (get().curAsset?.id !== a.id) return
     set({ annos })
     if (get().projOn && is2d(a)) await fetchProjected(a.id, set, get)
+  },
+
+  refreshStoneAnnos: async () => {
+    const s = get().curStone
+    if (!s) return
+    const rows = await stoneAnnotations(s.id)
+    if (get().curStone?.id !== s.id) return
+    const ids = new Set(rows.map(r => r.id))
+    set(st => ({
+      stoneAnnos: rows,
+      selectedId: st.selectedId != null && !ids.has(st.selectedId) ? null : st.selectedId,
+      multiSel: st.multiSel.filter(i => ids.has(i)),
+    }))
   },
 
   refreshStoneInfo: async () => {
@@ -265,26 +317,50 @@ export const useApp = create<AppState>((set, get) => ({
 
   /* ------------------------------------------------ 界面 */
   select: id => {
-    set({ selectedId: id })
+    set({ selectedId: id, multiSel: [] })
     const a = get().annos.find(x => x.id === id)
     if (a?.atype === 'align') {
       const g = a.geometry as unknown as AlignGeometry
       set({ overlay: { assetId: g.target_asset_id, opacity: 0.5, transform: alignGeomToOverlay(g) } })
     }
   },
-  setTool: t => set({ tool: t }),
-  setShape: s => set({ shape: s, tool: 'annotate' }),
-  setPage: p => { set({ page: p }); writeHash(get().curAsset?.id ?? null, p) },
+  toggleMulti: id => set(s => {
+    const base = s.multiSel.length ? s.multiSel : (s.selectedId != null ? [s.selectedId] : [])
+    const next = base.includes(id) ? base.filter(i => i !== id) : [...base, id]
+    return { multiSel: next, selectedId: next.length === 1 ? next[0] : s.selectedId }
+  }),
+  setMultiSel: ids => set({ multiSel: ids }),
+  setTreeOrder: ids => set({ treeOrder: ids }),
+  setTool: t => { if (PAGE_TOOLS[get().page].includes(t)) set({ tool: t }) },
+  setShape: s => { if (PAGE_TOOLS[get().page].includes('annotate')) set({ shape: s, tool: 'annotate' }) },
+  setPage: p => {
+    set(s => ({ page: p, tool: defaultTool(p, s.tool), multiSel: [] }))
+    writeHash(get().curAsset?.id ?? null, p)
+  },
   toggleTheme: () => {
     const theme: Theme = get().theme === 'dark' ? 'light' : 'dark'
     localStorage.setItem(THEME_KEY, theme)
     document.documentElement.dataset.theme = theme
     set({ theme })
   },
+  /** 把同石另一张已入链的图按坐标链叠到当前图上（首页图层面板） */
+  setOverlayAsset: assetId => {
+    const { curAsset, curStone, overlay } = get()
+    if (assetId == null || !curAsset || !curStone) { set({ overlay: null }); return }
+    const other = curStone.groups.flatMap(g => g.assets).find(a => a.id === assetId)
+    const t = other ? overlayFromChains(curAsset, other) : null
+    if (!other || !t) { toast.warn('两张图都要先接入主图坐标链才能叠加'); return }
+    set({ overlay: { assetId, opacity: overlay?.opacity ?? 0.5, transform: t } })
+  },
+  setOverlaySpec: o => set({ overlay: o }),
   setOverlayOpacity: v => set(s => ({ overlay: s.overlay ? { ...s.overlay, opacity: v } : null })),
   removeOverlay: () => set({ overlay: null }),
   setShowAnnoLayer: v => set({ showAnnoLayer: v }),
-  setShowSegLayer: v => set({ showSegLayer: v }),
+  setShowCandidates: v => set({ showCandidates: v }),
+  setShowLabels: v => { localStorage.setItem('stonelab.labels', v ? 'on' : 'off'); set({ showLabels: v }) },
+  toggleLevel: lv => set(s => ({
+    hiddenLevels: s.hiddenLevels.includes(lv) ? s.hiddenLevels.filter(x => x !== lv) : [...s.hiddenLevels, lv],
+  })),
 
   toggleProj: async v => {
     set({ projOn: v, projReason: '', projItems: v ? get().projItems : [] })
@@ -298,39 +374,118 @@ export const useApp = create<AppState>((set, get) => ({
   flyToAnnotation: id => set({ flyTo: { id, nonce: Date.now() }, selectedId: id }),
   sendViewerCmd: cmd => set({ viewerCmd: { cmd, nonce: Date.now() } }),
 
-  /* ------------------------------------------------ 标注 */
+  /* ------------------------------------------------ 标注 / 结构节点 */
   createShape: async c => {
-    const { curStone, curAsset } = get()
+    const { curStone, curAsset, selectedId, stoneAnnos } = get()
     if (!curStone || !curAsset) return
     try {
       const isLine = c.atype === 'line' || c.atype === 'line3d'
+      // 选中的是尚无几何的骨架节点：绘制的图形直接挂接到它，而不是新建
+      const target = !isLine && selectedId != null ? stoneAnnos.find(a => a.id === selectedId) : undefined
+      if (target && !hasGeometry(target) && c.atype !== 'point3d') {
+        await patchAnnotation(target.id, { asset_id: curAsset.id, atype: c.atype, geometry: c.geometry })
+        await get().refreshAnnos()
+        get().loadStones().catch(() => undefined)
+        toast.ok(`已把图形挂接到节点「${target.label}」`)
+        return
+      }
       const created = await createAnnotation({
         stone_id: curStone.id, asset_id: curAsset.id,
         tool: isLine ? 'measure' : 'annotate', atype: c.atype, geometry: c.geometry,
         label: isLine ? '测量' : '未命名', value: c.value ?? null, unit: c.unit ?? '',
         color: pickColor(get().annos.filter(a => a.atype !== 'align').map(a => a.color)),
+        auto_parent: !isLine,
       })
       await get().refreshAnnos()
-      set({ selectedId: created.id })
+      set({ selectedId: created.id, multiSel: [] })
       get().loadStones().catch(() => undefined)
     } catch (e) { toast.error(e) }
+  },
+
+  createPlaceholder: async (parentId, level, label) => {
+    const { curStone, curAsset, stones } = get()
+    if (!curStone) return null
+    // 骨架节点挂在主图（或当前 2D 图）上，之后再绘制几何
+    const st = stones.find(s => s.id === curStone.id) ?? curStone
+    const master = st.groups.flatMap(g => g.assets).find(a => a.is_master)
+    const host = (curAsset && is2d(curAsset) ? curAsset : master) ?? master
+    if (!host) { toast.warn('该石头没有可挂载节点的 2D 图'); return null }
+    try {
+      const created = await createAnnotation({
+        stone_id: curStone.id, asset_id: host.id, tool: 'annotate', atype: 'none', geometry: {},
+        label, level, parent_id: parentId, color: pickColor(get().stoneAnnos.map(a => a.color)),
+      })
+      await get().refreshAnnos()
+      set({ selectedId: created.id, multiSel: [] })
+      return created
+    } catch (e) { toast.error(e); return null }
   },
 
   updateAnnotation: async (id, body) => {
     try {
-      await patchAnnotation(id, body)
+      const a = await patchAnnotation(id, body)
       await get().refreshAnnos()
-    } catch (e) { toast.error(e) }
+      return a
+    } catch (e) { toast.error(e); return null }
   },
 
   removeAnnotation: async id => {
     try {
-      await deleteAnnotation(id)
+      const r = await deleteAnnotation(id)
       if (get().selectedId === id) set({ selectedId: null, overlay: null })
       await get().refreshAnnos()
       get().loadStones().catch(() => undefined)
       get().loadStats().catch(() => undefined)
+      if (r.message && r.message.includes('子节点')) toast.ok(r.message)
     } catch (e) { toast.error(e) }
+  },
+
+  removeAnnotations: async ids => {
+    if (ids.length === 0) return
+    try {
+      const r = await deleteAnnotations(ids)
+      set(s => ({ selectedId: s.selectedId != null && ids.includes(s.selectedId) ? null : s.selectedId, multiSel: [] }))
+      await get().refreshAnnos()
+      get().loadStones().catch(() => undefined)
+      get().loadStats().catch(() => undefined)
+      toast.ok(r.message || `已删除 ${ids.length} 条`)
+    } catch (e) { toast.error(e) }
+  },
+
+  batchPatch: async items => {
+    if (items.length === 0) return
+    try {
+      await patchAnnotations(items)
+      await get().refreshAnnos()
+    } catch (e) { toast.error(e) }
+  },
+
+  adopt: async (targetId, sourceId) => {
+    try {
+      const a = await adoptGeometry(targetId, sourceId)
+      await get().refreshAnnos()
+      set({ selectedId: a.id, multiSel: [] })
+      toast.ok(`已把候选的几何并入「${a.label}」`)
+    } catch (e) { toast.error(e) }
+  },
+
+  runAutoParent: async ids => {
+    const s = get().curStone
+    if (!s) return
+    try {
+      const r = await autoParent(s.id, { ids, only_orphans: ids == null, include_candidates: true })
+      await get().refreshAnnos()
+      if (r.assigned === 0) toast.warn(`没有可归类的节点（跳过 ${r.skipped}：无几何、未入链或找不到包含它的容器）`)
+      else toast.ok(`已把 ${r.assigned} 个节点归入所在的层 / 场景${r.skipped ? `，${r.skipped} 个无法判断` : ''}`)
+    } catch (e) { toast.error(e) }
+  },
+
+  addConcept: async (name, categoryId) => {
+    try {
+      const c = await createConcept({ name, category_id: categoryId })
+      await get().loadConcepts()
+      return c
+    } catch (e) { toast.error(e); return null }
   },
 
   /** 给当前资产的全部标注（对齐记录除外）按调色板顺序重新配色，相邻标注颜色不同 */
@@ -357,7 +512,7 @@ export const useApp = create<AppState>((set, get) => ({
   },
 
   onAligned: async (anno, overlayAssetId, t) => {
-    set({ overlay: { assetId: overlayAssetId, opacity: 0.5, transform: t }, tool: 'select' })
+    set({ overlay: { assetId: overlayAssetId, opacity: 0.5, transform: t } })
     await get().refreshAnnos()
     set({ selectedId: anno.id })
     get().loadStones().catch(() => undefined)   // 对齐可能更新了坐标链，刷新资产 extra
@@ -440,12 +595,12 @@ export const useApp = create<AppState>((set, get) => ({
         stone_id: curStone.id, asset_id: curAsset.id, tool: 'segment', atype: 'polygon',
         geometry: { points: d.polygon }, label,
         note: `machine_proposal score=${d.score.toFixed(3)} engine=${seg.engine}${extra}`,
-        color: colors[i],
+        color: colors[i], review_status: 'candidate', auto_parent: true,
       })))
       set(s => ({ seg: { ...s.seg, points: [], dets: [], excluded: [] } }))
       await get().refreshAnnos()
       get().loadStones().catch(() => undefined)
-      toast.ok(`已保存 ${keep.length} 个掩膜为分割图层（机器候选，须人工核对）`)
+      toast.ok(`已保存 ${keep.length} 个掩膜为机器候选（已按位置归入层 / 场景，到「标注」模块命名转正或删除）`)
     } catch (e) { toast.error(e) }
   },
 }))

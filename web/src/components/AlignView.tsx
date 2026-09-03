@@ -93,7 +93,6 @@ export default function AlignView({ leftAsset }: { leftAsset: AssetBrief }) {
   const candidates = useMemo(
     () => stone.groups.filter(g => g.key !== 'model').flatMap(g => g.assets), [stone])
   const onAligned = useApp(s => s.onAligned)
-  const setTool = useApp(s => s.setTool)
 
   const [rightId, setRightId] = useState<number | ''>('')
   const [pairs, setPairs] = useState<Pair[]>([])
@@ -185,7 +184,6 @@ export default function AlignView({ leftAsset }: { leftAsset: AssetBrief }) {
           disabled={!solution || saving || expecting === 'R'}>
           {saving ? '保存中…' : '确定对齐'}
         </Button>
-        <Button size="sm" variant="ghost" icon={<X size={13} />} onClick={() => setTool('select')}>退出</Button>
       </div>
 
       {pairs.length > 0 && (

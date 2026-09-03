@@ -1,62 +1,73 @@
 # StoneLab · 汉画像石研究平台
 
-面向武氏祠（及后续 40+ 块画像石）的本地研究平台。两个模块：
+面向武氏祠（及后续 40+ 块画像石）的本地研究平台。工作按**流水线**推进，首页集中展示成果：
 
-- **工作台**：浏览高清照片 / 局部 / 拓片 / 三维低模，标注、测量、SAM 分割（GPU 实际推理）、
-  左右分屏对应点对齐，并以"主图统一坐标系"实现标注跨图投影；
-- **研究模块**：图文关联研究——编辑石头元数据与释文，把图上标注与权威文字双向绑定
-  （文字按标注颜色高亮、锁定保护）。
+```text
+首页（展示 / 测量 / 图层）  ←  1 对齐  →  2 分割  →  3 标注  →  4 文献
+```
+
+- **对齐**：各图（照片 / 局部 / 拓片）与主图取同名点配准，接入"主图统一坐标系"，标注可跨图投影；
+- **分割**：用 SAM（点选 / 文字 / 示例框）和矩形 / 圆形 / 多边形 / 点，把画面切成一个个**实体**；
+- **标注**：每个实体是结构树的一个节点（整石 → 花纹带 / 层 → 场景 → 人物·物象 → 部件；榜题、残损为旁支），
+  填写状态、父级、类别、概念、三层图像志文本与榜题录文；可由释文一键生成骨架；
+- **文献**：把释文（目前来自著录原书，人工录入）与文献段落关联到已标注的节点，文字按节点颜色高亮并锁定。
+
+路线：先把武梁祠西壁这一块做"完整"（底本、结构、文献、综合四层），再导入其他石头。
+下一阶段是文献库（PDF / OCR 批量识别书籍内容、分段审核、插图绑定）。
 
 技术栈：FastAPI + SQLAlchemy + SQLite（后端），React 19 + TypeScript + Vite（前端），
 OpenSeadragon（深度缩放）、three.js（三维）、zustand（状态）、react-resizable-panels（可拖拽布局）。
+
+> 本仓库只包含**程序**。照片 / 拓片 / 三维、石头简介与释文（`meta.json`）、标注数据库均不入库，见第十二节。
 
 ## 一、目录结构
 
 ```text
 stonelab/
-├─ assets/                     素材区（导入新石头只动这里）
+├─ assets/                     素材区（不入库；导入新石头只动这里）
 │  └─ stones/
 │     └─ WS-003_武梁祠西壁/
-│        ├─ meta.json          石头信息（era/material/carving/dims_text/location/description/layers）
+│        ├─ meta.json          石头信息（era/material/carving/dims_text/location/description/layers），不入库
 │        ├─ photos/            全幅高清照片
 │        │  └─ 历代帝王（加强版）/   photos 下任意子文件夹 = "局部"分组
 │        ├─ rubbings/          拓片
 │        └─ models/high|mid|low/   各一套 obj + mtl + 贴图（界面只展示低模）
-├─ ml/                         分割模型权重
+├─ ml/                         分割模型权重（不入库）
 │  ├─ mobilesam/mobile_sam.pt            40 MB   点选分割（CPU）
 │  ├─ sam3/sam3.pt                       3.45 GB facebook/sam3 文本分割（GPU）
 │  └─ sam3.1/**/sam3.1_multiplex_fp16.safetensors  1.75 GB SAM3.1 文本分割（GPU）
 ├─ server/                     后端
 │  ├─ app/
-│  │  ├─ main.py               应用入口：生命周期（建表/迁移/启动扫描）、CORS、异常处理、托管 web/dist
+│  │  ├─ main.py               应用入口：生命周期（建表/迁移/播种概念/启动扫描）、CORS、异常处理、托管 web/dist
 │  │  ├─ config.py             全部路径与参数（环境变量可覆盖）
-│  │  ├─ db.py · models.py · migrations.py · schemas.py · constants.py
-│  │  ├─ routers/              system / stones / assets / annotations / segment / alignment
-│  │  ├─ services/             scanner / previews / alignment / transforms / textlinks / segment / serialize
+│  │  ├─ db.py · models.py · migrations.py · schemas.py
+│  │  ├─ constants.py          资产分组 + 结构枚举（层级 / SOP 类别 / 审核状态 / 质量 / 几何语义）
+│  │  ├─ knowledge.py          概念分类骨架（11 大类 × 小类）与种子概念（SOP 母题 + 汉画常见人物物象）
+│  │  ├─ routers/              system / stones（含 structure 骨架与归类）/ assets / annotations / concepts / segment / alignment
+│  │  ├─ services/             scanner / previews / alignment / transforms / textlinks / structure / seeds / segment / serialize
 │  │  └─ sam_worker.py         SAM 推理子进程（独立 Python 环境中运行）
-│  ├─ data/                    stonelab.db · previews/（预览、_hires 工作图、pp_ 预处理图）· thumbs/ · sam_worker.log
+│  ├─ data/                    stonelab.db · previews/ · thumbs/ · sam_worker.log（不入库）
 │  └─ requirements.txt
 ├─ web/                        前端
 │  ├─ src/
-│  │  ├─ App.tsx · api.ts · types.ts · styles.css（设计系统）
+│  │  ├─ App.tsx（按 page 路由五个页面） · api.ts · types.ts · styles.css（设计系统）
+│  │  ├─ pages/                HomePage / AlignPage / SegmentPage / AnnotatePage / LibraryPage
 │  │  ├─ store/                useApp（应用状态与动作） · useToast
-│  │  ├─ components/           TopBar / Workbench / Home / StoneTree / InfoPanel / AnnotationPanel / AlignView /
+│  │  ├─ components/           TopBar（流水线导航）/ CenterView（查看器区）/ Home（仪表）/ StoneTree / LayerPanel /
+│  │  │  │                     MeasureTools / ShapeList / AlignSidebar / AlignView / InfoPanel（元数据 + 释文关联）/
 │  │  │  │                     ErrorBoundary / Toaster / ui
-│  │  │  ├─ viewer/            Viewer2D / Viewer3D / ViewerBar / AnnotationShapes / useOsd
-│  │  │  ├─ tools/             ToolPanel / SegmentPanel
-│  │  │  └─ research/          ResearchPage / ResearchViewer / TextCard
+│  │  │  ├─ structure/         StructurePanel（结构树）/ NodeDetail（标注表单）/ ConceptPicker / SkeletonDialog
+│  │  │  ├─ viewer/            Viewer2D / Viewer3D / ViewerBar（含切图）/ AnnotationShapes / NodeInfoCard / useOsd
+│  │  │  ├─ tools/             ShapeTools / SegmentPanel
+│  │  │  └─ research/          TextCard（释文段落 + 拖选关联）
 │  │  ├─ hooks/useShortcuts.ts
-│  │  └─ lib/                  constants / format / geometry（Umeyama 求解、叠加换算、外接矩形）
+│  │  └─ lib/                  constants / format / geometry（Umeyama、坐标链叠加、外接矩形）/ tree（建树、展开、进度）
 │  └─ dist/                    npm run build 产物（后端可直接托管，不入库）
-├─ scripts/                    校验与运维脚本（见第八节）
-├─ _backup/                    重构前源码快照 zip（可删，不入库）
+├─ scripts/                    校验与运维脚本（见第九节）
 ├─ .gitignore · .gitattributes · .editorconfig · .vscode/settings.json   仓库与编辑器约定（UTF-8、LF）
 ├─ 启动平台.ps1
 └─ README.md
 ```
-
-素材（照片/拓片/三维）、模型权重、数据库与缓存**不进 Git**，仓库只版本化程序与各石的 `meta.json`；
-见第十一节。
 
 ## 二、启动
 
@@ -68,6 +79,7 @@ stonelab/
 或手动：
 
 ```powershell
+cd server ; pip install -r requirements.txt
 cd server ; python -m uvicorn app.main:app --host 127.0.0.1 --port 8020    # 后端（接口文档 /docs）
 cd web    ; npm install ; npm run dev                                       # 前端 → http://127.0.0.1:5173
 cd web    ; npm run build                                                   # 构建后后端自动托管 web/dist
@@ -75,7 +87,7 @@ cd web    ; npm run build                                                   # �
 
 全部服务只绑定 127.0.0.1。数据（标注、对齐、主图、编辑内容）都在
 `server/data/stonelab.db`，重启不丢；整个 stonelab 文件夹拷走即完成备份。
-后端**启动时自动扫描**素材目录并在后台预热预览缓存；顶栏「重新扫描」可随时手动触发。
+后端**启动时自动扫描**素材目录并在后台预热预览缓存，同时播种概念词表；顶栏「重新扫描」可随时手动触发。
 
 ### 配置（环境变量，均可选）
 
@@ -90,108 +102,136 @@ cd web    ; npm run build                                                   # �
 | `STONELAB_SCAN_ON_STARTUP` / `STONELAB_WARM_PREVIEWS` | 1 / 1 | 启动扫描、后台预热 |
 | `STONELAB_SAM_PYTHON` | WSC3D venv | 分割工作进程的 Python 解释器 |
 
-## 三、工作台（模块一）
+## 三、界面与流水线
 
-**布局**：顶栏（模块切换、面包屑、重新扫描、接口文档、深/浅色主题）；左侧「画像石」树
-（可搜索，带缩略图与主图/链徽标）与「工具」面板；中央查看器（照片/拓片走 OpenSeadragon，
-三维低模走 three.js，附缩放/适应窗口按钮与光标原图像素坐标）；右侧「简介与释文」与「标注」。
-三栏及上下分区**可拖拽调整**，布局自动记住。未打开素材时中央显示全库统计与操作指引。
-地址栏 `#a=<资产id>` 记录当前打开的素材，刷新后自动恢复；`&p=research` 进研究模块，
-`&t=<工具>&e=<引擎>` 仅在启动时读取（如 `#a=5&t=segment&e=sam3` 直接打开分割面板）。
+顶栏：品牌 · **首页 | 1 对齐 › 2 分割 › 3 标注 › 4 文献** · 面包屑（当前石头 / 图）· 重新扫描 / 接口文档 / 主题。
+所有页面共用同一份状态：在任一页选的石头、图、选中节点，切到别的页都还在；查看器顶栏的下拉可随时切换同一块石头的其他图
+（首页可切三维，其余模块只处理 2D）。地址栏 `#a=<资产id>&p=<页面>` 记录位置，刷新后恢复。
+各栏宽度可拖拽，布局自动记住。
 
-**工具与快捷键**：
+### 首页 · 展示
 
-| 工具 | 键 | 2D（照片/拓片） | 3D（低模） |
-|---|---|---|---|
-| 选中 | `V` / `Esc` | 点击图形或列表项高亮 | 点击标注球高亮 |
-| 标注 | `A`，形状 `1`/`2`/`3` | 矩形（拖拽）/ 多边形（连点、双击闭合、Esc 取消）/ 点 | 表面放置标注点 |
-| 测量 | `M` | 两点原图像素距离 | 两点模型单位距离（**未标定，不得当厘米**） |
-| 分割 | `S` | 点选（MobileSAM）/ SAM3 / SAM3.1 文本，见下 | — |
-| 对齐 | `L` | 左右分屏对应点配准，见下 | — |
-| 适应窗口 | `F` | 视图复位 | 相机复位 |
-| 删除 | `Del` 两次 | 删除选中标注（面板内删除需二次确认） | 同 |
+- 左上 **画像石**：石头 → 三维 / 高清照片 / 局部 / 拓片 分组树，带缩略图与主图 / 链徽标，可搜索；
+- 左下 **测量与图层**：选中 / 测量两个工具（`V` / `M`，测量结果为原图像素或模型单位，未标定）与测量记录；
+  图层开关——结构节点（可按层级逐个显隐）、机器候选（虚线）、节点名称、跨图投影（点划线）、
+  **图像叠加**（把同石另一张已入链的图按坐标链叠到当前图上，拖透明度做拓片 / 照片比对）；
+- 右侧 **预览**：照片 / 拓片走 OpenSeadragon，三维低模走 three.js；未打开素材时显示全库统计与流水线入口。
+  点选图上节点弹出只读**信息卡**：名称、路径、状态、类别、概念、图像志描述、录文、关联释文。
 
-**标注面板**：按 全部/标注/测量/分割/对齐 过滤；选中后可 **定位**（视图飞到该标注）、
-改名（或双击名称）、换颜色（18 色调色板）、删除。
+### 模块一 · 对齐
 
-**颜色**：新建标注（手画或批量保存分割候选）自动从调色板中分配当前图上用得最少的颜色，
-相邻标注互不相同；跨图投影沿用各标注自身颜色（点划线只表示"投影"）。「自动配色」可给本图
-全部标注按调色板重新分配（会覆盖手动选的颜色）；正红保留给选中态。
+- 左上选一张图作**左图**；左下显示坐标系状态：主图（可把当前图设为主图；已有坐标链时自动重定基，
+  新主图未对齐时拒绝切换）、每张 2D 图的入链状态与 RMSE、对齐记录（可重新叠加 / 删除）；
+- 中央左右分屏：右侧下拉选比对图（建议主图或任一已入链的图），左键取点（左红右蓝交替编号）、右键拖图、
+  滚轮缩放；配对列表逐对删除、悬停黄圈联动；最少 4 对、至多 20 对，实时 RMSE（绿 / 黄 / 红）；
+  「确定对齐」求解相似变换（Umeyama 最小二乘）并保存，配对双方任一已连主图则另一方自动接入坐标链。
+- 跨图投影：同石其他已入链图上的节点以点划线投影到当前图（沿用各节点颜色），在主图上做的节点会出现在
+  所有已对齐的照片 / 拓片上。相似变换只有旋转 + 缩放 + 平移，拓纸伸缩、镜头畸变带来的像素级偏差属对齐精度范围。
 
-**图层**（工具面板底部）：标注与测量 / 分割图层（虚线）/ 跨图投影（点划线）三个开关，
-以及对齐叠加的透明度。
+### 模块二 · 分割
 
-**分割**：三个引擎——点选（MobileSAM，CPU）、SAM3 / SAM3.1（文字与示例框概念分割，GPU）。
-模型按需加载/卸载（卸载即释放显存）。推理运行在独立 Python 环境的 sidecar 进程中
-（含 CUDA torch 与 sam3/mobile_sam 包），路径不存在时设 `STONELAB_SAM_PYTHON`。
+- 左下 **分割工具**：矩形 `1` / 圆形 `2` / 多边形 `3` / 点 `4`（`A` 进入绘制；多边形连点、双击闭合、`Esc` 取消；
+  圆形为内切于拖拽框的圆 / 椭圆），以及 **SAM 分割**（`S`）；
+- SAM 三个引擎——点选（MobileSAM，CPU）、SAM3 / SAM3.1（文字与示例框概念分割，GPU）；模型按需加载 / 卸载，
+  推理运行在独立 Python 环境的 sidecar 进程中（含 CUDA torch 与 sam3 / mobile_sam 包，路径不存在时设 `STONELAB_SAM_PYTHON`）：
+  - 点选：单击加正点、`Alt` + 单击加负点，可撤销；
+  - SAM3 / SAM3.1：**提示方式**（文字 / 文字 + 示例框：在图上框住一个典型目标作正例，`Alt` 拖拽为负例）、
+    **预处理**（原图 / 增强 / 仿拓片 + 反相，可查看模型实际看到的图）、**推理范围**（整图 / 切块 2560 / 切块 5120，
+    切块显著提高全幅照片里小人物的召回）、**阈值**（默认 0.10，照片建议 0.05–0.2 起试）；
+  - 候选掩膜青色虚线并标分数，点击剔除 / 恢复；保存的候选入库为**机器候选**（`review_status=candidate`，虚线），
+    并按几何包含自动归入所在层 / 场景，`note` 记录引擎、分数与参数；
+- 手绘的形状直接入库为已确认的实体（`reviewed`），同样自动归类；选中**无框**骨架节点时绘制即挂接到它；
+- 右侧 **本图实体**：当前图上切出的实体，按新旧排列，可筛选候选 / 已确认，逐条定位、确认（`R`）、删除或一键清空候选；
+  底部「去标注」跳到模块三。
 
-- 点选：单击加正点、`Alt`+单击加负点，可撤销上一点；
-- SAM3 / SAM3.1 的四组选项，专为"拓片能识别、照片识别不出"的域差距而设：
-  - **提示方式**：文字（预设人物/马/车/鸟/龙/鱼/树/文字，或手输英文概念词）；
-    **文字 + 示例框**——在图上拖拽框住一个典型目标作正例（`Alt` 拖拽为负例），模型按
-    "这块石头上的人长什么样"找同类，与文字叠加效果最好；纯示例框可用但噪声偏多；
-  - **预处理**：原图 / 增强（去光照渐变 + CLAHE）/ 仿拓片（再自适应二值化成黑底白图形，
-    光照相反时勾"反相"）；"查看预处理图"可把查看器切到模型实际看到的图；
-  - **推理范围**：整图 / 切块 2560 / 切块 5120。SAM3 内部把整图缩到 1008 px，全幅照片里
-    每个人物只剩几十像素；切块模式 = 整图一遍（负责大目标）+ 约 1024 px 切块各一遍
-    （负责小目标），结果按掩膜包含关系合并，块状伪检出自动过滤。示例框的特征来自本图，
-    有示例框时按整图推理；
-  - **阈值**：默认 0.10（照片建议 0.05–0.2 起试）。注意旧版存在缺陷：模型内部按 0.5 先过滤，
-    界面阈值低于 0.5 的部分从未生效，现已修正——这是"照片一个也识别不出"的主要原因之一。
-- 候选掩膜为青色虚线并标注分数，**点击可剔除 / 恢复**；保存时只保存未剔除的候选，
-  一次批量进入"分割图层"，`note` 中自动记 `machine_proposal`、分数、预处理与切块参数——
-  机器候选须人工核对。`scripts/bench_photo_seg.py` 可在一张照片上对照各配置的检出数与耗时。
+### 模块三 · 标注
 
-**对齐与统一坐标系**：
+- 左侧 **结构树**：一块石头的全部实体，跨图共享（别的图上的节点以「投影」显示，未入链的图上的以灰眼标记，双击切过去）。
+  搜索、筛选（候选 / 无框 / 未归类 / 未关联释文）、按层级折叠、拖拽换父级（拖到顶部虚线区 = 移到顶层）、
+  `Ctrl+点击` 多选后批量设层级 / 转正 / 归类 / 删除；「骨架」从释文生成节点，「归类」按几何包含归入层 / 场景，
+  「节点」新建无框子节点；顶部进度：整石 / 层 / 场景 / 人物 / 榜题 数与已关联释文、已挂概念数；
+- 中央图像：点选节点；选中无框节点时按 `A` 绘制即挂接；
+- 右侧 **标注表单**：名称、层级、次序、状态（候选 / 已审 / 已核定 / 已否决，候选有「转正并保存」）、父级
+  （下拉手选，或采纳按几何包含给出的建议）、SOP 类别、概念（搜索 / 现场新增）、释文关联（只读，去文献模块操作）、
+  图像志三层文本（前图像志 / 图像志 / 图像学）、榜题录文 / 今译 / 释读注、几何（定位 / 重画）、颜色、备注、
+  高级（标注质量 / 几何语义）。**修改后点「保存」**（`Ctrl+S`）；切换到别的节点时未保存的修改会自动保存。
 
-- 每块石头有一张**主图**（坐标系原点，红色"主图"徽标）。扫描时自动兜底指派
-  （最高分辨率全幅照片），可在查看器顶栏"设为主图"手动更换——已有坐标链时自动重定基，
-  新主图未对齐时拒绝切换以保护既有对齐；
-- 对齐工具：左键取点（左红右蓝交替编号）、右键拖图、滚轮缩放；配对列表可逐对删除、
-  悬停黄圈联动；最少 4 对、至多 20 对，实时 RMSE（绿/黄/红提示精度）；"确定对齐"求解
-  相似变换（Umeyama 最小二乘）并保存；
-- 配对双方任一已连主图，另一方自动**接入坐标链**（绿色"链"徽标），链可传播；
-- **跨图投影**：默认开启（图层栏可关，偏好会记住），同石其他已入链图上的标注以点划线
-  （沿用各自颜色）投影到当前图，悬停显示来源——在主图上做的标注会自动出现在所有已对齐的照片/拓片上；
-- 对齐记录存于标注列表，点选即可重新应用叠加（透明度可调）。
+### 模块四 · 文献
 
-## 四、研究模块（模块二）
+- 左侧同一棵结构树（标题显示已关联释文的节点数）；中央图像；
+- 右侧 **文献与释文**：石头元数据（尺寸 / 年代 / 材质 / 刻法 / 收藏，改后「保存信息」）；总述与各层释文逐段可编辑；
+  选中节点后**拖选一段文字 → 「关联到本节点」**，文字以节点颜色高亮并**锁定**：编辑文本时删改已关联文字会被拒绝（409），
+  其他改动正常保存且全部关联区间自动重定位；同一文本源上的关联区间不能重叠；点高亮文字可反选节点。
+- 释文是目前唯一的"文献"，由著录原书人工录入 `meta.json`（重新扫描只在字段为空时填入，不覆盖人工编辑）。
 
-入口：顶栏「研究」标签，或简介面板右上「研究」按钮（需先选中石头）。从工作台带着一张
-已入链的图进入时，直接在该图层上打开。三栏可拖拽：
+### 快捷键
 
-- **左侧 · 标注栏**：当前图层可见的全部标注——本图层自有的，加上其他已入链图层（通常是主图）
-  **投影**过来的（带"投影"徽标）；可按名称/内容筛选、按已关联/未关联过滤；下方是编辑区
-  （改名、填写内容、定位、取消关联）；
-- **中间 · 图像**：顶栏切换**已对齐入链**的图层；图上显示自有标注（实线）与投影标注（点划线，
-  沿用各自颜色），点击均可选中；右上缩放按钮；
-- **右侧**：石头信息（尺寸/年代/材质/刻法/位置，改后出现"保存信息"）；简介与释文
-  （总述 + 各层释文，逐段编辑）；
-- **图文关联**：选中标注（自有或投影的都可以）→ 在任一段落中拖选文字 → "关联到「标注名」"→
-  文字以**该标注的颜色高亮并锁定**，标注内容即该段文字；图形、左侧列表色块、右侧文字底色、
-  编辑区关联文字框四处同色。点高亮文字可反选标注；"取消关联"解绑。
-- **锁定保护**：编辑文本时删改任何已关联文字会被拒绝保存（409）；其他改动正常保存，
-  且全部关联区间的偏移自动重定位；两个标注的关联区间不允许重叠。
+| 键 | 作用 | 生效模块 |
+|---|---|---|
+| `V` / `Esc` | 选中工具；`Esc` 在选中工具下取消选中、绘制中取消 | 全部 |
+| `M` | 测量 | 首页 |
+| `A` · `1`/`2`/`3`/`4` | 绘制 · 矩形 / 圆形 / 多边形 / 点 | 分割（标注模块 `A` 用于给无框节点挂接） |
+| `S` | SAM 分割 | 分割 |
+| `F` | 适应窗口 | 全部 |
+| `↑` / `↓` · `Enter` | 结构树上下移动 · 定位到选中节点 | 标注、文献 |
+| `R` | 把选中的机器候选转正 | 分割、标注 |
+| `Ctrl+S` | 保存标注表单 | 标注 |
+| `Del` 两次 | 删除选中（多选时删全部所选；子节点上挂一级）；首页只删测量记录 | 首页、对齐、分割、标注 |
 
-注意：为保护人工编辑，**重新扫描不再用 meta.json 覆盖已有文字字段**
-（仅在字段为空时填入）；分层释文（layers）只在库中尚无分层时播种。
+**颜色**：新建实体自动从 18 色调色板中分配当前图上用得最少的颜色；正红保留给选中态。图形描边按层级区分：
+整石与层为粗线无填充，场景中等，人物细线淡填充，榜题点线；机器候选虚线；名称标签在图形屏幕宽度不足 34 px 时自动隐藏。
 
-## 五、导入新石头（未来 40+ 块）
+## 四、结构化标注（数据模型）
+
+标注不是一张图上的平铺列表，而是**一块石头**的一棵树，跨图共享（各图经统一坐标系投影）。
+规范沿用旧系统 WSC3D 的《汉画像石标注 SOP v0.3》。
+
+| 字段（`annotations` 表） | 取值 | 说明 |
+|---|---|---|
+| `level` 结构层级 | whole 整石 / band 花纹带 / layer 层 / scene 场景 / figure 人物·物象 / component 部件 / inscription 榜题 / trace 刻线 / damage 残损 | 树中以单字徽标显示；层节点的 `seq` = 释文层号 |
+| `parent_id` / `seq` | 父节点 / 同级次序 | 只校验同石、不成环；层级嵌套只作建议与默认值 |
+| `category` 一层类别 | SOP 14 类 + unknown（创世主神、仙人异士、神话帝王、忠臣刺客、孝子、烈女、乐舞、车马、神兽、天象、生活场景、建筑、题刻、纹饰） | 跨石头互斥大类，未来做检测模型的训练池 |
+| 概念 `annotation_concepts` | 多对多，挂 `concepts` 表 | 概念挂在 11 大类 × 小类的分类骨架下（人 / 天然 / 人造 / 想象 / 纹样 / 故事典故 / 题刻 / 形态 / 行为 / 关系 / 复合），启动时播种 269 条（SOP 母题 + 汉画常见人物物象），界面可现场新增 |
+| `semantics` 图像志三层 | pre_iconographic 直观描述 / iconographic 主题识别 / iconological 文化阐释 + inscription{transcription 录文, translation, notes} | 榜题节点显示录文子面板 |
+| `review_status` | candidate 候选 / reviewed 已审 / approved 已核定 / rejected 已否决 | SAM 产物默认 candidate（虚线）；转正 = reviewed |
+| `quality` / `geometry_intent` | weak/silver/gold；visible_trace/semantic_extent/reconstructed_extent | 「高级」折叠区 |
+| 几何 | `atype` rect / ellipse / polygon / point；`none` + `geometry={}` 为**无框骨架节点** | 圆形投影与包含判断按 32 边多边形处理 |
+| `desc_source/desc_start/desc_end/desc_text` | 释文关联 | 文本源为 `description`（总述）或 `layer:N` |
+
+**从释文生成骨架**（标注模块「骨架」）：后端解析总述与各层释文——"一则 / 二则"为场景、"首刻 / 次一人"为人物、
+"数词 + 名词"枚举为物象、引号内为榜题录文、"第 N、M 层间饰…花纹带"为花纹带——预览勾选（可改名）后创建；
+场景与人物节点自动关联到对应释文区段，名称能匹配的自动挂概念，已有同名节点默认不再创建。节点先无框，
+之后在分割 / 标注模块绘制挂接，或把 SAM 候选拖到节点上「并入几何」（几何、子节点、概念、释文关联一并转移）。
+解析针对蒋英炬、吴文祺释文的行文习惯，其他体例的释文需要人工多改名。
+
+**验收**：结构树筛选芯片 候选 / 无框 / 未归类 / 未关联释文 清零，即该石"结构完整"。
+
+## 五、素材与释文的准备（每块石头）
 
 1. 在 `assets/stones/` 建 `编号_名称` 目录（如 `WS-007_前石室东壁`）；
 2. 全幅照片放 `photos/`，局部照片放 `photos/` 下任意子文件夹，拓片放 `rubbings/`，
-   三维放 `models/high|mid|low/`（界面只展示低模，高模/中模仅登记归档）；
-3. 可选 `meta.json`：`era / material / carving / dims_text / location / description /
-   layers[{seq,name,summary}]`；
-4. 重启后端、顶栏「重新扫描」或 `POST /api/scan` 入库；同名文件替换会自动重读尺寸并作废
-   预览缓存（**改文件名会被视为删旧增新，旧名下的标注随之删除**）。
+   三维放 `models/high|mid|low/`（界面只展示低模，高模 / 中模仅登记归档）；
+3. `meta.json`（可选，UTF-8）：
+
+   ```json
+   {
+     "code": "WS-007", "name": "前石室东壁",
+     "era": "", "material": "", "carving": "", "dims_text": "", "location": "",
+     "description": "总述释文……",
+     "layers": [{ "seq": 1, "name": "第一层名称", "summary": "该层释文……" }]
+   }
+   ```
+
+4. 重启后端、顶栏「重新扫描」或 `POST /api/scan` 入库；同名文件替换会自动重读尺寸并作废预览缓存
+   （**改文件名会被视为删旧增新，旧名下的标注随之删除**）。每块石头保证有一张主图（无则兜底取最高分辨率的全幅照片）。
 
 ## 六、数据库
 
 SQLite（`server/data/stonelab.db`），经 SQLAlchemy ORM，启动时自动轻量迁移
-（`migrations.py` 以 ALTER 补列）。大文件留在文件系统，库中只存元数据与标注。表：
-`stones`（含 carving）/ `layers` / `assets`（extra 内含 is_master 与 align_to_master 坐标链）/
-`annotations`（几何用 0..1 归一化坐标；`desc_source/desc_start/desc_end/desc_text` 为图文关联）。
+（`migrations.py` 以 ALTER 补列；一次性数据修正记录在 `schema_fixes` 表，不会重复执行）。
+大文件留在文件系统，库中只存元数据与标注。表：
+`stones` / `layers` / `assets`（extra 内含 is_master 与 align_to_master 坐标链）/
+`annotations`（结构节点、测量与对齐记录）/ `concepts`（概念词，跨石头共享）/ `annotation_concepts`（节点—概念多对多）。
 未来需多人协作时改 `app/config.py` 的 `database_url` 换 PostgreSQL 即可。
 
 ## 七、接口
@@ -201,22 +241,28 @@ SQLite（`server/data/stonelab.db`），经 SQLAlchemy ORM，启动时自动轻�
 | 分组 | 接口 |
 |---|---|
 | 系统 | `GET /api/health` · `GET /api/stats` · `POST /api/scan[?warm=]` |
-| 石头 | `GET /api/stones` · `GET/PATCH /api/stones/{id}` · `PATCH /api/stones/{id}/layers/{seq}` · `GET /api/stones/{id}/annotations` · `POST /api/stones/{id}/master/{asset_id}` |
+| 石头 | `GET /api/stones` · `GET/PATCH /api/stones/{id}` · `PATCH /api/stones/{id}/layers/{seq}` · `GET /api/stones/{id}/annotations`（结构树数据源） · `POST /api/stones/{id}/master/{asset_id}` |
+| 结构 | `GET /api/stones/{id}/structure/skeleton`（释文解析预览） · `POST /api/stones/{id}/structure/skeleton`（按选定清单建节点） · `POST /api/stones/{id}/structure/auto-parent`（按几何包含归类） |
 | 资产 | `GET /api/assets/{id}/preview` · `GET /api/assets/{id}/thumb` · `GET /api/assets/{id}/preprocessed?mode=&invert=` · `GET /api/assets/{id}/model/{fname}` · `GET /api/assets/{id}/projected` |
-| 标注 | `GET /api/annotations?asset_id=` · `POST /api/annotations` · `POST /api/annotations/batch` · `PATCH /api/annotations/batch`（批量改名称/内容/颜色） · `PATCH/DELETE /api/annotations/{id}` |
+| 标注 | `GET /api/annotations?asset_id=` · `POST /api/annotations`（`auto_parent`、`parent_id`、`level`…） · `POST /api/annotations/batch` · `PATCH /api/annotations/batch`（名称/颜色/父级/层级/类别/次序/审核） · `POST /api/annotations/batch-delete` · `PATCH/DELETE /api/annotations/{id}`（含 `semantics`、`concept_ids`、挂接几何） · `GET /api/annotations/{id}/parent-suggestions` · `POST /api/annotations/{id}/adopt` |
+| 概念 | `GET /api/concepts/taxonomy` · `GET/POST /api/concepts` · `PATCH/DELETE /api/concepts/{id}` |
 | 分割 | `GET /api/tools/segment/status` · `POST /api/tools/segment/load|unload/{engine}` · `POST /api/tools/segment/point` · `POST /api/tools/segment/text`（`prompt` / `boxes[]` / `preprocess` / `invert` / `tiling`） |
 | 对齐 | `POST /api/align/commit` |
 
-错误统一为 `{"detail": "中文说明"}`：404 不存在、409 图文关联冲突、422 参数/区间非法。
+错误统一为 `{"detail": "中文说明"}`：404 不存在、409 图文关联冲突 / 概念重名、422 参数/区间非法 / 父子成环。
 
 ## 八、脚本（scripts/）
 
 | 脚本 | 用途 |
 |---|---|
 | `check_encoding.py` | 全项目 GBK→UTF-8 修复 + 中文损毁（连续问号）扫描，**改完代码必跑** |
-| `smoke_ui.py [--dev] [--shots 目录]` | 用本机 Edge 无头渲染首页/2D/3D/研究页，统计关键 DOM 并可截图 |
+| `patch_utf8.py spec.json` | 按 JSON 规格对 UTF-8 源文件做精确替换（编辑器把新建的中文文件误读为 GBK 时用它改代码） |
+| `smoke_ui.py [--dev] [--shots 目录]` | 用本机 Edge 无头渲染首页与四个模块，统计关键 DOM 并可截图 |
+| `reset_annotations.py [--all] [--yes]` | 清空结构节点与测量（默认保留对齐记录与坐标链），先自动备份数据库 |
+| `seed_skeleton_containers.py [编号]` | 为一块石头只创建骨架的容器节点（整石 / 花纹带 / 层 / 场景），幂等 |
+| `verify_structure.py [--preview-only] [--keep]` | 结构树端到端验证：骨架预览/创建、挂接几何、父级建议与自动归类、批量处置、候选并入、成环拒绝、删除上挂 |
 | `bench_photo_seg.py [--engine] [--prompt] [--asset]` | 同一张照片上对照 整图/切块 x 原图/增强/仿拓片 的检出数、分数与耗时（需 GPU 环境） |
-| `verify_research.py` | 研究模块（字段编辑/图文关联/锁定保护）验证 |
+| `verify_research.py` | 释文关联（字段编辑/图文关联/锁定保护）验证 |
 | `verify_frame.py` | 统一坐标系（对齐入链+跨图投影）数学验证，用后自动清理 |
 | `verify_master.py` | 主图切换/复原验证 |
 | `verify_meta.py` | meta.json 释文入库核验 |
@@ -225,14 +271,13 @@ SQLite（`server/data/stonelab.db`），经 SQLAlchemy ORM，启动时自动轻�
 
 ## 九、当前边界
 
-- 2D 预览为长边 2560 的 sRGB JPEG（首次打开生成缓存；扫描后后台预热）；全分辨率深度缩放需
-  DZI 瓦片，未做；
-- 三维查看用低模；816 MB 高模不进浏览器；三维与照片的坐标打通（相机位姿配准）未做，
-  跨图投影目前仅覆盖 2D；
+- 2D 预览为长边 2560 的 sRGB JPEG（首次打开生成缓存；扫描后后台预热）；全分辨率深度缩放需 DZI 瓦片，未做；
+- 三维查看用低模；816 MB 高模不进浏览器；三维与照片的坐标打通（相机位姿配准）本轮不做，跨图投影与叠加仅覆盖 2D；
 - 测量无比例尺标定：2D 为原图像素，3D 为模型单位；
-- 跨图投影用的是对齐求得的相似变换（旋转 + 缩放 + 平移）；拓纸伸缩、镜头畸变等局部形变
-  会带来像素级偏差，属对齐精度范围（可增加对应点、参考 RMSE）；
-- 图文关联覆盖总述与各层释文；分割候选保存后即为普通多边形标注。
+- 图文关联覆盖总述与各层释文，同一文本源上的关联区间不能重叠：骨架生成时场景 / 人物节点各占一段释文，
+  其下的物象、榜题不再自动关联（可手动关联未被占用的句子）；
+- 几何包含推断用主图坐标系下的外接矩形，未入链的图上的节点不参与建议与归类；
+- 概念是扁平词表 + 固定两级分类，暂无同义合并与概念间关系；文献库（PDF / OCR / 分段 / 插图）、证据链、观点综合属后续阶段。
 
 ## 十、开发注意
 
@@ -241,7 +286,10 @@ SQLite（`server/data/stonelab.db`），经 SQLAlchemy ORM，启动时自动轻�
   "连续问号"式损毁时以非零码退出。此外避免在含中文的文件里使用 GBK 之外的符号
   （如 U+2218 复合算符、U+2713 对勾、U+26A0 警告号、emoji），它们会在转码中变成问号。
   仓库内的 `.editorconfig` 与 `.vscode/settings.json` 已把编码钉为 UTF-8，新环境一般不会再遇到。
-- 前端类型检查：`cd web ; npm run typecheck`；构建：`npm run build`；界面冒烟：`python scripts/smoke_ui.py`。
+- 上述转码之后，编辑器工具可能仍按 GBK 读取该文件（显示成乱码、精确替换找不到原文）。此时不要
+  用编辑器改它：写一个 `{"file": ..., "edits": [{"old": ..., "new": ...}]}` 规格，运行
+  `python scripts/patch_utf8.py spec.json`（规格文件本身 UTF-8 / GBK 均可），或整文件重写后再跑 `check_encoding.py`。
+- 前端类型检查：`cd web ; npm run typecheck`；构建：`npm run build`；界面冒烟：`python scripts/smoke_ui.py --shots server/data/shots`。
 - zustand 选择器**只能返回原始值或 store 内既有引用**，不能每次返回新数组/对象（会触发无限重渲染，
   整棵树被卸载成黑屏）；派生列表请在组件里 `useMemo`。
 - 各面板都包在 `ErrorBoundary` 里：组件抛错只会在该区域显示错误卡片与"重置"按钮，控制台有堆栈。
@@ -255,8 +303,8 @@ SQLite（`server/data/stonelab.db`），经 SQLAlchemy ORM，启动时自动轻�
 ## 十一、版本控制
 
 - 仓库：https://github.com/wahonet/WSC3D （`main` 为当前程序；旧项目历史保留在 `legacy/wsc3d` 分支）。
-- 不入库：`assets/stones/**`（仅保留各石 `meta.json`）、`ml/`、`server/data/`（数据库、缓存、日志）、
-  `web/node_modules`、`web/dist`、`_backup/`。如需把标注数据库也纳入备份，把 `.gitignore` 中的
-  `server/data/` 改为只忽略 `previews/`、`thumbs/` 与 `*.log`。
+- **只上传程序壳子**。不入库：`assets/stones/**`（照片、拓片、三维、**以及 `meta.json` 简介与释文**）、`ml/`、
+  `server/data/`（数据库、缓存、日志、截图）、`web/node_modules`、`web/dist`、`_backup/`。
+  换机器时把 `assets/stones/`、`ml/`、`server/data/stonelab.db` 三处单独拷贝即可复原。
 - 本机 git 全局配置了代理 `127.0.0.1:18081`；代理未开时推送需临时绕过：
   `git -c http.proxy= -c https.proxy= push origin main`。
