@@ -12,6 +12,10 @@
     STONELAB_SCAN_ON_STARTUP             启动时自动扫描素材（默认 1）
     STONELAB_WARM_PREVIEWS               扫描后后台预热预览缓存（默认 1）
     STONELAB_SAM_PYTHON                  分割工作进程使用的 Python 解释器
+    STONELAB_LIBRARY                     文献 PDF 目录（默认 <项目>/assets/library）
+    STONELAB_OCR_PYTHON                  现代书籍 OCR 工作进程的 Python（MinerU 环境，默认 ml/ocr/mineru-venv）
+    STONELAB_NDL_PYTHON / STONELAB_NDL_ROOT   古籍 OCR 工作进程的 Python 与 NDL-KotenOCR Lite 引擎目录
+    STONELAB_OCR_DPI                     OCR 页图渲染 DPI（默认 300）
 """
 from __future__ import annotations
 
@@ -77,6 +81,31 @@ class Settings:
         r"E:\wushici3D\WSC3D\ai-service\.venv\Scripts\python.exe",
     ])
 
+    # ---- 文献库 / OCR
+    library_root: Path = field(default_factory=lambda: _env_path("STONELAB_LIBRARY", ROOT / "assets" / "library"))
+    ocr_dpi: int = _env_int("STONELAB_OCR_DPI", 300)
+    view_dpi: int = 150                     # 校勘台浏览用页图
+    # 现代书籍：MinerU 环境；古籍：NDL-KotenOCR Lite（ONNX，CPU）
+    ocr_python_candidates: list[str] = field(default_factory=lambda: [
+        os.environ.get("STONELAB_OCR_PYTHON", ""),
+        str(ROOT / "ml" / "ocr" / "mineru-venv" / "Scripts" / "python.exe"),
+    ])
+    ndl_python_candidates: list[str] = field(default_factory=lambda: [
+        os.environ.get("STONELAB_NDL_PYTHON", ""),
+        str(ROOT / "ml" / "ocr" / "ndl-venv" / "Scripts" / "python.exe"),
+    ])
+    ndl_root: Path = field(default_factory=lambda: _env_path("STONELAB_NDL_ROOT", ROOT / "ml" / "ocr" / "ndlkotenocr-lite"))
+    mineru_models_dir: Path = ROOT / "ml" / "ocr" / "mineru-models"
+
+    @property
+    def library_data_dir(self) -> Path:
+        """文献派生数据：页图缓存、插图裁片、OCR 原始输出。"""
+        return self.data_dir / "library"
+
+    @property
+    def ocr_log(self) -> Path:
+        return self.data_dir / "ocr_worker.log"
+
     @property
     def preview_dir(self) -> Path:
         return self.data_dir / "previews"
@@ -100,5 +129,5 @@ class Settings:
 
 settings = Settings()
 
-for _d in (settings.data_dir, settings.preview_dir, settings.thumb_dir):
+for _d in (settings.data_dir, settings.preview_dir, settings.thumb_dir, settings.library_data_dir, settings.library_root):
     _d.mkdir(parents=True, exist_ok=True)

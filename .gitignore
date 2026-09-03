@@ -33,3 +33,6 @@ Thumbs.db
 desktop.ini
 *.swp
 .idea/
+
+# ---- Library PDFs (copyrighted books) stay on disk
+assets/library/

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""ORM 模型：石头 / 分层释文 / 资产 / 标注（结构树节点） / 概念 / 标注-概念关联。
+"""ORM 模型：石头 / 分层释文 / 资产 / 标注（结构树节点） / 概念 / 标注-概念关联 / 文献库（文献、页、文段、插图）。
 
 表结构与既有数据库兼容；新增列一律通过 migrations.py 以 ALTER 补齐。
 """
@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import JSON, DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .db import Base
@@ -166,3 +166,101 @@ class AnnotationConcept(Base):
 
     annotation: Mapped[Annotation] = relationship(back_populates="concept_links")
     concept: Mapped[Concept] = relationship(back_populates="links")
+
+
+# ================================================================ 文献库
+class Document(Base):
+    """一部文献（书 / 论文 / 图录）= assets/library 下的一个 PDF。"""
+    __tablename__ = "documents"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    code: Mapped[str] = mapped_column(String(32), unique=True, index=True)     # DOC-001
+    title: Mapped[str] = mapped_column(String(256), default="")
+    authors: Mapped[str] = mapped_column(String(256), default="")
+    year: Mapped[str] = mapped_column(String(32), default="")
+    publisher: Mapped[str] = mapped_column(String(128), default="")
+    kind: Mapped[str] = mapped_column(String(16), default="book")             # book / article / catalog / other
+    script: Mapped[str] = mapped_column(String(16), default="modern")         # modern 现代横排 / classical 古籍竖排
+    relpath: Mapped[str] = mapped_column(String(512), unique=True)             # 相对 library_root
+    sha256: Mapped[str] = mapped_column(String(64), default="")
+    bytes: Mapped[int] = mapped_column(Integer, default=0)
+    page_count: Mapped[int] = mapped_column(Integer, default=0)
+    has_text_layer: Mapped[bool] = mapped_column(Boolean, default=False)      # PDF 自带文字层
+    notes: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=now, onupdate=now)
+
+    pages: Mapped[list["Page"]] = relationship(back_populates="document", cascade="all, delete-orphan",
+                                               order_by="Page.page_no")
+
+
+class Page(Base):
+    """物理页：OCR 状态、页图指纹与阅读顺序全文。"""
+    __tablename__ = "doc_pages"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    document_id: Mapped[int] = mapped_column(ForeignKey("documents.id"), index=True)
+    page_no: Mapped[int] = mapped_column(Integer)                             # 1-based 物理页
+    width: Mapped[int] = mapped_column(Integer, default=0)                    # OCR 页图像素
+    height: Mapped[int] = mapped_column(Integer, default=0)
+    image_sha256: Mapped[str] = mapped_column(String(64), default="")
+    status: Mapped[str] = mapped_column(String(16), default="pending")        # pending / running / done / error / skipped
+    engine: Mapped[str] = mapped_column(String(32), default="")               # mineru / ndl
+    text: Mapped[str] = mapped_column(Text, default="")                       # 按阅读顺序拼接的全页文字
+    error: Mapped[str] = mapped_column(Text, default="")
+    stats: Mapped[dict] = mapped_column(JSON, default=dict)                   # {segments, figures, confidence, seconds}
+    ocr_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+    document: Mapped[Document] = relationship(back_populates="pages")
+    segments: Mapped[list["Segment"]] = relationship(back_populates="page", cascade="all, delete-orphan",
+                                                     order_by="Segment.seq")
+    figures: Mapped[list["Figure"]] = relationship(back_populates="page", cascade="all, delete-orphan",
+                                                   order_by="Figure.seq")
+
+
+class Segment(Base):
+    """文段：一页里的一个版面块（正文段落 / 标题 / 图注 / 脚注 / 页眉 / 表格 / 古籍行）。
+
+    text 为机器底稿（只读），text_edit 为人工校订稿；引用锚点 = (文献, 物理页, 文段序号)。
+    """
+    __tablename__ = "segments"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    document_id: Mapped[int] = mapped_column(ForeignKey("documents.id"), index=True)
+    page_id: Mapped[int] = mapped_column(ForeignKey("doc_pages.id"), index=True)
+    seq: Mapped[int] = mapped_column(Integer)                                 # 页内阅读顺序
+    kind: Mapped[str] = mapped_column(String(24), default="text")             # text/title/caption/footnote/header/page_number/table/equation/list/line/other
+    text: Mapped[str] = mapped_column(Text, default="")
+    text_edit: Mapped[str] = mapped_column(Text, default="")
+    bbox: Mapped[list] = mapped_column(JSON, default=list)                    # [x0,y0,x1,y1] 归一化 0..1
+    confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
+    review_status: Mapped[str] = mapped_column(String(16), default="machine") # machine / reviewed / rejected
+    revision: Mapped[int] = mapped_column(Integer, default=0)
+    note: Mapped[str] = mapped_column(Text, default="")
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=now, onupdate=now)
+
+    page: Mapped[Page] = relationship(back_populates="segments")
+
+    @property
+    def display_text(self) -> str:
+        return self.text_edit or self.text
+
+
+class Figure(Base):
+    """文献插图：版面中的图块 + 绑定的图注（如"图版2.34 东阙第二层墓阙北面画像"）。"""
+    __tablename__ = "figures"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    document_id: Mapped[int] = mapped_column(ForeignKey("documents.id"), index=True)
+    page_id: Mapped[int] = mapped_column(ForeignKey("doc_pages.id"), index=True)
+    seq: Mapped[int] = mapped_column(Integer)
+    bbox: Mapped[list] = mapped_column(JSON, default=list)
+    image_relpath: Mapped[str] = mapped_column(String(512), default="")      # 裁片，相对 library_data_dir
+    caption: Mapped[str] = mapped_column(Text, default="")
+    label: Mapped[str] = mapped_column(String(64), default="")               # 图1.1 / 图版2.34 / 表2-2
+    caption_bbox: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    review_status: Mapped[str] = mapped_column(String(16), default="machine")
+    note: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
+
+    page: Mapped[Page] = relationship(back_populates="figures")

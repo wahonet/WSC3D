@@ -21,7 +21,7 @@ from .config import APP_NAME, APP_VERSION, settings
 from .db import Base, SessionLocal, engine
 from .migrations import migrate
 from .routers import api
-from .services import scanner, seeds, segment
+from .services import library, scanner, seeds, segment
 
 logging.basicConfig(
     level=logging.INFO,
@@ -47,8 +47,13 @@ async def lifespan(_: FastAPI):
                 scanner.scan(db)
             except Exception as e:  # 扫描失败不应阻止服务启动
                 log.exception("启动扫描失败：%s", e)
+            try:
+                library.scan(db)
+            except Exception as e:
+                log.exception("文献库扫描失败：%s", e)
     yield
     segment.shutdown_worker()
+    library.shutdown_workers()
 
 
 app = FastAPI(
@@ -63,6 +68,7 @@ app = FastAPI(
         {"name": "资产", "description": "预览、缩略图、模型文件、跨图投影"},
         {"name": "标注", "description": "结构节点 CRUD、图文关联、父级建议、候选并入"},
         {"name": "概念", "description": "分类骨架与概念词表"},
+        {"name": "文献库", "description": "PDF 入库、页图、OCR 作业（MinerU / NDL）、文段与插图校订、全文检索"},
         {"name": "分割", "description": "MobileSAM / SAM3 / SAM3.1"},
         {"name": "对齐", "description": "对应点配准与坐标链"},
     ],

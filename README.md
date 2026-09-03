@@ -32,10 +32,12 @@ stonelab/
 │        │  └─ 历代帝王（加强版）/   photos 下任意子文件夹 = "局部"分组
 │        ├─ rubbings/          拓片
 │        └─ models/high|mid|low/   各一套 obj + mtl + 贴图（界面只展示低模）
-├─ ml/                         分割模型权重（不入库）
+├─ assets/library/             文献 PDF（不入库；DOC-001_书名.pdf）
+├─ ml/                         模型权重与 OCR 环境（不入库）
 │  ├─ mobilesam/mobile_sam.pt            40 MB   点选分割（CPU）
 │  ├─ sam3/sam3.pt                       3.45 GB facebook/sam3 文本分割（GPU）
-│  └─ sam3.1/**/sam3.1_multiplex_fp16.safetensors  1.75 GB SAM3.1 文本分割（GPU）
+│  ├─ sam3.1/**/sam3.1_multiplex_fp16.safetensors  1.75 GB SAM3.1 文本分割（GPU）
+│  └─ ocr/                     mineru-venv/（MinerU + CUDA torch）· ndl-venv/ · ndlkotenocr-lite/src（引擎 + 80 MB ONNX 模型）
 ├─ server/                     后端
 │  ├─ app/
 │  │  ├─ main.py               应用入口：生命周期（建表/迁移/播种概念/启动扫描）、CORS、异常处理、托管 web/dist
@@ -43,10 +45,11 @@ stonelab/
 │  │  ├─ db.py · models.py · migrations.py · schemas.py
 │  │  ├─ constants.py          资产分组 + 结构枚举（层级 / SOP 类别 / 审核状态 / 质量 / 几何语义）
 │  │  ├─ knowledge.py          概念分类骨架（11 大类 × 小类）与种子概念（SOP 母题 + 汉画常见人物物象）
-│  │  ├─ routers/              system / stones（含 structure 骨架与归类）/ assets / annotations / concepts / segment / alignment
-│  │  ├─ services/             scanner / previews / alignment / transforms / textlinks / structure / seeds / segment / serialize
-│  │  └─ sam_worker.py         SAM 推理子进程（独立 Python 环境中运行）
-│  ├─ data/                    stonelab.db · previews/ · thumbs/ · sam_worker.log（不入库）
+│  │  ├─ routers/              system / stones（含 structure 骨架与归类）/ assets / annotations / concepts / library / segment / alignment
+│  │  ├─ services/             scanner / previews / alignment / transforms / textlinks / structure / seeds / library / segment / serialize
+│  │  ├─ sam_worker.py         SAM 推理子进程（独立 Python 环境中运行）
+│  │  └─ ocr_worker.py         OCR 子进程（--engine mineru|ndl，各在自己的环境中运行）
+│  ├─ data/                    stonelab.db · previews/ · thumbs/ · library/（页图、插图裁片、OCR 原始输出）· *.log（不入库）
 │  └─ requirements.txt
 ├─ web/                        前端
 │  ├─ src/
@@ -101,6 +104,9 @@ cd web    ; npm run build                                                   # �
 | `STONELAB_WORK_EDGE` | 5120 | 切块推理用高清工作图长边 |
 | `STONELAB_SCAN_ON_STARTUP` / `STONELAB_WARM_PREVIEWS` | 1 / 1 | 启动扫描、后台预热 |
 | `STONELAB_SAM_PYTHON` | WSC3D venv | 分割工作进程的 Python 解释器 |
+| `STONELAB_LIBRARY` | `<项目>/assets/library` | 文献 PDF 目录 |
+| `STONELAB_OCR_PYTHON` / `STONELAB_NDL_PYTHON` | `ml/ocr/mineru-venv`、`ml/ocr/ndl-venv` | 两个 OCR 工作进程的 Python |
+| `STONELAB_NDL_ROOT` / `STONELAB_OCR_DPI` | `ml/ocr/ndlkotenocr-lite` / 300 | 古籍引擎目录、OCR 页图 DPI |
 
 ## 三、界面与流水线
 
@@ -208,6 +214,37 @@ cd web    ; npm run build                                                   # �
 
 **验收**：结构树筛选芯片 候选 / 无框 / 未归类 / 未关联释文 清零，即该石"结构完整"。
 
+## 四之二、文献库与 OCR（后端已就位，界面待做）
+
+文献来自书。PDF 放进 `assets/library/`（不入库），启动或 `POST /api/library/scan` 自动登记为 `documents`
+（编号 `DOC-001…`，文件名形如 `DOC-001_书名.pdf` 时取书名为题名），每个物理页一条 `doc_pages`。
+
+**两条 OCR 路线，一套页级契约**（各自一个 sidecar 进程，`server/app/ocr_worker.py`，协议与 SAM 工作进程相同）：
+
+| 路线 | 适用 | 引擎 | 环境 |
+|---|---|---|---|
+| `mineru` | 现代横排书籍（默认，`documents.script=modern`） | [MinerU](https://github.com/opendatalab/MinerU) 3.4：版面分析 + 文字 / 表格识别 + 阅读顺序，直接读 PDF，输出带坐标的版面块与裁好的插图；默认 `hybrid-auto-engine`（有文字层直接抽字，扫描页走 MinerU2.5-Pro 1.2B VLM）| `ml/ocr/mineru-venv`（CUDA 12.8 torch，RTX 50 系可用；VLM 需 8 GB 显存），模型从 ModelScope 下到用户缓存 |
+| `ndl` | 古籍竖排（`script=classical`） | [NDL-KotenOCR Lite](https://github.com/ndl-lab/ndlkotenocr-lite)：RTMDet 版面 + PARSeq 识别 + 古典籍阅读顺序，ONNX CPU，约 2 s/页 | `ml/ocr/ndl-venv` + 引擎目录 `ml/ocr/ndlkotenocr-lite/src`（含 80 MB 模型） |
+
+选型依据（2026-09 调研）：OmniDocBench v1.6 榜首是 NaviDC-OCR / OvisOCR2 / PaddleOCR-VL-1.6 这类端到端小 VLM（96–97 分），
+但它们要 vLLM（Windows 不支持）且只输出 Markdown；MinerU 95.4 分，Windows 原生、Blackwell 可用、输出**段落级坐标与图注绑定**，
+正是我们做引用锚点与插图抠取所需。古籍路线沿用《齐鲁文化基因解码》工程的评测结论，只保留 NDL Lite。
+
+一键建环境：`.\scripts\setup_ocr_envs.ps1`（uv + Python 3.12；约下载 5 GB）。
+
+**落库**（`server/app/services/library.py`）：每页 OCR 后写 `segments`（文段：正文 / 标题 / 图注 / 脚注 / 页眉 / 页码 / 表格 / 古籍行，
+`bbox` 归一化坐标，`text` 机器底稿只读，`text_edit` 人工校订稿，`revision` 并发保护）与 `figures`（插图裁片 + 图注 + 图号如"图版2.34"），
+页面全文进 `doc_pages.text`，同时维护 FTS5 trigram 索引 `segments_fts`（三字以上全文检索，两字以内退回 LIKE）。
+原始输出留在 `server/data/library/doc<id>/ocr/`，页图缓存在 `pages/`（浏览 150 DPI，OCR 输入 300 DPI 并记 SHA-256）。
+
+**接口**（`/api/library/…`）：`POST scan` · `GET/PATCH documents[/{id}]` · `GET documents/{id}/pages` · `GET documents/{id}/file` ·
+`GET pages/{id}`（文段 + 插图）· `GET pages/{id}/image?dpi=` · `POST documents/{id}/ocr`（`engine / pages / redo / backend`，后台逐页落库）·
+`GET ocr/status` · `POST ocr/cancel` · `PATCH segments/{id}`（`text_edit / kind / review_status / base_revision`）· `PATCH figures/{id}` ·
+`GET figures[/{id}/image]` · `GET search?q=&document_id=`。验证：`python scripts/verify_library.py --engine ndl --pages 16`；
+不经后端直接试引擎：`python scripts/ocr_worker_smoke.py mineru <PDF> 16 17`。
+
+下一步：书库页面（文献列表 / 逐页三栏校勘台：原刊页图 | 机器底稿 | 校订稿）、证据表（节点 ↔ 文段 / 插图）、释文与原书页的自动对齐。
+
 ## 五、素材与释文的准备（每块石头）
 
 1. 在 `assets/stones/` 建 `编号_名称` 目录（如 `WS-007_前石室东壁`）；
@@ -263,6 +300,9 @@ SQLite（`server/data/stonelab.db`），经 SQLAlchemy ORM，启动时自动轻�
 | `reset_annotations.py [--all] [--yes]` | 清空结构节点与测量（默认保留对齐记录与坐标链），先自动备份数据库 |
 | `seed_skeleton_containers.py [编号]` | 为一块石头只创建骨架的容器节点（整石 / 花纹带 / 层 / 场景），幂等 |
 | `verify_structure.py [--preview-only] [--keep]` | 结构树端到端验证：骨架预览/创建、挂接几何、父级建议与自动归类、批量处置、候选并入、成环拒绝、删除上挂 |
+| `setup_ocr_envs.ps1 [-Only mineru|ndl]` | 建立两个 OCR 工作环境（uv + Python 3.12）并下载 MinerU 模型 |
+| `ocr_worker_smoke.py <engine> <PDF或页图> [页…]` | 不经后端直接驱动 OCR 工作进程，看引擎原始输出 |
+| `verify_library.py [--engine] [--pages] [--backend]` | 文献库端到端验证：扫描、页图、OCR 作业、页详情、检索、校订与 409 |
 | `bench_photo_seg.py [--engine] [--prompt] [--asset]` | 同一张照片上对照 整图/切块 x 原图/增强/仿拓片 的检出数、分数与耗时（需 GPU 环境） |
 | `verify_research.py` | 释文关联（字段编辑/图文关联/锁定保护）验证 |
 | `verify_frame.py` | 统一坐标系（对齐入链+跨图投影）数学验证，用后自动清理 |

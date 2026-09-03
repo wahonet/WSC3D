@@ -346,6 +346,178 @@ class TaxonomyOut(BaseModel):
     geometry_intents: dict[str, str]
 
 
+# ---------------------------------------------------------------- 文献库 / OCR
+DocKind = Literal["book", "article", "catalog", "other"]
+DocScript = Literal["modern", "classical"]
+OcrEngine = Literal["mineru", "ndl"]
+SegmentKind = Literal["text", "title", "caption", "footnote", "header", "page_number", "table",
+                      "equation", "list", "line", "other"]
+SegmentReview = Literal["machine", "reviewed", "rejected"]
+
+
+class DocumentOut(BaseModel):
+    id: int
+    code: str
+    title: str
+    authors: str
+    year: str
+    publisher: str
+    kind: str
+    script: str
+    relpath: str
+    filename: str
+    bytes: int
+    page_count: int
+    has_text_layer: bool
+    notes: str
+    pages_done: int = 0
+    pages_error: int = 0
+    segments: int = 0
+    figures: int = 0
+    updated_at: str | None = None
+
+
+class DocumentPatch(BaseModel):
+    title: str | None = None
+    authors: str | None = None
+    year: str | None = None
+    publisher: str | None = None
+    kind: DocKind | None = None
+    script: DocScript | None = None
+    notes: str | None = None
+
+
+class PageBrief(BaseModel):
+    id: int
+    page_no: int
+    status: str
+    engine: str
+    width: int
+    height: int
+    segments: int = 0
+    figures: int = 0
+    snippet: str = ""
+    error: str = ""
+
+
+class SegmentOut(BaseModel):
+    id: int
+    document_id: int
+    page_id: int
+    page_no: int
+    seq: int
+    kind: str
+    text: str
+    text_edit: str
+    bbox: list[float]
+    confidence: float | None
+    review_status: str
+    revision: int
+    note: str
+
+
+class SegmentPatch(BaseModel):
+    text_edit: str | None = None
+    kind: SegmentKind | None = None
+    review_status: SegmentReview | None = None
+    note: str | None = None
+    base_revision: int | None = None      # 并发保护：给出时与当前 revision 不一致则 409
+
+
+class FigureOut(BaseModel):
+    id: int
+    document_id: int
+    page_id: int
+    page_no: int
+    seq: int
+    bbox: list[float]
+    caption: str
+    label: str
+    review_status: str
+    note: str
+    has_image: bool
+
+
+class FigurePatch(BaseModel):
+    caption: str | None = None
+    label: str | None = None
+    review_status: SegmentReview | None = None
+    note: str | None = None
+
+
+class PageDetail(BaseModel):
+    id: int
+    document_id: int
+    document_code: str
+    document_title: str
+    page_no: int
+    page_count: int
+    status: str
+    engine: str
+    width: int
+    height: int
+    text: str
+    error: str
+    stats: dict[str, Any] = Field(default_factory=dict)
+    segments: list[SegmentOut]
+    figures: list[FigureOut]
+
+
+class OcrStartIn(BaseModel):
+    engine: OcrEngine | None = None          # 缺省按文献 script：modern -> mineru，classical -> ndl
+    pages: list[int] | None = None           # 物理页号；缺省 = 全部未完成页
+    redo: bool = False                       # 已完成的页也重做
+    backend: str = ""                        # mineru 后端：hybrid-auto-engine / vlm-auto-engine / pipeline
+
+
+class OcrJobOut(BaseModel):
+    running: bool
+    document_id: int | None = None
+    engine: str = ""
+    total: int = 0
+    done: int = 0
+    errors: int = 0
+    current_page: int | None = None
+    started_at: str | None = None
+    finished_at: str | None = None
+    message: str = ""
+    cancel_requested: bool = False
+
+
+class OcrWorkerInfo(BaseModel):
+    engine: str
+    python: str | None
+    available: bool
+    alive: bool
+    detail: str = ""
+
+
+class OcrStatusOut(BaseModel):
+    workers: list[OcrWorkerInfo]
+    job: OcrJobOut
+    log: str
+
+
+class SearchHit(BaseModel):
+    segment_id: int
+    document_id: int
+    document_code: str
+    document_title: str
+    page_id: int
+    page_no: int
+    kind: str
+    snippet: str
+    text: str
+
+
+class LibraryScanReport(BaseModel):
+    documents: int
+    added: int
+    updated: int
+    removed: int
+    duration_ms: int
+
+
 # ---------------------------------------------------------------- 对齐 / 投影
 class AlignCommitIn(BaseModel):
     stone_id: int

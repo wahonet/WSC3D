@@ -63,6 +63,10 @@ def migrate(engine: Engine) -> list[str]:
             cols_cache[table].add(col)
             applied.append(f"{table}.{col}")
 
+        # 文段全文检索（FTS5 trigram：两字以上子串即可命中；内容与 segments 表由服务代码同步）
+        conn.execute(text(
+            "CREATE VIRTUAL TABLE IF NOT EXISTS segments_fts USING fts5("
+            "text, segment_id UNINDEXED, document_id UNINDEXED, page_no UNINDEXED, tokenize='trigram')"))
         conn.execute(text("CREATE TABLE IF NOT EXISTS schema_fixes (key VARCHAR(64) PRIMARY KEY, applied_at DATETIME)"))
         done = {r[0] for r in conn.execute(text("SELECT key FROM schema_fixes")).fetchall()}
         for key, desc, sql in DATA_FIXES:
