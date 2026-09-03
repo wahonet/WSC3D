@@ -1,14 +1,15 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Group, Panel, Separator, useDefaultLayout } from 'react-resizable-panels'
 import { BookOpen, Link2 } from 'lucide-react'
 import { listDocPages } from '../api'
 import { isStructural } from '../lib/tree'
+import type { PageDetail, SearchHit } from '../types'
 import { useApp } from '../store/useApp'
 import CenterView from '../components/CenterView'
 import ErrorBoundary from '../components/ErrorBoundary'
 import InfoPanel from '../components/InfoPanel'
 import BookShelf from '../components/library/BookShelf'
-import PageWorkbench from '../components/library/PageWorkbench'
+import PageWorkbench, { type SegmentFocus } from '../components/library/PageWorkbench'
 import StructurePanel from '../components/structure/StructurePanel'
 import { Pane } from '../components/ui'
 
@@ -17,7 +18,8 @@ type Mode = 'link' | 'books'
 /**
  * 模块四 · 文献：
  * - 关联释文：左结构树，中图像，右释文（拖选文字关联到选中节点）；
- * - 书库：左文献 / 页 / OCR 作业，右逐页校勘台（原刊页图 | 机器底稿 + 校订稿 + 插图）。
+ * - 书库：左 全库检索 + 文献 / 页 / OCR 作业，右逐页校勘台（原刊页图 | 机器底稿 + 校订稿 + 插图）；
+ *   检索命中可直达任一本书的某页并选中文段，检索词在文段里高亮。
  */
 export default function LibraryPage() {
   const nodeCount = useApp(s => s.stoneAnnos.filter(isStructural).length)
@@ -31,6 +33,8 @@ export default function LibraryPage() {
   const hashQ = new URLSearchParams(location.hash.replace(/^#/, ''))
   const [docId, setDocId] = useState<number | null>(() => Number(hashQ.get('doc')) || Number(localStorage.getItem('stonelab.library.doc')) || null)
   const [pageId, setPageId] = useState<number | null>(null)
+  const [focus, setFocus] = useState<SegmentFocus | null>(null)
+  const [highlight, setHighlight] = useState('')
   // 深链 &doc=<id>&pg=<物理页> 直接打开某页
   useEffect(() => {
     const d = Number(hashQ.get('doc')), pg = Number(hashQ.get('pg'))
@@ -48,6 +52,20 @@ export default function LibraryPage() {
     setMode(m)
   }
   const selectDoc = (id: number | null) => { localStorage.setItem('stonelab.library.doc', String(id ?? '')); setDocId(id); setPageId(null) }
+  // 校勘台每载入一页就把 doc / pg 回写到深链，刷新或分享都落在正在看的这一页
+  const onPageLoaded = useCallback((p: PageDetail) => {
+    const h = new URLSearchParams(location.hash.replace(/^#/, ''))
+    h.set('doc', String(p.document_id))
+    h.set('pg', String(p.page_no))
+    history.replaceState(null, '', `#${h.toString()}`)
+  }, [])
+  // 检索命中直达：切书 + 切页 + 交给校勘台选中该文段（每次点击都是新的 focus 对象，重复点同一条也会重新滚动到位）
+  const openHit = useCallback((h: SearchHit) => {
+    localStorage.setItem('stonelab.library.doc', String(h.document_id))
+    setDocId(h.document_id)
+    setPageId(h.page_id)
+    setFocus({ segmentId: h.segment_id })
+  }, [])
 
   const tabs = (
     <span className="pane-tabs">
@@ -62,13 +80,18 @@ export default function LibraryPage() {
         <Group orientation="horizontal" id="library-books" defaultLayout={books.defaultLayout} onLayoutChanged={books.onLayoutChanged}>
           <Panel id="shelf" className="panel-clip" defaultSize="28%" minSize="300px" maxSize="45%">
             <aside className="side">
-              <Pane title={tabs}><ErrorBoundary area="书库"><BookShelf docId={docId} pageId={pageId} onSelectDoc={selectDoc} onSelectPage={setPageId} /></ErrorBoundary></Pane>
+              <Pane title={tabs}>
+                <ErrorBoundary area="书库">
+                  <BookShelf docId={docId} pageId={pageId} activeSegment={focus?.segmentId ?? null} onSelectDoc={selectDoc} onSelectPage={setPageId}
+                    onOpenHit={openHit} onSearchChange={setHighlight} />
+                </ErrorBoundary>
+              </Pane>
             </aside>
           </Panel>
           <Separator className="sep-h" />
           <Panel id="workbench" className="panel-clip" minSize="40%">
             <main className="center">
-              <ErrorBoundary area="校勘台" resetKey={pageId ?? 0}><PageWorkbench pageId={pageId} onSelectPage={setPageId} /></ErrorBoundary>
+              <ErrorBoundary area="校勘台" resetKey={pageId ?? 0}><PageWorkbench pageId={pageId} onSelectPage={setPageId} onLoaded={onPageLoaded} focus={focus} highlight={highlight} /></ErrorBoundary>
             </main>
           </Panel>
         </Group>

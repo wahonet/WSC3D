@@ -1,21 +1,26 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { BookOpen, Play, RefreshCw, Search, Square } from 'lucide-react'
-import { cancelOcr, libraryScan, listDocPages, listDocuments, ocrStatus, patchDocument, searchLibrary, startOcr } from '../../api'
+import { BookOpen, Play, RefreshCw, Square } from 'lucide-react'
+import { cancelOcr, libraryScan, listDocPages, listDocuments, ocrStatus, patchDocument, startOcr } from '../../api'
 import { fmtBytes } from '../../lib/format'
 import { toast } from '../../store/useToast'
 import type { DocumentInfo, OcrEngine, OcrStatus, PageBrief, SearchHit } from '../../types'
-import { Badge, Button, Chip, Empty, Field, Spinner } from '../ui'
+import { Badge, Button, Empty, Field, Spinner } from '../ui'
+import LibrarySearch from './LibrarySearch'
 
 const STATUS_TONE: Record<string, string> = { done: 'var(--green)', running: 'var(--amber)', error: 'var(--red)', pending: 'var(--bg-4)', skipped: 'var(--text-3)' }
 
 /**
- * 书库左栏：文献列表 -> 选中文献的元数据、OCR 作业控制、页格（按状态着色）、全文检索。
+ * 书库左栏：顶部固定的全库检索框（有输入时结果接管整栏）；
+ * 其下为文献列表 -> 选中文献的元数据、OCR 作业控制、页格（按状态着色）。
  */
-export default function BookShelf({ docId, pageId, onSelectDoc, onSelectPage }: {
+export default function BookShelf({ docId, pageId, activeSegment, onSelectDoc, onSelectPage, onOpenHit, onSearchChange }: {
   docId: number | null
   pageId: number | null
+  activeSegment: number | null
   onSelectDoc: (id: number | null) => void
   onSelectPage: (id: number) => void
+  onOpenHit: (h: SearchHit, q: string) => void
+  onSearchChange: (q: string) => void
 }) {
   const [docs, setDocs] = useState<DocumentInfo[]>([])
   const [pages, setPages] = useState<PageBrief[]>([])
@@ -24,9 +29,9 @@ export default function BookShelf({ docId, pageId, onSelectDoc, onSelectPage }: 
   const [backend, setBackend] = useState('')
   const [redo, setRedo] = useState(false)
   const [range, setRange] = useState('')
-  const [q, setQ] = useState('')
-  const [hits, setHits] = useState<SearchHit[] | null>(null)
+  const [searchOn, setSearchOn] = useState(false)
   const [busy, setBusy] = useState(false)
+  const onSearchActive = useCallback((active: boolean, q: string) => { setSearchOn(active); onSearchChange(active ? q : '') }, [onSearchChange])
 
   const doc = useMemo(() => docs.find(d => d.id === docId) ?? null, [docs, docId])
 
@@ -82,16 +87,12 @@ export default function BookShelf({ docId, pageId, onSelectDoc, onSelectPage }: 
     if (!doc) return
     try { const d = await patchDocument(doc.id, patch); setDocs(ds => ds.map(x => (x.id === d.id ? d : x))) } catch (e) { toast.error(e) }
   }
-  const search = async () => {
-    const s = q.trim()
-    if (!s) { setHits(null); return }
-    try { setHits(await searchLibrary(s, docId)) } catch (e) { toast.error(e) }
-  }
-
   const job = status?.job
 
   return (
     <div className="shelf">
+      <LibrarySearch activeSegment={activeSegment} onOpenHit={onOpenHit} onActiveChange={onSearchActive} />
+      {searchOn ? null : (<>
       <div className="shelf-head">
         <span className="hint">PDF 放入 <span className="mono">assets/library/</span> 后扫描</span>
         <span style={{ flex: 1 }} />
@@ -182,25 +183,9 @@ export default function BookShelf({ docId, pageId, onSelectDoc, onSelectPage }: 
             </div>
           </div>
 
-          <div className="shelf-sec">
-            <div className="tree-search" style={{ padding: '4px 10px' }}>
-              <div className="wrap"><Search size={13} /><input className="input sm" placeholder="全文检索（本书）" value={q} onChange={e => setQ(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') search() }} /></div>
-              <Button size="sm" onClick={search}>搜</Button>
-            </div>
-            {hits && (
-              <div className="hits">
-                {hits.length === 0 && <div className="hint" style={{ padding: '0 10px' }}>没有命中</div>}
-                {hits.map(h => (
-                  <div key={h.segment_id} className="hit" onClick={() => onSelectPage(h.page_id)}>
-                    <Chip size="sm">p{h.page_no}</Chip>
-                    <span dangerouslySetInnerHTML={{ __html: h.snippet.replace(/</g, '&lt;').replace(/\[\[/g, '<mark>').replace(/\]\]/g, '</mark>') }} />
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
         </>
       )}
+      </>)}
     </div>
   )
 }

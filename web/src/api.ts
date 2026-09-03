@@ -1,7 +1,7 @@
 import type {
   Annotation, Concept, DocFigure, DocSegment, DocumentInfo, ExemplarBox, GeometryIntent, Level, OcrEngine, OcrJob,
   OcrStatus, PageBrief, PageDetail, ParentSuggestion, ProjectedAnnotation, Quality, ReviewStatus, ScanReport,
-  SearchHit, SegDetection, SegEngineState, SegPreprocess, SegStatus, SegTiling, SegmentKind, SegmentReview, Semantics,
+  SearchOut, SegDetection, SegEngineState, SegPreprocess, SegStatus, SegTiling, SegmentKind, SegmentReview, Semantics,
   SkeletonItem, Stats, StoneInfo, StoneNode, Taxonomy,
 } from './types'
 
@@ -152,8 +152,11 @@ export const patchSegment = (id: number, body: { text_edit?: string; kind?: Segm
   api.patch<DocSegment>(`/library/segments/${id}`, body)
 export const patchFigure = (id: number, body: { caption?: string; label?: string; review_status?: SegmentReview; note?: string }) =>
   api.patch<DocFigure>(`/library/figures/${id}`, body)
-export const searchLibrary = (q: string, documentId?: number | null, limit = 50) =>
-  api.get<SearchHit[]>(`/library/search?q=${encodeURIComponent(q)}${documentId ? `&document_id=${documentId}` : ''}&limit=${limit}`)
+export const searchLibrary = (q: string, opts: { documentId?: number | null; limit?: number; offset?: number } = {}) => {
+  const p = new URLSearchParams({ q, limit: String(opts.limit ?? 50), offset: String(opts.offset ?? 0) })
+  if (opts.documentId) p.set('document_id', String(opts.documentId))
+  return api.get<SearchOut>(`/library/search?${p.toString()}`)
+}
 
 /* ---- 概念 ---- */
 export const getTaxonomy = () => api.get<Taxonomy>('/concepts/taxonomy')

@@ -510,6 +510,21 @@ class SearchHit(BaseModel):
     text: str
 
 
+class SearchFacet(BaseModel):
+    document_id: int
+    document_code: str
+    document_title: str
+    count: int
+
+
+class SearchOut(BaseModel):
+    q: str
+    total: int
+    offset: int
+    hits: list[SearchHit]
+    facets: list[SearchFacet]
+
+
 class LibraryScanReport(BaseModel):
     documents: int
     added: int

@@ -12,6 +12,7 @@ import pathlib
 import re
 import subprocess
 import sys
+import urllib.parse
 import urllib.request
 
 EDGE_CANDIDATES = [
@@ -38,6 +39,9 @@ MARKERS = [
     ("page grid", r'class="pg'),
     ("segment cards", r'class="segc'),
     ("figure cards", r'class="figc"'),
+    ("search hits", r'<span class="pg mono">'),
+    ("search groups", r'class="sres-doc"'),
+    ("marks", r"<mark>"),
 ]
 
 
@@ -63,6 +67,7 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--dev", action="store_true", help="使用 Vite 开发服务器 5173")
     ap.add_argument("--shots", default="", help="截图输出目录")
+    ap.add_argument("--only", default="", help="只跑这些用例（逗号分隔，如 books,search）")
     a = ap.parse_args()
     base = "http://127.0.0.1:5173/" if a.dev else "http://127.0.0.1:8020/"
 
@@ -84,9 +89,13 @@ def main() -> int:
         cases["annotate"] = f"#a={master['id']}&p=annotate"
         cases["library"] = f"#a={master['id']}&p=library"
         cases["books"] = f"#a={master['id']}&p=library&lib=books&doc=1&pg=16"
+        cases["search"] = f"#a={master['id']}&p=library&lib=books&doc=1&pg=16&q={urllib.parse.quote('西王母')}"
     if model:
         cases["model-3d"] = f"#a={model[0]['id']}"
 
+    if a.only:
+        keep = {k.strip() for k in a.only.split(",") if k.strip()}
+        cases = {k: v for k, v in cases.items() if k in keep}
     shots_dir = pathlib.Path(a.shots) if a.shots else None
     if shots_dir:
         shots_dir.mkdir(parents=True, exist_ok=True)

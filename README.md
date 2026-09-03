@@ -234,16 +234,30 @@ cd web    ; npm run build                                                   # �
 
 **落库**（`server/app/services/library.py`）：每页 OCR 后写 `segments`（文段：正文 / 标题 / 图注 / 脚注 / 页眉 / 页码 / 表格 / 古籍行，
 `bbox` 归一化坐标，`text` 机器底稿只读，`text_edit` 人工校订稿，`revision` 并发保护）与 `figures`（插图裁片 + 图注 + 图号如"图版2.34"），
-页面全文进 `doc_pages.text`，同时维护 FTS5 trigram 索引 `segments_fts`（三字以上全文检索，两字以内退回 LIKE）。
+页面全文进 `doc_pages.text`，同时维护 FTS5 trigram 索引 `segments_fts`。
+
+**全库检索**（`services/library.search`）：检索的是 OCR 文本（有校订稿时以校订稿为准），跨所有已入库的书。空白分词、多词为「且」；
+每个词都 ≥3 字时走 FTS5 trigram 索引，否则退回 LIKE 子串匹配；结果按 **书 → 页 → 段** 的阅读顺序排列并支持 `offset` 翻页，
+同时返回总数与各书命中数（`facets`，不受 `document_id` 过滤，前端用作书签筛选），命中片段用 `[[ ]]` 标出命中词。
 原始输出留在 `server/data/library/doc<id>/ocr/`，页图缓存在 `pages/`（浏览 150 DPI，OCR 输入 300 DPI 并记 SHA-256）。
 
 **接口**（`/api/library/…`）：`POST scan` · `GET/PATCH documents[/{id}]` · `GET documents/{id}/pages` · `GET documents/{id}/file` ·
 `GET pages/{id}`（文段 + 插图）· `GET pages/{id}/image?dpi=` · `POST documents/{id}/ocr`（`engine / pages / redo / backend`，后台逐页落库）·
 `GET ocr/status` · `POST ocr/cancel` · `PATCH segments/{id}`（`text_edit / kind / review_status / base_revision`）· `PATCH figures/{id}` ·
-`GET figures[/{id}/image]` · `GET search?q=&document_id=`。验证：`python scripts/verify_library.py --engine ndl --pages 16`；
-不经后端直接试引擎：`python scripts/ocr_worker_smoke.py mineru <PDF> 16 17`。
+`GET figures[/{id}/image]` · `GET search?q=&document_id=&limit=&offset=`（返回 `total / hits / facets`）。
+验证：`python scripts/verify_library.py --engine ndl --pages 16`；不经后端直接试引擎：`python scripts/ocr_worker_smoke.py mineru <PDF> 16 17`。
 
-下一步：书库页面（文献列表 / 逐页三栏校勘台：原刊页图 | 机器底稿 | 校订稿）、证据表（节点 ↔ 文段 / 插图）、释文与原书页的自动对齐。
+**书库界面**（文献模块 → 「书库」页签，深链 `#p=library&lib=books&doc=1&pg=16&q=西王母`）：
+
+- 左栏顶部是**全库检索框**（吸顶）：输入两字起即搜（防抖 350 ms），一字需回车，Esc 清空；有输入时检索结果接管整栏，
+  按书分组、每条显示页码与高亮片段，多本书命中时出现各书的书签可筛选，「更多」翻页。点一条命中直达那本书的那一页，
+  校勘台自动选中该文段并滚到可见，检索词在文段卡片里高亮；深链的 `doc / pg / q` 随浏览实时回写，刷新即回到原处。
+- 检索框之下是书架：文献列表（进度条、已 OCR 页数）、文献信息（题名 / 作者 / 年份 / 体例 / 类型）、OCR 作业
+  （引擎、MinerU 后端、页范围、重做开关、开始 / 取消、工作进程状态、进度）、按状态着色的页格。
+- 右侧是逐页校勘台：原刊页图叠版面块（按类别配色，插图红色虚线）| 插图卡与文段卡（类别、机器 / 已校 / 否决三态，
+  机器底稿只读，展开写校订稿，Ctrl+S 保存，`base_revision` 乐观锁）。
+
+下一步：证据表（节点 ↔ 文段 / 插图）、释文与原书页的自动对齐、图版页竖排图注的补漏。
 
 ## 五、素材与释文的准备（每块石头）
 
@@ -294,15 +308,16 @@ SQLite（`server/data/stonelab.db`），经 SQLAlchemy ORM，启动时自动轻�
 
 | 脚本 | 用途 |
 |---|---|
-| `check_encoding.py` | 全项目 GBK→UTF-8 修复 + 中文损毁（连续问号）扫描，**改完代码必跑** |
+| `check_encoding.py` | 全项目 GBK→UTF-8 修复、CRLF→LF 统一（仓库策略 `eol=lf`）+ 中文损毁（连续问号）扫描，**改完代码必跑** |
 | `patch_utf8.py spec.json` | 按 JSON 规格对 UTF-8 源文件做精确替换（编辑器把新建的中文文件误读为 GBK 时用它改代码） |
-| `smoke_ui.py [--dev] [--shots 目录]` | 用本机 Edge 无头渲染首页与四个模块，统计关键 DOM 并可截图 |
+| `smoke_ui.py [--dev] [--shots 目录] [--only books,search]` | 用本机 Edge 无头渲染首页与四个模块（含书库、全库检索深链），统计关键 DOM 并可截图 |
+| `verify_search_ui.py [截图路径]` | 书库全库检索的交互验证（Playwright + 本机 Edge）：深链即搜、点命中直达并高亮、多词 / 一字 / Esc、深链回写 |
 | `reset_annotations.py [--all] [--yes]` | 清空结构节点与测量（默认保留对齐记录与坐标链），先自动备份数据库 |
 | `seed_skeleton_containers.py [编号]` | 为一块石头只创建骨架的容器节点（整石 / 花纹带 / 层 / 场景），幂等 |
 | `verify_structure.py [--preview-only] [--keep]` | 结构树端到端验证：骨架预览/创建、挂接几何、父级建议与自动归类、批量处置、候选并入、成环拒绝、删除上挂 |
 | `setup_ocr_envs.ps1 [-Only mineru|ndl]` | 建立两个 OCR 工作环境（uv + Python 3.12）并下载 MinerU 模型 |
 | `ocr_worker_smoke.py <engine> <PDF或页图> [页…]` | 不经后端直接驱动 OCR 工作进程，看引擎原始输出 |
-| `verify_library.py [--engine] [--pages] [--backend]` | 文献库端到端验证：扫描、页图、OCR 作业、页详情、检索、校订与 409 |
+| `verify_library.py [--engine] [--pages] [--backend]` | 文献库端到端验证：扫描、页图、OCR 作业、页详情、单书 / 全库检索、校订与 409 |
 | `bench_photo_seg.py [--engine] [--prompt] [--asset]` | 同一张照片上对照 整图/切块 x 原图/增强/仿拓片 的检出数、分数与耗时（需 GPU 环境） |
 | `verify_research.py` | 释文关联（字段编辑/图文关联/锁定保护）验证 |
 | `verify_frame.py` | 统一坐标系（对齐入链+跨图投影）数学验证，用后自动清理 |
@@ -319,7 +334,8 @@ SQLite（`server/data/stonelab.db`），经 SQLAlchemy ORM，启动时自动轻�
 - 图文关联覆盖总述与各层释文，同一文本源上的关联区间不能重叠：骨架生成时场景 / 人物节点各占一段释文，
   其下的物象、榜题不再自动关联（可手动关联未被占用的句子）；
 - 几何包含推断用主图坐标系下的外接矩形，未入链的图上的节点不参与建议与归类；
-- 概念是扁平词表 + 固定两级分类，暂无同义合并与概念间关系；文献库（PDF / OCR / 分段 / 插图）、证据链、观点综合属后续阶段。
+- 概念是扁平词表 + 固定两级分类，暂无同义合并与概念间关系；文献库已可入库 / OCR / 校订 / 全库检索，
+  但节点与文段的证据链、观点综合属后续阶段；全库检索是精确子串（trigram），暂无繁简 / 异体字归一与语义检索。
 
 ## 十、开发注意
 
@@ -328,9 +344,10 @@ SQLite（`server/data/stonelab.db`），经 SQLAlchemy ORM，启动时自动轻�
   "连续问号"式损毁时以非零码退出。此外避免在含中文的文件里使用 GBK 之外的符号
   （如 U+2218 复合算符、U+2713 对勾、U+26A0 警告号、emoji），它们会在转码中变成问号。
   仓库内的 `.editorconfig` 与 `.vscode/settings.json` 已把编码钉为 UTF-8，新环境一般不会再遇到。
-- 上述转码之后，编辑器工具可能仍按 GBK 读取该文件（显示成乱码、精确替换找不到原文）。此时不要
-  用编辑器改它：写一个 `{"file": ..., "edits": [{"old": ..., "new": ...}]}` 规格，运行
-  `python scripts/patch_utf8.py spec.json`（规格文件本身 UTF-8 / GBK 均可），或整文件重写后再跑 `check_encoding.py`。
+- 上述转码之后，编辑器工具对**它自己新建过的文件**仍按 GBK 处理：读出来是乱码、精确替换找不到原文，
+  更糟的是替换成功时会把整个文件按 GBK 写回（再转码一次就变成一片问号）。对这类文件一律不用编辑器改：
+  写一个 `{"file": ..., "edits": [{"old": ..., "new": ...}]}` 规格，运行 `python scripts/patch_utf8.py spec.json`
+  （规格文件本身 UTF-8 / GBK 均可），或整文件重写后立刻跑 `check_encoding.py`。一旦发现损毁，`git checkout -- 该文件` 再重做。
 - 前端类型检查：`cd web ; npm run typecheck`；构建：`npm run build`；界面冒烟：`python scripts/smoke_ui.py --shots server/data/shots`。
 - zustand 选择器**只能返回原始值或 store 内既有引用**，不能每次返回新数组/对象（会触发无限重渲染，
   整棵树被卸载成黑屏）；派生列表请在组件里 `useMemo`。
@@ -344,7 +361,8 @@ SQLite（`server/data/stonelab.db`），经 SQLAlchemy ORM，启动时自动轻�
 
 ## 十一、版本控制
 
-- 仓库：https://github.com/wahonet/WSC3D （`main` 为当前程序；旧项目历史保留在 `legacy/wsc3d` 分支）。
+- 仓库：https://github.com/wahonet/WSC3D ，远程只保留 `main`。旧 WSC3D 项目（v0.2–v0.9）与当前 `main` 没有共同历史，
+  其完整提交只保留在本机分支 `legacy/wsc3d`（不推送）；确认不再需要时 `git branch -D legacy/wsc3d`。
 - **只上传程序壳子**。不入库：`assets/stones/**`（照片、拓片、三维、**以及 `meta.json` 简介与释文**）、`ml/`、
   `server/data/`（数据库、缓存、日志、截图）、`web/node_modules`、`web/dist`、`_backup/`。
   换机器时把 `assets/stones/`、`ml/`、`server/data/stonelab.db` 三处单独拷贝即可复原。

@@ -12,7 +12,7 @@ from ..db import get_db
 from ..models import Document, Figure, Page, Segment
 from ..schemas import (
     DocumentOut, DocumentPatch, FigureOut, FigurePatch, LibraryScanReport, OcrJobOut, OcrStartIn, OcrStatusOut,
-    OcrWorkerInfo, PageBrief, PageDetail, SearchHit, SegmentOut, SegmentPatch,
+    OcrWorkerInfo, PageBrief, PageDetail, SearchOut, SegmentOut, SegmentPatch,
 )
 from ..services import library
 
@@ -197,7 +197,8 @@ def list_figures(document_id: int | None = None, q: str = "", limit: int = Query
 
 
 # ---------------------------------------------------------------- 检索
-@router.get("/search", response_model=list[SearchHit], summary="全文检索文段（三字以上 FTS5，两字以内 LIKE）")
-def search(q: str = Query(..., min_length=1), document_id: int | None = None, limit: int = Query(50, le=200),
-           db: Session = Depends(get_db)):
-    return [SearchHit(**h) for h in library.search(db, q, document_id, limit)]
+@router.get("/search", response_model=SearchOut,
+            summary="全库 / 单书检索 OCR 文本（空白分词多词 AND；每词 ≥3 字走 FTS5 trigram，否则 LIKE；按书→页→段排序，offset 翻页）")
+def search(q: str = Query(..., min_length=1), document_id: int | None = None,
+           limit: int = Query(50, ge=1, le=200), offset: int = Query(0, ge=0), db: Session = Depends(get_db)):
+    return SearchOut(**library.search(db, q, document_id, limit, offset))

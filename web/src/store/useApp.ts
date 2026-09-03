@@ -169,8 +169,8 @@ function writeHash(assetId: number | null, page: Page) {
   const q = new URLSearchParams()
   if (assetId) q.set('a', String(assetId))
   if (page !== 'home') q.set('p', page)
-  // 文献模块的子页（关联释文 / 书库）与书库深链（doc / pg）由页面自己维护，这里只保留
-  if (page === 'library') for (const k of ['lib', 'doc', 'pg']) { const v = cur.get(k); if (v) q.set(k, v) }
+  // 文献模块的子页（关联释文 / 书库）与书库深链（doc / pg / 检索词 q）由页面自己维护，这里只保留
+  if (page === 'library') for (const k of ['lib', 'doc', 'pg', 'q']) { const v = cur.get(k); if (v) q.set(k, v) }
   const h = q.toString()
   history.replaceState(null, '', h ? `#${h}` : location.pathname)
 }

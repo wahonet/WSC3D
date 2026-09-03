@@ -283,8 +283,25 @@ export interface SearchHit {
   page_id: number
   page_no: number
   kind: string
+  /** 命中片段，命中词用 [[ ]] 包住 */
   snippet: string
   text: string
+}
+
+export interface SearchFacet {
+  document_id: number
+  document_code: string
+  document_title: string
+  count: number
+}
+
+export interface SearchOut {
+  q: string
+  total: number
+  offset: number
+  hits: SearchHit[]
+  /** 各书命中数（不受 document_id 过滤） */
+  facets: SearchFacet[]
 }
 
 /* ---------------- 概念 ---------------- */

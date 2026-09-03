@@ -4,6 +4,7 @@ import { figureImageUrl, getPageDetail, listDocPages, pageImageUrl, patchFigure,
 import { toast } from '../../store/useToast'
 import type { DocFigure, DocSegment, PageDetail, SegmentKind, SegmentReview } from '../../types'
 import { Badge, Button, Chip, Empty, Spinner } from '../ui'
+import { Mark, splitWords } from './highlight'
 
 export const KIND_LABEL: Record<string, string> = {
   text: '正文', title: '标题', caption: '图注', footnote: '脚注', header: '页眉', page_number: '页码',
@@ -16,10 +17,16 @@ const KIND_COLOR: Record<string, string> = {
 const FIG_COLOR = '#d9573f'
 const REVIEW: [SegmentReview, string][] = [['machine', '机器'], ['reviewed', '已校'], ['rejected', '否决']]
 
+export interface SegmentFocus { segmentId: number }
+
 /**
  * 逐页校勘台：左 原刊页图（叠版面块）| 右 文段列表（机器底稿只读 + 校订稿）与插图。
+ * `focus`：检索命中直达时要选中并滚到的文段（每个 focus 对象只应用一次）；`highlight`：在文段里高亮的检索词。
  */
-export default function PageWorkbench({ pageId, onSelectPage }: { pageId: number | null; onSelectPage: (id: number) => void }) {
+export default function PageWorkbench({ pageId, onSelectPage, onLoaded, focus = null, highlight = '' }: {
+  pageId: number | null; onSelectPage: (id: number) => void; onLoaded?: (p: PageDetail) => void
+  focus?: SegmentFocus | null; highlight?: string
+}) {
   const [page, setPage] = useState<PageDetail | null>(null)
   const [loading, setLoading] = useState(false)
   const [sel, setSel] = useState<number | null>(null)          // 选中文段 id
@@ -27,12 +34,15 @@ export default function PageWorkbench({ pageId, onSelectPage }: { pageId: number
   const [imgSize, setImgSize] = useState<{ w: number; h: number } | null>(null)
   const imgRef = useRef<HTMLImageElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
+  const imgBoxRef = useRef<HTMLDivElement>(null)
+  const applied = useRef<SegmentFocus | null>(null)
+  const words = useMemo(() => splitWords(highlight), [highlight])
 
   const reload = useCallback(async () => {
     if (pageId == null) { setPage(null); return }
     setLoading(true)
-    try { setPage(await getPageDetail(pageId)) } catch (e) { toast.error(e) } finally { setLoading(false) }
-  }, [pageId])
+    try { const p = await getPageDetail(pageId); setPage(p); onLoaded?.(p) } catch (e) { toast.error(e) } finally { setLoading(false) }
+  }, [pageId, onLoaded])
   useEffect(() => { reload(); setSel(null) }, [reload])
 
   const gotoPage = async (delta: number) => {
@@ -52,10 +62,21 @@ export default function PageWorkbench({ pageId, onSelectPage }: { pageId: number
     return c
   }, [page])
 
+  // 检索命中直达：页面数据就位后选中该文段（若其类别被隐藏则放开），同一 focus 对象只应用一次
+  useEffect(() => {
+    if (!page || !focus || applied.current === focus) return
+    const s = page.segments.find(x => x.id === focus.segmentId)
+    if (!s) return
+    applied.current = focus
+    setHideKinds(h => (h.has(s.kind) ? new Set([...h].filter(k => k !== s.kind)) : h))
+    setSel(s.id)
+  }, [page, focus])
+
   useEffect(() => {
     if (sel == null) return
     listRef.current?.querySelector<HTMLElement>(`[data-seg="${sel}"]`)?.scrollIntoView({ block: 'nearest' })
-  }, [sel])
+    imgBoxRef.current?.querySelector<SVGGElement>(`[data-seg="${sel}"]`)?.scrollIntoView({ block: 'center' })
+  }, [sel, imgSize])
 
   if (pageId == null) return <Empty icon={<FileText size={22} />} title="选择一页">在左侧页格里点一页，这里显示原刊页图、机器底稿与校订稿</Empty>
   if (!page) return <div className="loading-mask" style={{ position: 'relative', background: 'transparent' }}><Spinner />载入…</div>
@@ -83,14 +104,14 @@ export default function PageWorkbench({ pageId, onSelectPage }: { pageId: number
       </div>
       {page.error && <div className="note-box error" style={{ margin: '0 10px' }}>{page.error}</div>}
       <div className="pwb-body">
-        <div className="pwb-img">
+        <div className="pwb-img" ref={imgBoxRef}>
           <div className="pwb-imgwrap">
             <img ref={imgRef} src={pageImageUrl(page.id)} alt="" onLoad={onImgLoad} draggable={false} />
             {imgSize && (
               <svg className="pwb-overlay" width={imgSize.w} height={imgSize.h}>
                 {page.figures.map(f => <Box key={`f${f.id}`} bbox={f.bbox} size={imgSize} color={FIG_COLOR} dashed label={f.label || '图'} />)}
                 {segments.map(s => (
-                  <Box key={s.id} bbox={s.bbox} size={imgSize} color={KIND_COLOR[s.kind] ?? '#999'} on={s.id === sel} onClick={() => setSel(s.id)} />
+                  <Box key={s.id} id={s.id} bbox={s.bbox} size={imgSize} color={KIND_COLOR[s.kind] ?? '#999'} on={s.id === sel} onClick={() => setSel(s.id)} />
                 ))}
               </svg>
             )}
@@ -101,20 +122,20 @@ export default function PageWorkbench({ pageId, onSelectPage }: { pageId: number
             <Empty>这页还没有 OCR 结果。在左侧「OCR 作业」里填页范围（如 {page.page_no}）后开始。</Empty>
           )}
           {page.figures.map(f => <FigureCard key={f.id} f={f} onSaved={reload} />)}
-          {segments.map(s => <SegmentCard key={s.id} s={s} on={s.id === sel} onSelect={() => setSel(s.id)} onSaved={reload} />)}
+          {segments.map(s => <SegmentCard key={s.id} s={s} words={words} on={s.id === sel} onSelect={() => setSel(s.id)} onSaved={reload} />)}
         </div>
       </div>
     </div>
   )
 }
 
-function Box({ bbox, size, color, on, dashed, label, onClick }: {
-  bbox: [number, number, number, number]; size: { w: number; h: number }; color: string; on?: boolean; dashed?: boolean; label?: string; onClick?: () => void
+function Box({ id, bbox, size, color, on, dashed, label, onClick }: {
+  id?: number; bbox: [number, number, number, number]; size: { w: number; h: number }; color: string; on?: boolean; dashed?: boolean; label?: string; onClick?: () => void
 }) {
   const [x0, y0, x1, y1] = bbox
   const x = x0 * size.w, y = y0 * size.h, w = Math.max(1, (x1 - x0) * size.w), h = Math.max(1, (y1 - y0) * size.h)
   return (
-    <g className={onClick ? 'hit' : undefined} onClick={onClick}>
+    <g className={onClick ? 'hit' : undefined} data-seg={id} onClick={onClick}>
       <rect x={x} y={y} width={w} height={h} fill={color} fillOpacity={on ? 0.28 : 0.08} stroke={on ? '#ff5a45' : color}
         strokeWidth={on ? 2.2 : 1.2} strokeDasharray={dashed ? '5 3' : undefined} />
       {label && <text x={x + 3} y={y + 12} fontSize={11} fill={color} fontWeight={700} stroke="#14120f" strokeWidth={2.5} paintOrder="stroke">{label}</text>}
@@ -122,7 +143,7 @@ function Box({ bbox, size, color, on, dashed, label, onClick }: {
   )
 }
 
-function SegmentCard({ s, on, onSelect, onSaved }: { s: DocSegment; on: boolean; onSelect: () => void; onSaved: () => void }) {
+function SegmentCard({ s, words, on, onSelect, onSaved }: { s: DocSegment; words: string[]; on: boolean; onSelect: () => void; onSaved: () => void }) {
   const [edit, setEdit] = useState(s.text_edit)
   const [saving, setSaving] = useState(false)
   useEffect(() => { setEdit(s.text_edit) }, [s.text_edit, s.id])
@@ -147,7 +168,7 @@ function SegmentCard({ s, on, onSelect, onSaved }: { s: DocSegment; on: boolean;
           <button key={k} className={`chip sm${s.review_status === k ? ' on' : ''}`} onClick={e => { e.stopPropagation(); save({ review_status: k }) }}>{lb}</button>
         ))}
       </div>
-      <div className="segc-machine">{s.text || <span className="muted">（空）</span>}</div>
+      <div className="segc-machine">{s.text ? <Mark text={s.text} words={words} /> : <span className="muted">（空）</span>}</div>
       {on && (
         <div className="segc-edit" onClick={e => e.stopPropagation()}>
           <textarea className="textarea nd-ta" placeholder="校订稿（留空 = 采用机器底稿）" value={edit} onChange={e => setEdit(e.target.value)}
@@ -158,7 +179,7 @@ function SegmentCard({ s, on, onSelect, onSaved }: { s: DocSegment; on: boolean;
           </div>
         </div>
       )}
-      {!on && s.text_edit && <div className="segc-edited">校：{s.text_edit}</div>}
+      {!on && s.text_edit && <div className="segc-edited">校：<Mark text={s.text_edit} words={words} /></div>}
     </div>
   )
 }

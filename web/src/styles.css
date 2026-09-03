@@ -643,10 +643,29 @@ button.step:hover { border-color: var(--accent); background: var(--bg-3); }
 .page-grid { display: flex; flex-wrap: wrap; gap: 3px; padding: 2px 10px 8px; max-height: 260px; overflow-y: auto; }
 .page-grid .pg { width: 34px; height: 22px; border-radius: 4px; border: 1px solid rgba(0,0,0,.25); color: #fff; font-size: 10.5px; font-family: var(--font-mono); padding: 0; text-shadow: 0 1px 1px rgba(0,0,0,.5); }
 .page-grid .pg.on { outline: 2px solid var(--accent); outline-offset: 1px; }
-.hits { display: flex; flex-direction: column; gap: 3px; padding: 0 8px 8px; max-height: 240px; overflow-y: auto; }
-.hit { display: flex; gap: 6px; align-items: flex-start; padding: 5px 7px; border-radius: 5px; font-size: 12px; cursor: pointer; line-height: 1.6; }
+/* 全库检索：搜索框吸顶；有输入时结果列表接管整栏 */
+.lsearch { position: sticky; top: 0; z-index: 3; background: var(--bg-1); border-bottom: 1px solid var(--line); }
+.lsearch-box { position: relative; padding: 8px 10px 7px; }
+.lsearch-box > svg { position: absolute; left: 19px; top: 50%; transform: translateY(-50%); color: var(--text-3); pointer-events: none; }
+.lsearch-box .input { padding-left: 28px; padding-right: 28px; }
+.lsearch-side { position: absolute; right: 14px; top: 50%; transform: translateY(-50%); display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 4px; border: 0; background: transparent; color: var(--text-3); padding: 0; }
+.lsearch-side.clear:hover { background: var(--bg-3); color: var(--text); }
+.lsearch.active { position: static; border-bottom: 0; }
+.lsearch.active .lsearch-box { position: sticky; top: 0; z-index: 3; background: var(--bg-1); border-bottom: 1px solid var(--line); }
+.sres { display: flex; flex-direction: column; gap: 2px; padding: 6px 8px 12px; }
+.sres-sum { display: flex; flex-direction: column; gap: 6px; padding: 2px 2px 6px; font-size: 11.5px; color: var(--text-3); }
+.sres-sum b { color: var(--text); font-weight: 600; }
+.sres-grp { display: flex; flex-direction: column; gap: 2px; }
+.sres-doc { display: flex; align-items: center; gap: 6px; padding: 9px 4px 3px; font-size: 12px; font-weight: 600; color: var(--text-2); }
+.sres-doc .mono { color: var(--text-3); font-weight: 500; flex-shrink: 0; }
+.sres-doc .n { margin-left: auto; font-family: var(--font-mono); font-size: 11px; color: var(--text-3); font-weight: 500; }
+.hit { display: flex; gap: 8px; align-items: flex-start; padding: 5px 7px; border-radius: 5px; font-size: 12px; cursor: pointer; line-height: 1.6; }
 .hit:hover { background: var(--bg-2); }
-.hit mark { background: rgba(232, 163, 61, .35); color: var(--text); border-radius: 2px; padding: 0 1px; }
+.hit.on { background: var(--bg-3); box-shadow: inset 0 0 0 1px var(--accent); }
+.hit .pg { flex-shrink: 0; min-width: 34px; color: var(--text-3); font-size: 11px; line-height: 1.75; }
+.hit .snip { flex: 1; min-width: 0; color: var(--text-2); word-break: break-all; }
+.hit .kind { margin-left: 6px; font-size: 10.5px; color: var(--text-3); white-space: nowrap; }
+.hit mark, .segc mark { background: rgba(232, 163, 61, .35); color: var(--text); border-radius: 2px; padding: 0 1px; }
 
 .pwb { height: 100%; display: flex; flex-direction: column; min-height: 0; }
 .pwb-bar { display: flex; align-items: center; gap: 8px; min-height: 40px; padding: 6px 12px; background: var(--bg-1); border-bottom: 1px solid var(--line); font-size: 12px; color: var(--text-2); flex-wrap: wrap; }

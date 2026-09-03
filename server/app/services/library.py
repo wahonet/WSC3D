@@ -12,6 +12,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import re
 import shutil
 import subprocess
 import threading
@@ -443,37 +444,84 @@ def patch_segment(db: Session, s: Segment, text_edit: str | None, kind: str | No
     return s
 
 
-def search(db: Session, q: str, document_id: int | None, limit: int = 50) -> list[dict]:
-    """FTS5 trigram（三字以上）/ LIKE（两字以内）；返回带高亮片段的命中。"""
-    q = q.strip()
-    if not q:
-        return []
-    rows: list[tuple]
-    if len(q) >= 3:
-        term = '"' + q.replace('"', '""') + '"'
-        where = "segments_fts MATCH :q" + (" AND document_id = :d" if document_id else "")
+def _search_words(q: str) -> list[str]:
+    """空白分词，多词为 AND 关系；去重保持顺序。"""
+    seen: list[str] = []
+    for w in re.split(r"\s+", q.strip()):
+        if w and w not in seen:
+            seen.append(w)
+    return seen
+
+
+def _like_snippet(txt: str, words: list[str], ctx: int = 22) -> str:
+    """LIKE 路线的高亮片段：以首个命中词为中心截取，所有词都用 [[ ]] 标出。"""
+    lower = txt.lower()
+    pos = [p for p in (lower.find(w.lower()) for w in words) if p >= 0]
+    i = min(pos) if pos else 0
+    a, b = max(0, i - ctx), min(len(txt), i + ctx * 2)
+    piece = txt[a:b]
+    for w in sorted(words, key=len, reverse=True):
+        piece = re.sub(re.escape(w), lambda m: f"[[{m.group(0)}]]", piece, flags=re.IGNORECASE)
+    return ("…" if a > 0 else "") + piece.replace("\n", " ") + ("…" if b < len(txt) else "")
+
+
+def search(db: Session, q: str, document_id: int | None, limit: int = 50, offset: int = 0) -> dict:
+    """全库 / 单书检索 OCR 文本（人工校订稿优先）。
+
+    - 空白分词，多词 AND；每词都 ≥3 字时走 FTS5 trigram，否则退回 LIKE 子串匹配；
+    - 结果按 书 → 页 → 段 的阅读顺序排列，支持 offset 翻页；
+    - `facets` 给出各书命中数（不受 document_id 过滤，供前端做书签筛选）。
+    """
+    words = _search_words(q)
+    if not words:
+        return {"q": q, "total": 0, "offset": offset, "hits": [], "facets": []}
+    use_fts = all(len(w) >= 3 for w in words)
+    doc_filter = " AND {col} = :d" if document_id else ""
+    if use_fts:
+        term = " AND ".join('"' + w.replace('"', '""') + '"' for w in words)
+        params: dict = {"q": term, "d": document_id, "n": limit, "o": offset}
+        base = "FROM segments_fts f WHERE segments_fts MATCH :q"
+        total = db.execute(sql(f"SELECT count(*) {base}{doc_filter.format(col='f.document_id')}"), params).scalar() or 0
+        facet_rows = db.execute(sql(f"SELECT f.document_id, count(*) {base} GROUP BY f.document_id"), params).fetchall()
         rows = db.execute(sql(
-            f"SELECT segment_id, snippet(segments_fts, 0, '[[', ']]', '…', 12) FROM segments_fts WHERE {where} "
-            f"ORDER BY rank LIMIT :n"), {"q": term, "d": document_id, "n": limit}).fetchall()
+            f"SELECT f.segment_id, snippet(segments_fts, 0, '[[', ']]', '…', 20) "
+            f"FROM segments_fts f JOIN segments s ON s.id = f.segment_id "
+            f"WHERE segments_fts MATCH :q{doc_filter.format(col='f.document_id')} "
+            f"ORDER BY f.document_id, f.page_no, s.seq LIMIT :n OFFSET :o"), params).fetchall()
     else:
-        where = "(s.text LIKE :q OR s.text_edit LIKE :q)" + (" AND s.document_id = :d" if document_id else "")
-        rows = db.execute(sql(f"SELECT s.id, NULL FROM segments s WHERE {where} LIMIT :n"),
-                          {"q": f"%{q}%", "d": document_id, "n": limit}).fetchall()
+        body = "CASE WHEN s.text_edit != '' THEN s.text_edit ELSE s.text END"
+        cond = " AND ".join(f"{body} LIKE :w{i}" for i in range(len(words)))
+        params = {f"w{i}": f"%{w}%" for i, w in enumerate(words)} | {"d": document_id, "n": limit, "o": offset}
+        base = f"FROM segments s WHERE {cond}"
+        total = db.execute(sql(f"SELECT count(*) {base}{doc_filter.format(col='s.document_id')}"), params).scalar() or 0
+        facet_rows = db.execute(sql(f"SELECT s.document_id, count(*) {base} GROUP BY s.document_id"), params).fetchall()
+        rows = db.execute(sql(
+            f"SELECT s.id, NULL FROM segments s JOIN doc_pages p ON p.id = s.page_id WHERE {cond}"
+            f"{doc_filter.format(col='s.document_id')} ORDER BY s.document_id, p.page_no, s.seq LIMIT :n OFFSET :o"),
+            params).fetchall()
+
+    doc_ids = {int(r[0]) for r in facet_rows}
+    docs = {d.id: d for d in db.query(Document).filter(Document.id.in_(doc_ids)).all()} if doc_ids else {}
+
+    def _code(did: int) -> str:
+        return docs[did].code if did in docs else ""
+
+    facets = [{"document_id": int(did), "document_code": _code(did), "count": int(n),
+               "document_title": docs[did].title if did in docs else ""}
+              for did, n in sorted(facet_rows, key=lambda r: (_code(r[0]), r[0]))]
+
     ids = [r[0] for r in rows]
-    if not ids:
-        return []
-    segs = {s.id: s for s in db.query(Segment).filter(Segment.id.in_(ids)).all()}
-    docs = {d.id: d for d in db.query(Document).filter(Document.id.in_({s.document_id for s in segs.values()})).all()}
-    out = []
+    segs = {s.id: s for s in db.query(Segment).filter(Segment.id.in_(ids)).all()} if ids else {}
+    hits = []
     for sid, snip in rows:
         s = segs.get(sid)
         if not s:
             continue
-        d = docs[s.document_id]
+        d = docs.get(s.document_id)
         txt = s.text_edit or s.text
         if not snip:
-            i = txt.find(q)
-            snip = ("…" if i > 20 else "") + txt[max(0, i - 20): i + len(q) + 30].replace(q, f"[[{q}]]") + ("…" if i + len(q) + 30 < len(txt) else "")
-        out.append({"segment_id": s.id, "document_id": d.id, "document_code": d.code, "document_title": d.title,
-                    "page_id": s.page_id, "page_no": s.page.page_no, "kind": s.kind, "snippet": snip, "text": txt})
-    return out
+            snip = _like_snippet(txt, words)
+        hits.append({"segment_id": s.id, "document_id": s.document_id, "document_code": d.code if d else "",
+                     "document_title": d.title if d else "", "page_id": s.page_id, "page_no": s.page.page_no,
+                     "kind": s.kind, "snippet": snip, "text": txt})
+    return {"q": q, "total": int(total), "offset": offset, "hits": hits, "facets": facets}

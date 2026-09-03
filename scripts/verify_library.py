@@ -85,8 +85,11 @@ pd = call(f"/library/documents/{d['id']}/pages/{pages[0]}")
 seg = next((s for s in pd["segments"] if len(s["text"]) >= 6 and s["kind"] in ("text", "title", "line")), None)
 if seg:
     q = seg["text"][:4].strip()
-    hits = call(f"/library/search?q={urllib.request.quote(q)}&document_id={d['id']}")
-    print(f"   q={q!r} -> {len(hits)} 命中；首条：p{hits[0]['page_no']} {hits[0]['snippet'][:60]!r}" if hits else f"   q={q!r} -> 0 命中")
+    r = call(f"/library/search?q={urllib.request.quote(q)}&document_id={d['id']}")
+    hits = r["hits"]
+    print(f"   q={q!r} -> 共 {r['total']} 命中 · {len(r['facets'])} 本；首条：p{hits[0]['page_no']} {hits[0]['snippet'][:60]!r}" if hits else f"   q={q!r} -> 0 命中")
+    allr = call(f"/library/search?q={urllib.request.quote(q)}&limit=3&offset=0")
+    print(f"   全库：共 {allr['total']} 命中，本页 {len(allr['hits'])} 条，分面 {[(f['document_code'], f['count']) for f in allr['facets']]}")
     print("6) 校订与版本冲突")
     r = call(f"/library/segments/{seg['id']}", "PATCH", {"text_edit": seg["text"] + "（校）", "review_status": "reviewed", "base_revision": seg["revision"]})
     print(f"   revision {seg['revision']} -> {r['revision']}, review={r['review_status']}")
