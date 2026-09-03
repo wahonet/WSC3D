@@ -1,17 +1,18 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { BookOpen, Play, RefreshCw, Square } from 'lucide-react'
+import { BookOpen, Play, Square } from 'lucide-react'
 import { cancelOcr, libraryScan, listDocPages, listDocuments, ocrStatus, patchDocument, startOcr } from '../../api'
 import { fmtBytes } from '../../lib/format'
 import { toast } from '../../store/useToast'
 import type { DocumentInfo, OcrEngine, OcrStatus, PageBrief, SearchHit } from '../../types'
 import { Badge, Button, Empty, Field, Spinner } from '../ui'
+import BookPicker from './BookPicker'
 import LibrarySearch from './LibrarySearch'
 
 const STATUS_TONE: Record<string, string> = { done: 'var(--green)', running: 'var(--amber)', error: 'var(--red)', pending: 'var(--bg-4)', skipped: 'var(--text-3)' }
 
 /**
  * 书库左栏：顶部固定的全库检索框（有输入时结果接管整栏）；
- * 其下为文献列表 -> 选中文献的元数据、OCR 作业控制、页格（按状态着色）。
+ * 其下是选书下拉（当前书 + 可筛选书目）-> 选中文献的元数据、OCR 作业控制、页格（按状态着色）。
  */
 export default function BookShelf({ docId, pageId, activeSegment, onSelectDoc, onSelectPage, onOpenHit, onSearchChange }: {
   docId: number | null
@@ -47,7 +48,12 @@ export default function BookShelf({ docId, pageId, activeSegment, onSelectDoc, o
   }, [])
 
   useEffect(() => { reloadDocs(); reloadStatus() }, [reloadDocs, reloadStatus])
-  useEffect(() => { reloadPages() }, [reloadPages])
+  // 换书时先清空页格，避免短暂显示上一本的页
+  useEffect(() => { setPages([]); reloadPages() }, [reloadPages])
+  // 没选书或所选的书已不存在时，默认选第一本
+  useEffect(() => {
+    if (docs.length && (docId == null || !docs.some(d => d.id === docId))) onSelectDoc(docs[0].id)
+  }, [docs, docId, onSelectDoc])
   // 作业运行时每 2 秒刷新进度与页状态
   const running = !!status?.job.running
   useEffect(() => {
@@ -93,27 +99,8 @@ export default function BookShelf({ docId, pageId, activeSegment, onSelectDoc, o
     <div className="shelf">
       <LibrarySearch activeSegment={activeSegment} onOpenHit={onOpenHit} onActiveChange={onSearchActive} />
       {searchOn ? null : (<>
-      <div className="shelf-head">
-        <span className="hint">PDF 放入 <span className="mono">assets/library/</span> 后扫描</span>
-        <span style={{ flex: 1 }} />
-        <Button size="xs" variant="ghost" icon={<RefreshCw size={12} />} onClick={scan} disabled={busy}>扫描</Button>
-      </div>
-      {docs.length === 0 && <Empty icon={<BookOpen size={22} />} title="书库为空">把 PDF 放入 assets/library/（如 DOC-001_书名.pdf）后点「扫描」</Empty>}
-      <div className="shelf-docs">
-        {docs.map(d => (
-          <div key={d.id} className={`shelf-doc${d.id === docId ? ' on' : ''}`} onClick={() => onSelectDoc(d.id === docId ? null : d.id)}>
-            <div className="t"><span className="mono muted">{d.code}</span> {d.title || d.filename}</div>
-            <div className="m">
-              <span>{d.page_count} 页</span>
-              <span className="mono">{d.pages_done}/{d.page_count} 已 OCR</span>
-              {d.pages_error > 0 && <span style={{ color: 'var(--red)' }}>{d.pages_error} 错</span>}
-              <span>{d.segments} 文段 · {d.figures} 图</span>
-              <Badge mono outline>{d.script === 'classical' ? '古籍' : '现代'}</Badge>
-            </div>
-            <div className="bar"><i style={{ width: `${d.page_count ? (100 * d.pages_done) / d.page_count : 0}%` }} /></div>
-          </div>
-        ))}
-      </div>
+      <BookPicker docs={docs} docId={docId} runningDocId={job?.running ? job.document_id : null} busy={busy} onSelect={onSelectDoc} onScan={scan} />
+      {docs.length === 0 && <Empty icon={<BookOpen size={22} />} title="书库为空">把 PDF 放入 assets/library/（如 DOC-001_书名.pdf）后点上方「扫描」</Empty>}
 
       {doc && (
         <>
@@ -163,6 +150,9 @@ export default function BookShelf({ docId, pageId, activeSegment, onSelectDoc, o
               {job && (job.running || job.finished_at) && (
                 <div className="shelf-job">
                   {job.running && <Spinner />}
+                  {job.document_id != null && job.document_id !== doc.id && (
+                    <Badge mono outline title="作业属于另一本书">{docs.find(d => d.id === job.document_id)?.code ?? `#${job.document_id}`}</Badge>
+                  )}
                   <span>{job.message}</span>
                   <span className="mono">{job.done}/{job.total}{job.errors ? ` · 错 ${job.errors}` : ''}</span>
                   <div className="bar"><i style={{ width: `${job.total ? (100 * job.done) / job.total : 0}%` }} /></div>

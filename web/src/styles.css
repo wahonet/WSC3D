@@ -624,13 +624,37 @@ button.step:hover { border-color: var(--accent); background: var(--bg-3); }
 .pane-tab:hover { color: var(--text); }
 .pane-tab.on { background: var(--bg-3); color: var(--text); }
 .shelf { display: flex; flex-direction: column; min-height: 0; }
-.shelf-head { display: flex; align-items: center; gap: 8px; padding: 8px 10px 4px; }
-.shelf-docs { display: flex; flex-direction: column; gap: 4px; padding: 4px 8px 8px; }
-.shelf-doc { padding: 8px 10px; border-radius: var(--radius); border: 1px solid var(--line); background: var(--bg-2); cursor: pointer; }
-.shelf-doc:hover { border-color: var(--line-2); }
-.shelf-doc.on { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
-.shelf-doc .t { font-weight: 600; font-size: 12.5px; }
-.shelf-doc .m { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 3px; font-size: 11px; color: var(--text-3); }
+/* 选书下拉：按钮吸顶在检索框之下，菜单浮在书架内容之上 */
+.bpick { position: sticky; top: 42px; z-index: 4; background: var(--bg-1); border-bottom: 1px solid var(--line); }
+.bpick-row { display: flex; align-items: center; gap: 6px; padding: 8px 10px; }
+.bpick-btn {
+  flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; text-align: left; padding: 7px 10px;
+  border-radius: var(--radius); border: 1px solid var(--line-2); background: var(--bg-2); color: var(--text); cursor: pointer;
+  transition: border-color .12s, background .12s;
+}
+.bpick-btn:hover, .bpick-btn.open { border-color: var(--accent); }
+.bpick-btn .body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.bpick-btn .t, .bpick-item .t { display: flex; align-items: center; gap: 6px; min-width: 0; font-weight: 600; font-size: 12.5px; }
+.bpick-btn .t .mono, .bpick-item .t .mono { flex-shrink: 0; }
+.bpick-btn .m, .bpick-item .m { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; font-size: 11px; color: var(--text-3); }
+.bpick-btn .bar { display: block; margin-top: 3px; }
+.bpick-btn .chev { flex-shrink: 0; color: var(--text-3); transition: transform .15s; }
+.bpick-btn.open .chev { transform: rotate(180deg); }
+.bpick-menu {
+  position: absolute; left: 8px; right: 8px; top: calc(100% - 3px); z-index: 30; display: flex; flex-direction: column;
+  max-height: min(64vh, 560px); background: var(--bg-2); border: 1px solid var(--line-2); border-radius: var(--radius); box-shadow: var(--shadow-2);
+}
+.bpick-filter { position: relative; padding: 8px 8px 4px; }
+.bpick-filter > svg { position: absolute; left: 17px; top: calc(50% + 2px); transform: translateY(-50%); color: var(--text-3); pointer-events: none; }
+.bpick-filter .input { padding-left: 26px; }
+.bpick-list { flex: 1; min-height: 0; overflow-y: auto; padding: 4px 6px 6px; display: flex; flex-direction: column; gap: 3px; }
+.bpick-item { padding: 7px 9px; border-radius: var(--radius-sm); border: 1px solid transparent; cursor: pointer; }
+.bpick-item:hover { background: var(--bg-3); }
+.bpick-item.on { border-color: var(--accent); background: var(--accent-soft); }
+.bpick-item .t .chk { margin-left: auto; color: var(--accent); flex-shrink: 0; }
+.bpick-item .m { margin-top: 3px; }
+.bpick-item .bar { margin-top: 5px; }
+.bpick-foot { padding: 6px 10px 8px; border-top: 1px solid var(--line); }
 .bar { height: 3px; border-radius: 2px; background: var(--bg-4); margin-top: 6px; overflow: hidden; }
 .bar i { display: block; height: 100%; background: var(--green); }
 .shelf-sec { border-top: 1px solid var(--line); padding-bottom: 8px; }
