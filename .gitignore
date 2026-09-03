@@ -22,8 +22,10 @@ ml/
 #      transcriptions) stay on disk. The repository is the program shell only.
 assets/stones/
 
-# ---- Local backups and scratch
+# ---- Local backups and scratch (patch specs / commit message drafts written to the repo root)
 _backup/
+/_*.json
+/_*.txt
 
 # ---- OS / editor noise
 .DS_Store
