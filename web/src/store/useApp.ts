@@ -165,9 +165,12 @@ function readHash(): { assetId: number | null; page: Page; engine: SegEngine | n
   }
 }
 function writeHash(assetId: number | null, page: Page) {
+  const cur = new URLSearchParams(location.hash.replace(/^#/, ''))
   const q = new URLSearchParams()
   if (assetId) q.set('a', String(assetId))
   if (page !== 'home') q.set('p', page)
+  const lib = cur.get('lib')                 // 文献模块子页（关联释文 / 书库）由页面自己维护，这里只保留
+  if (lib && page === 'library') q.set('lib', lib)
   const h = q.toString()
   history.replaceState(null, '', h ? `#${h}` : location.pathname)
 }

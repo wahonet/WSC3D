@@ -1,6 +1,7 @@
 import type {
-  Annotation, Concept, ExemplarBox, GeometryIntent, Level, ParentSuggestion, ProjectedAnnotation, Quality,
-  ReviewStatus, ScanReport, SegDetection, SegEngineState, SegPreprocess, SegStatus, SegTiling, Semantics,
+  Annotation, Concept, DocFigure, DocSegment, DocumentInfo, ExemplarBox, GeometryIntent, Level, OcrEngine, OcrJob,
+  OcrStatus, PageBrief, PageDetail, ParentSuggestion, ProjectedAnnotation, Quality, ReviewStatus, ScanReport,
+  SearchHit, SegDetection, SegEngineState, SegPreprocess, SegStatus, SegTiling, SegmentKind, SegmentReview, Semantics,
   SkeletonItem, Stats, StoneInfo, StoneNode, Taxonomy,
 } from './types'
 
@@ -131,6 +132,28 @@ export const skeletonPreview = (stoneId: number) =>
 export const skeletonCreate = (stoneId: number, items: SkeletonItem[], assetId: number | null) =>
   api.post<{ created: number; linked: number; skipped_links: string[]; annotations: Annotation[] }>(
     `/stones/${stoneId}/structure/skeleton`, { items, asset_id: assetId })
+
+/* ---- 文献库 / OCR ---- */
+export const libraryScan = () => api.post<{ documents: number; added: number; updated: number; removed: number }>('/library/scan')
+export const listDocuments = () => api.get<DocumentInfo[]>('/library/documents')
+export const patchDocument = (id: number, body: Partial<Pick<DocumentInfo, 'title' | 'authors' | 'year' | 'publisher' | 'kind' | 'script' | 'notes'>>) =>
+  api.patch<DocumentInfo>(`/library/documents/${id}`, body)
+export const listDocPages = (docId: number, offset = 0, limit = 500) =>
+  api.get<PageBrief[]>(`/library/documents/${docId}/pages?offset=${offset}&limit=${limit}`)
+export const getPageDetail = (pageId: number) => api.get<PageDetail>(`/library/pages/${pageId}`)
+export const pageImageUrl = (pageId: number, dpi = 0) => `/api/library/pages/${pageId}/image${dpi ? `?dpi=${dpi}` : ''}`
+export const figureImageUrl = (figureId: number) => `/api/library/figures/${figureId}/image`
+export const docFileUrl = (docId: number) => `/api/library/documents/${docId}/file`
+export const ocrStatus = () => api.get<OcrStatus>('/library/ocr/status')
+export const startOcr = (docId: number, body: { engine?: OcrEngine | null; pages?: number[] | null; redo?: boolean; backend?: string }) =>
+  api.post<OcrJob>(`/library/documents/${docId}/ocr`, body)
+export const cancelOcr = () => api.post<OcrJob>('/library/ocr/cancel')
+export const patchSegment = (id: number, body: { text_edit?: string; kind?: SegmentKind; review_status?: SegmentReview; note?: string; base_revision?: number }) =>
+  api.patch<DocSegment>(`/library/segments/${id}`, body)
+export const patchFigure = (id: number, body: { caption?: string; label?: string; review_status?: SegmentReview; note?: string }) =>
+  api.patch<DocFigure>(`/library/figures/${id}`, body)
+export const searchLibrary = (q: string, documentId?: number | null, limit = 50) =>
+  api.get<SearchHit[]>(`/library/search?q=${encodeURIComponent(q)}${documentId ? `&document_id=${documentId}` : ''}&limit=${limit}`)
 
 /* ---- 概念 ---- */
 export const getTaxonomy = () => api.get<Taxonomy>('/concepts/taxonomy')

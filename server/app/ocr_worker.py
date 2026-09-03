@@ -3,7 +3,7 @@
 
 两个引擎，各自一个进程（环境不同）：
 - mineru : 现代横排书籍。MinerU（版面分析 + 文字 / 表格 / 公式识别 + 阅读顺序），直接读 PDF，
-           输出带坐标的版面块与裁好的插图；默认 hybrid 后端（有文字层的页直接抽字，扫描页走 VLM）。
+           输出带坐标的版面块与裁好的插图；默认 hybrid-engine 后端（有文字层的页直接抽字，扫描页走 VLM）。
 - ndl    : 古籍竖排。NDL-KotenOCR Lite（RTMDet 版面 + PARSeq 识别 + 古典籍阅读顺序，ONNX CPU），
            输入为渲染好的页图，输出按阅读顺序排好的行。
 
@@ -145,12 +145,12 @@ class MinerUEngine:
         pdf_bytes = self._read_fn(pdf_path) if self._read_fn else pdf_path.read_bytes()
         kw = {
             "output_dir": str(out), "pdf_file_names": [pdf_path.stem], "pdf_bytes_list": [pdf_bytes],
-            "p_lang_list": [lang or "ch"], "backend": backend or "hybrid-auto-engine", "parse_method": "auto",
+            "p_lang_list": [lang or "ch"], "backend": backend or "hybrid-engine", "parse_method": "auto",
             "formula_enable": False, "table_enable": True,
             "start_page_id": start - 1, "end_page_id": end - 1,
             "f_draw_layout_bbox": False, "f_draw_span_bbox": False, "f_dump_md": False,
             "f_dump_middle_json": True, "f_dump_model_output": False, "f_dump_orig_pdf": False,
-            "f_dump_content_list": True,
+            "f_dump_content_list": True, "effort": "medium", "image_analysis": False,
         }
         kw = {k: v for k, v in kw.items() if k in self._sig}
         t0 = time.perf_counter()
@@ -181,7 +181,7 @@ class MinerUEngine:
             text = "\n".join(blk["text"] for blk in d["blocks"]
                              if blk["kind"] in ("text", "title", "caption", "footnote", "list", "table") and blk["text"])
             result[str(page_no)] = {
-                "page_no": page_no, "engine": f"mineru/{backend or 'hybrid-auto-engine'}",
+                "page_no": page_no, "engine": f"mineru/{backend or 'hybrid-engine'}",
                 "seconds": round(seconds / max(1, len(pages)), 3), "text": text,
                 "blocks": d["blocks"], "figures": d["figures"],
                 "raw_dir": str(cl_path.parent),

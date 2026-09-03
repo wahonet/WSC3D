@@ -167,6 +167,126 @@ export interface SkeletonItem {
   excerpt: string
 }
 
+/* ---------------- 文献库 / OCR ---------------- */
+export type OcrEngine = 'mineru' | 'ndl'
+export type SegmentKind = 'text' | 'title' | 'caption' | 'footnote' | 'header' | 'page_number' | 'table' | 'equation' | 'list' | 'line' | 'other'
+export type SegmentReview = 'machine' | 'reviewed' | 'rejected'
+
+export interface DocumentInfo {
+  id: number
+  code: string
+  title: string
+  authors: string
+  year: string
+  publisher: string
+  kind: 'book' | 'article' | 'catalog' | 'other'
+  script: 'modern' | 'classical'
+  relpath: string
+  filename: string
+  bytes: number
+  page_count: number
+  has_text_layer: boolean
+  notes: string
+  pages_done: number
+  pages_error: number
+  segments: number
+  figures: number
+  updated_at: string | null
+}
+
+export interface PageBrief {
+  id: number
+  page_no: number
+  status: 'pending' | 'running' | 'done' | 'error' | 'skipped'
+  engine: string
+  width: number
+  height: number
+  segments: number
+  figures: number
+  snippet: string
+  error: string
+}
+
+export interface DocSegment {
+  id: number
+  document_id: number
+  page_id: number
+  page_no: number
+  seq: number
+  kind: SegmentKind | string
+  text: string
+  text_edit: string
+  bbox: [number, number, number, number]
+  confidence: number | null
+  review_status: SegmentReview
+  revision: number
+  note: string
+}
+
+export interface DocFigure {
+  id: number
+  document_id: number
+  page_id: number
+  page_no: number
+  seq: number
+  bbox: [number, number, number, number]
+  caption: string
+  label: string
+  review_status: SegmentReview
+  note: string
+  has_image: boolean
+}
+
+export interface PageDetail {
+  id: number
+  document_id: number
+  document_code: string
+  document_title: string
+  page_no: number
+  page_count: number
+  status: string
+  engine: string
+  width: number
+  height: number
+  text: string
+  error: string
+  stats: Record<string, unknown>
+  segments: DocSegment[]
+  figures: DocFigure[]
+}
+
+export interface OcrJob {
+  running: boolean
+  document_id: number | null
+  engine: string
+  total: number
+  done: number
+  errors: number
+  current_page: number | null
+  started_at: string | null
+  finished_at: string | null
+  message: string
+  cancel_requested: boolean
+}
+
+export interface OcrStatus {
+  workers: { engine: string; python: string | null; available: boolean; alive: boolean; detail: string }[]
+  job: OcrJob
+  log: string
+}
+
+export interface SearchHit {
+  segment_id: number
+  document_id: number
+  document_code: string
+  document_title: string
+  page_id: number
+  page_no: number
+  kind: string
+  snippet: string
+  text: string
+}
+
 /* ---------------- 概念 ---------------- */
 export interface ConceptCategory { id: string; name: string; parent_id: string | null }
 export interface Concept {

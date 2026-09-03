@@ -467,7 +467,7 @@ class OcrStartIn(BaseModel):
     engine: OcrEngine | None = None          # 缺省按文献 script：modern -> mineru，classical -> ndl
     pages: list[int] | None = None           # 物理页号；缺省 = 全部未完成页
     redo: bool = False                       # 已完成的页也重做
-    backend: str = ""                        # mineru 后端：hybrid-auto-engine / vlm-auto-engine / pipeline
+    backend: str = ""                        # mineru 后端：hybrid-engine（默认）/ vlm-engine / pipeline
 
 
 class OcrJobOut(BaseModel):

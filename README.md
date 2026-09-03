@@ -1,4 +1,4 @@
-# StoneLab · 汉画像石研究平台
+﻿# StoneLab · 汉画像石研究平台
 
 面向武氏祠（及后续 40+ 块画像石）的本地研究平台。工作按**流水线**推进，首页集中展示成果：
 
@@ -223,7 +223,7 @@ cd web    ; npm run build                                                   # �
 
 | 路线 | 适用 | 引擎 | 环境 |
 |---|---|---|---|
-| `mineru` | 现代横排书籍（默认，`documents.script=modern`） | [MinerU](https://github.com/opendatalab/MinerU) 3.4：版面分析 + 文字 / 表格识别 + 阅读顺序，直接读 PDF，输出带坐标的版面块与裁好的插图；默认 `hybrid-auto-engine`（有文字层直接抽字，扫描页走 MinerU2.5-Pro 1.2B VLM）| `ml/ocr/mineru-venv`（CUDA 12.8 torch，RTX 50 系可用；VLM 需 8 GB 显存），模型从 ModelScope 下到用户缓存 |
+| `mineru` | 现代横排书籍（默认，`documents.script=modern`） | [MinerU](https://github.com/opendatalab/MinerU) 3.4：版面分析 + 文字 / 表格识别 + 阅读顺序，直接读 PDF，输出带坐标的版面块与裁好的插图；默认 `hybrid-engine`（有文字层直接抽字，扫描页走 MinerU2.5-Pro 1.2B VLM）| `ml/ocr/mineru-venv`（CUDA 12.8 torch，RTX 50 系可用；VLM 需 8 GB 显存），模型从 ModelScope 下到用户缓存 |
 | `ndl` | 古籍竖排（`script=classical`） | [NDL-KotenOCR Lite](https://github.com/ndl-lab/ndlkotenocr-lite)：RTMDet 版面 + PARSeq 识别 + 古典籍阅读顺序，ONNX CPU，约 2 s/页 | `ml/ocr/ndl-venv` + 引擎目录 `ml/ocr/ndlkotenocr-lite/src`（含 80 MB 模型） |
 
 选型依据（2026-09 调研）：OmniDocBench v1.6 榜首是 NaviDC-OCR / OvisOCR2 / PaddleOCR-VL-1.6 这类端到端小 VLM（96–97 分），
