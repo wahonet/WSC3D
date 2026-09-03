@@ -64,8 +64,8 @@ export interface StonePatchBody {
 }
 export const patchStone = (stoneId: number, body: StonePatchBody) =>
   api.patch<StoneInfo>(`/stones/${stoneId}`, body)
-export const patchLayer = (stoneId: number, seq: number, summary: string) =>
-  api.patch<StoneInfo>(`/stones/${stoneId}/layers/${seq}`, { summary })
+export const patchLayer = (stoneId: number, seq: number, summary: string, name?: string) =>
+  api.patch<StoneInfo>(`/stones/${stoneId}/layers/${seq}`, { summary, name })
 export const setMaster = (stoneId: number, assetId: number) =>
   api.post<{ ok: boolean; message: string; rebased: number }>(`/stones/${stoneId}/master/${assetId}`)
 

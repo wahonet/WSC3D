@@ -117,6 +117,7 @@ class StonePatch(BaseModel):
 
 class LayerPatch(BaseModel):
     summary: str
+    name: str | None = None
 
 
 class SetMasterOut(BaseModel):

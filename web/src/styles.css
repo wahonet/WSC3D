@@ -529,38 +529,44 @@ button.step:hover { border-color: var(--accent); background: var(--bg-3); }
 @keyframes toast-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 
 /* ==========================================================================
-   释文卡（文献模块右栏，TextCard）
+   文献模块右栏：固定操作栏 + 滚动正文（石头信息折叠块、释文全文）
    ========================================================================== */
-.rcard { background: var(--bg-2); border: 1px solid var(--line); border-radius: var(--radius-lg); padding: 12px 14px; flex-shrink: 0; }
-.rcard-h {
-  display: flex; align-items: center; gap: 8px; font-size: 11px; font-weight: 700; letter-spacing: .1em; color: var(--text-3);
-  text-transform: uppercase; padding-bottom: 8px; margin-bottom: 10px; border-bottom: 1px solid var(--line);
+.libpane { height: 100%; display: flex; flex-direction: column; min-height: 0; }
+.lib-top {
+  flex-shrink: 0; display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 7px 12px;
+  background: var(--bg-2); border-bottom: 1px solid var(--line); box-shadow: 0 2px 8px rgba(0, 0, 0, .18); z-index: 2;
 }
-.rcard-h::before { content: ""; width: 3px; height: 11px; border-radius: 2px; background: var(--accent); opacity: .85; }
-.rcard-h .grow { flex: 1; }
+.lib-link { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; font-size: 12.3px; color: var(--text-2); }
+.lib-link .sw { width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; box-shadow: inset 0 0 0 1px rgba(0,0,0,.25); }
+.lib-sel { color: var(--text); }
+.lib-sel q { color: var(--amber); font-style: normal; quotes: "「" "」"; }
+.lib-body { flex: 1; min-height: 0; overflow-y: auto; padding: 10px 14px 16px; }
+.lib-meta { border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bg-2); padding: 0 10px 8px; margin-bottom: 12px; }
+.lib-meta > summary { list-style: none; cursor: pointer; display: flex; align-items: center; gap: 8px; padding: 8px 0; font-size: 12.5px; min-width: 0; }
+.lib-meta > summary::-webkit-details-marker { display: none; }
+.lib-meta > summary::before { content: "▸"; color: var(--text-3); font-size: 10px; }
+.lib-meta[open] > summary::before { content: "▾"; }
+.lib-meta > summary .truncate { flex: 1; font-size: 11.5px; }
 .rfields { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 10px; }
 .rfields .field:first-child { grid-column: 1 / 3; }
 .rrow { display: flex; align-items: center; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
-.rsec { padding: 8px 0; border-top: 1px solid var(--line); }
-.rsec:first-child { border-top: 0; padding-top: 0; }
-.rsec-h { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 12.5px; margin-bottom: 4px; }
-.rsec-h .seq { width: 20px; height: 20px; border-radius: 50%; background: var(--bg-4); font-family: var(--font-mono); font-size: 11px; display: grid; place-items: center; }
-.rsec-h .ops { margin-left: auto; display: flex; gap: 5px; }
-.rdesc { font-size: 12.6px; line-height: 1.95; color: var(--text-2); text-align: justify; user-select: text; cursor: text; max-height: 260px; overflow-y: auto; padding-right: 4px; }
-.rdesc:empty::before { content: "（暂无内容，点击编辑填写）"; color: var(--text-3); }
-/* 已关联文字：底色与下划线取对应标注的颜色（行内 style 注入），选中时加同色描边 */
+
+/* 释文全文：一篇文章，层名为行内小标题 */
+.article { font-size: 13px; line-height: 2; color: var(--text-2); text-align: justify; user-select: text; cursor: text; }
+.art-sec + .art-sec { margin-top: 10px; }
+.art-h { display: flex; align-items: center; gap: 7px; margin: 0 0 2px; font-size: 12.5px; font-weight: 700; color: var(--text); user-select: none; }
+.art-h .seq { width: 19px; height: 19px; border-radius: 50%; background: var(--accent); color: #fff; font-family: var(--font-mono); font-size: 10.5px; display: grid; place-items: center; }
+.art-cap { font-size: 10.5px; font-weight: 700; letter-spacing: .12em; color: var(--text-3); text-transform: uppercase; }
+.art-p { margin: 0; text-indent: 2em; }
+.article-editor { min-height: 60vh; font-size: 13px; line-height: 1.9; font-family: var(--font-sans); }
+/* 已关联文字：底色与下划线取对应节点的颜色（行内 style 注入），选中时加同色描边 */
 .dlink {
   border-bottom: 2px solid transparent; border-radius: 3px;
   padding: 0 1px; cursor: pointer; transition: filter .12s; color: var(--text);
 }
 .dlink:hover { filter: brightness(1.15); }
 .dlink.on { font-weight: 600; }
-.rpending {
-  display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 10px; padding: 9px 11px; font-size: 12px;
-  color: var(--text); background: rgba(232, 163, 61, .1); border: 1px solid rgba(232, 163, 61, .4); border-radius: var(--radius);
-}
-.rpending q { color: var(--amber); font-style: normal; }
-/* 关联文字框：背景/边框色由行内 style 按标注颜色注入 */
+/* 关联文字框（标注表单）：背景/边框色由行内 style 按节点颜色注入 */
 .ra-linkedtext {
   font-size: 12.5px; line-height: 1.85; text-align: justify; padding: 9px 11px; border-radius: var(--radius);
   background: rgba(232, 140, 26, .14); border: 1px solid rgba(232, 140, 26, .45); color: var(--text);

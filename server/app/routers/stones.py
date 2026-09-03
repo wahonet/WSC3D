@@ -42,13 +42,15 @@ def patch_stone(body: StonePatch, s: Stone = Depends(get_stone), db: Session = D
     return stone_detail(s, db)
 
 
-@router.patch("/{stone_id}/layers/{seq}", response_model=StoneDetail, summary="编辑第 N 层释文")
+@router.patch("/{stone_id}/layers/{seq}", response_model=StoneDetail, summary="编辑第 N 层释文（可同时改层名）")
 def patch_layer(seq: int, body: LayerPatch, s: Stone = Depends(get_stone),
                 db: Session = Depends(get_db)):
     cur, lay = textlinks.source_text(s, f"layer:{seq}")
     if body.summary != cur:
         textlinks.save_text_with_links(db, s.id, f"layer:{seq}", body.summary,
                                        lambda t: setattr(lay, "summary", t))
+    if body.name is not None and body.name.strip() and body.name.strip() != lay.name:
+        lay.name = body.name.strip()
     db.commit()
     return stone_detail(s, db)
 

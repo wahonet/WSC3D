@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Landmark, Save } from 'lucide-react'
+import { Landmark, Link2, Pencil, Save, X } from 'lucide-react'
 import { patchLayer, patchStone } from '../api'
 import { useApp } from '../store/useApp'
 import { toast } from '../store/useToast'
-import TextCard, { buildSources, type PendingSel } from './research/TextCard'
-import { Button, Empty, Field } from './ui'
+import TextArticle, { buildSources, joinArticle, splitArticle, type PendingSel } from './library/TextArticle'
+import { Badge, Button, Empty, Field } from './ui'
 
 type Fields = { dims_text: string; era: string; material: string; carving: string; location: string }
 const FIELD_LABELS: [keyof Fields, string][] = [
@@ -12,9 +12,9 @@ const FIELD_LABELS: [keyof Fields, string][] = [
 ]
 
 /**
- * 文献模块右栏：石头元数据（可编辑）+ 总述 / 分层释文。
- * 释文可直接拖选文字关联到当前选中的结构节点（已关联文字按节点颜色高亮并锁定）。
- * 释文即当前的"文献"：来自著录原书，后续文献库模块会把 PDF / OCR 的文段也接进来。
+ * 文献模块右栏：顶部固定的关联操作栏 + 可滚动正文（石头信息折叠块、释文全文）。
+ * 释文是目前唯一的"文献"，来自著录原书人工录入；总述与各层连成一篇阅读，整篇一个文本框编辑。
+ * 选中节点后在正文里拖选一段文字 → 顶部「关联到本节点」；已关联文字按节点颜色高亮并锁定。
  */
 export default function InfoPanel() {
   const info = useApp(s => s.stoneInfo)
@@ -25,7 +25,11 @@ export default function InfoPanel() {
   const update = useApp(s => s.updateAnnotation)
   const refreshStoneInfo = useApp(s => s.refreshStoneInfo)
   const refreshAnnos = useApp(s => s.refreshAnnos)
+
   const [pending, setPending] = useState<PendingSel | null>(null)
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState('')
+  const [saving, setSaving] = useState(false)
   const [fields, setFields] = useState<Fields>({ dims_text: '', era: '', material: '', carving: '', location: '' })
   const [fieldsDirty, setFieldsDirty] = useState(false)
 
@@ -49,16 +53,29 @@ export default function InfoPanel() {
       toast.ok('石头信息已保存')
     } catch (e) { toast.error(e) }
   }
-  const saveText = async (sourceKey: string, text: string) => {
+
+  const startEdit = () => { setDraft(joinArticle(sources)); setEditing(true); setPending(null); window.getSelection()?.removeAllRanges() }
+  const cancelEdit = () => setEditing(false)
+  const saveArticle = async () => {
+    const r = splitArticle(draft, sources)
+    if (!r.ok) { toast.warn(r.error); return }
+    setSaving(true)
     try {
-      if (sourceKey === 'description') await patchStone(info.id, { description: text })
-      else await patchLayer(info.id, Number(sourceKey.split(':')[1]), text)
+      for (const p of r.parts) {
+        const src = sources.find(s => s.key === p.key)
+        if (!src) continue
+        const nameChanged = p.name != null && p.name !== src.name
+        if (p.text === src.text && !nameChanged) continue
+        if (p.key === 'description') await patchStone(info.id, { description: p.text })
+        else await patchLayer(info.id, Number(p.key.split(':')[1]), p.text, nameChanged ? p.name : undefined)
+      }
       await refreshStoneInfo()
       await refreshAnnos()
-      toast.ok('已保存')
-      return true
-    } catch (e) { toast.error(e); return false }
+      setEditing(false)
+      toast.ok('释文已保存')
+    } catch (e) { toast.error(e) } finally { setSaving(false) }
   }
+
   const doLink = async () => {
     if (!selected || !pending) return
     const r = await update(selected.id, { desc_source: pending.source, desc_start: pending.start, desc_end: pending.end, desc_text: pending.text })
@@ -68,33 +85,78 @@ export default function InfoPanel() {
       toast.ok(`已把这段释文关联到「${selected.label}」`)
     }
   }
+  const dropPending = () => { setPending(null); window.getSelection()?.removeAllRanges() }
+  const excerpt = (t: string) => (t.length > 22 ? t.slice(0, 22) + '…' : t)
 
   return (
-    <div className="info">
-      <div className="info-head">
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <h2>{info.name}</h2>
-          <div className="code">{info.code} · {info.asset_count} 件素材 · {info.annotation_count} 条标注</div>
+    <div className="libpane">
+      {/* ---------- 顶部固定：关联操作 + 全文编辑 ---------- */}
+      <div className="lib-top">
+        <div className="lib-link">
+          {editing ? (
+            <span className="hint">正在编辑全文；保存后再做关联</span>
+          ) : pending ? (
+            <>
+              <Link2 size={13} className="muted" />
+              <span className="lib-sel">已选 <b>{pending.text.length}</b> 字：<q>{excerpt(pending.text)}</q></span>
+              {selected
+                ? <Button size="sm" variant="primary" onClick={doLink}>关联到「{excerpt(selected.label)}」</Button>
+                : <span className="hint">（先在左侧树或图上选中一个节点）</span>}
+              <Button size="sm" variant="ghost" icon={<X size={12} />} onClick={dropPending} title="放弃选区" />
+            </>
+          ) : selected ? (
+            <>
+              <span className="sw" style={{ background: selected.color }} />
+              <span className="lib-sel">节点「<b>{excerpt(selected.label)}</b>」</span>
+              {selected.desc_text
+                ? <Badge tone="amber">已关联 {selected.desc_text.length} 字</Badge>
+                : <span className="hint">在下方释文里拖选一段文字，这里会出现「关联」按钮</span>}
+              {selected.desc_text && (
+                <Button size="xs" variant="ghost" onClick={() => update(selected.id, { clear_link: true })} title="解除关联，文字恢复可编辑">解除</Button>
+              )}
+            </>
+          ) : (
+            <span className="hint">先在左侧结构树或图上选中一个节点，再在下方释文里拖选文字关联</span>
+          )}
         </div>
+        <span style={{ flex: 1 }} />
+        {editing ? (
+          <>
+            <Button size="sm" variant="primary" icon={<Save size={13} />} onClick={saveArticle} disabled={saving}>{saving ? '保存中…' : '保存全文'}</Button>
+            <Button size="sm" variant="ghost" onClick={cancelEdit} disabled={saving}>取消</Button>
+          </>
+        ) : (
+          <Button size="sm" variant="ghost" icon={<Pencil size={12} />} onClick={startEdit} title="整篇编辑总述与各层释文">编辑全文</Button>
+        )}
       </div>
 
-      <div className="rfields">
-        {FIELD_LABELS.map(([k, lb]) => (
-          <Field key={k} label={lb}>
-            <input className="input sm" value={fields[k]} onChange={e => setF(k, e.target.value)} />
-          </Field>
-        ))}
-      </div>
-      {fieldsDirty && (
-        <div className="rrow" style={{ marginTop: 0 }}>
-          <Button size="sm" variant="primary" icon={<Save size={13} />} onClick={saveFields}>保存信息</Button>
-          <Button size="sm" variant="ghost" onClick={() => refreshStoneInfo()}>放弃修改</Button>
-        </div>
-      )}
+      {/* ---------- 正文（滚动） ---------- */}
+      <div className="lib-body">
+        <details className="lib-meta">
+          <summary>
+            <b>{info.name}</b>
+            <span className="mono muted">{info.code}</span>
+            <span className="muted truncate">{[info.era, info.dims_text].filter(Boolean).join(' · ') || '（尺寸 / 年代未填）'}</span>
+          </summary>
+          <div className="rfields" style={{ marginTop: 8 }}>
+            {FIELD_LABELS.map(([k, lb]) => (
+              <Field key={k} label={lb}>
+                <input className="input sm" value={fields[k]} onChange={e => setF(k, e.target.value)} />
+              </Field>
+            ))}
+          </div>
+          {fieldsDirty && (
+            <div className="rrow" style={{ marginTop: 8 }}>
+              <Button size="sm" variant="primary" icon={<Save size={13} />} onClick={saveFields}>保存信息</Button>
+              <Button size="sm" variant="ghost" onClick={() => refreshStoneInfo()}>放弃修改</Button>
+            </div>
+          )}
+        </details>
 
-      <TextCard sources={sources} links={links} selectedId={selectedId} selectedLabel={selected?.label ?? null}
-        pending={pending} onPending={setPending} onSelectAnno={id => { select(id); flyTo(id) }}
-        onSave={saveText} onLink={doLink} onError={toast.warn} />
+        <TextArticle sources={sources} links={links} selectedId={selectedId}
+          onPending={setPending} onSelectAnno={id => { select(id); flyTo(id) }} onError={toast.warn}
+          editing={editing} draft={draft} onDraft={setDraft} />
+      </div>
     </div>
   )
 }
