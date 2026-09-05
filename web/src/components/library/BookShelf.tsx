@@ -54,13 +54,18 @@ export default function BookShelf({ docId, pageId, activeSegment, onSelectDoc, o
   useEffect(() => {
     if (docs.length && (docId == null || !docs.some(d => d.id === docId))) onSelectDoc(docs[0].id)
   }, [docs, docId, onSelectDoc])
-  // 作业运行时每 2 秒刷新进度与页状态
+  // 空闲时也检查状态，以发现外部启动的作业和全库队列的下一本书。
   const running = !!status?.job.running
   useEffect(() => {
-    if (!running) return
-    const t = window.setInterval(() => { reloadStatus(); reloadPages(); reloadDocs() }, 2000)
+    const t = window.setInterval(reloadStatus, running ? 2000 : 5000)
     return () => window.clearInterval(t)
-  }, [running, reloadStatus, reloadPages, reloadDocs])
+  }, [running, reloadStatus])
+  useEffect(() => {
+    reloadPages(); reloadDocs()
+    if (!running) return
+    const t = window.setInterval(() => { reloadPages(); reloadDocs() }, 2000)
+    return () => window.clearInterval(t)
+  }, [running, status?.job.document_id, status?.job.finished_at, reloadPages, reloadDocs])
 
   const scan = async () => {
     setBusy(true)

@@ -18,6 +18,7 @@ import subprocess
 import threading
 import time
 from datetime import datetime
+from difflib import SequenceMatcher
 from pathlib import Path
 from typing import Any, Optional
 
@@ -371,51 +372,141 @@ def _mark_error(db: Session, doc_id: int, pages: list[int], msg: str) -> None:
     db.commit()
 
 
+def _bbox_iou(a: list, b: list) -> float:
+    if len(a) != 4 or len(b) != 4:
+        return 0.0
+    intersection = max(0.0, min(a[2], b[2]) - max(a[0], b[0])) * max(0.0, min(a[3], b[3]) - max(a[1], b[1]))
+    union = max(0.0, a[2] - a[0]) * max(0.0, a[3] - a[1]) + max(0.0, b[2] - b[0]) * max(0.0, b[3] - b[1]) - intersection
+    return intersection / union if union else 0.0
+
+
+def _match_ocr_segments(old: list[Segment], blocks: list[dict]) -> dict[int, Segment]:
+    """按文本和物理位置做一对一匹配，阅读序号变化不能把校订稿转移给别段。"""
+    normalize = lambda value: re.sub(r"[\W_]+", "", value, flags=re.UNICODE).casefold()
+    old_text = [normalize(s.text) for s in old]
+    candidates: list[tuple[float, int, int]] = []
+    for bi, b in enumerate(blocks):
+        txt = normalize(str(b.get("text", "")))
+        for oi, s in enumerate(old):
+            overlap = _bbox_iou(s.bbox or [], b.get("bbox") or [])
+            if overlap < 0.45:
+                continue
+            similarity = SequenceMatcher(None, old_text[oi], txt, autojunk=False).ratio() if old_text[oi] and txt else 0.0
+            # 修复跨页合并时，旧机器文本可能是本段加下一页的延续；位置不变而文本缩短。
+            if (overlap >= 0.85 and similarity >= 0.45) or (overlap >= 0.55 and similarity >= 0.7):
+                candidates.append((0.55 * overlap + 0.45 * similarity, oi, bi))
+    matches: dict[int, Segment] = {}
+    used: set[int] = set()
+    for score, oi, bi in sorted(candidates, reverse=True):
+        if oi in used or bi in matches:
+            continue
+        # 几乎并列的候选不能可靠证明身份；旧人工稿会由调用方保留供复核。
+        if any(abs(score - other) < 0.025 and (oi == oj or bi == bj) and (oi, bi) != (oj, bj)
+               for other, oj, bj in candidates):
+            continue
+        matches[bi] = old[oi]
+        used.add(oi)
+    return matches
+
+
+def _segment_has_human_work(s: Segment, page: Page) -> bool:
+    return bool(s.text_edit or s.note or s.review_status != "machine" or s.revision
+                or (page.ocr_at and s.updated_at and s.updated_at > page.ocr_at))
+
+
 def _store_page(db: Session, d: Document, page_no: int, res: dict, engine: str) -> None:
-    """把一页的统一契约结果写库：文段 / 插图 / 页文本 / FTS。原有机器结果被替换，人工校订稿尽量按位置保留。"""
+    """保存统一页结果，按文本和位置保留文段身份、人工工作及检索锚点。"""
     page = db.query(Page).filter(Page.document_id == d.id, Page.page_no == page_no).one()
-    old_edits = {(s.seq, s.kind): (s.text_edit, s.review_status, s.note, s.revision) for s in page.segments if s.text_edit or s.note}
-    for s in page.segments:
+    old_segments = list(page.segments)
+    protected = {s.id for s in old_segments if _segment_has_human_work(s, page)}
+    blocks = sorted(res.get("blocks") or [], key=lambda b: int(b.get("seq", 0)))
+    matches = _match_ocr_segments(old_segments, blocks)
+    matched_ids = {s.id for s in matches.values()}
+    for s in old_segments:
         db.execute(sql("DELETE FROM segments_fts WHERE segment_id = :i"), {"i": s.id})
-    page.segments.clear()
-    page.figures.clear()
+    current: list[Segment] = []
+    for bi, b in enumerate(blocks):
+        s = matches.get(bi)
+        if s is None:
+            s = Segment(document_id=d.id, seq=bi, kind=str(b.get("kind", "text")), text="")
+            page.segments.append(s)
+        elif s.id not in protected:
+            s.kind = str(b.get("kind", "text"))
+        s.seq = bi
+        s.text = str(b.get("text", ""))
+        s.bbox = [round(float(v), 5) for v in (b.get("bbox") or [0, 0, 0, 0])]
+        s.confidence = b.get("confidence")
+        current.append(s)
+    # 先分配新 id，再删除旧机器块，避免 SQLite 把旧的检索/引用 id 复用给别段。
     db.flush()
-    blocks = res.get("blocks") or []
-    for b in blocks:
-        seq, kind = int(b.get("seq", 0)), str(b.get("kind", "text"))
-        s = Segment(document_id=d.id, page_id=page.id, seq=seq, kind=kind, text=str(b.get("text", "")),
-                    bbox=[round(float(v), 5) for v in (b.get("bbox") or [0, 0, 0, 0])],
-                    confidence=b.get("confidence"))
-        if (seq, kind) in old_edits:
-            s.text_edit, s.review_status, s.note, s.revision = old_edits[(seq, kind)]
-        db.add(s)
-        db.flush()
+    retained = []
+    for s in old_segments:
+        if s.id in matched_ids:
+            continue
+        if s.id in protected:
+            s.seq = len(current)
+            current.append(s)
+            retained.append(s.id)
+        else:
+            page.segments.remove(s)
+    db.flush()
+    for s in current:
         db.execute(sql("INSERT INTO segments_fts(text, segment_id, document_id, page_no) VALUES (:t, :i, :d, :p)"),
                    {"t": s.text_edit or s.text, "i": s.id, "d": d.id, "p": page_no})
+
+    old_figures = list(page.figures)
+    used_figures: set[int] = set()
+    figures = sorted(res.get("figures") or [], key=lambda fg: int(fg.get("seq", 0)))
     fig_dir = doc_dir(d) / "figures"
     fig_dir.mkdir(parents=True, exist_ok=True)
-    for fg in res.get("figures") or []:
-        seq = int(fg.get("seq", 0))
-        rel = ""
+    for seq, fg in enumerate(figures):
+        candidates = sorted(((_bbox_iou(f.bbox or [], fg.get("bbox") or []), f) for f in old_figures
+                             if f.id not in used_figures), key=lambda pair: pair[0], reverse=True)
+        f = candidates[0][1] if candidates and candidates[0][0] >= 0.8 and (len(candidates) == 1 or candidates[0][0] - candidates[1][0] >= 0.025) else None
+        if f is None:
+            f = Figure(document_id=d.id, seq=seq, caption="", label="", image_relpath="")
+            page.figures.append(f)
+        else:
+            used_figures.add(f.id)
+        f.seq = seq
+        f.bbox = [round(float(v), 5) for v in (fg.get("bbox") or [0, 0, 0, 0])]
+        # 旧模型没有记录图注编辑版本；保留已有非空图注、图号，不能假定它们都是机器稿。
+        f.caption = f.caption or str(fg.get("caption", ""))
+        f.label = f.label or str(fg.get("label", ""))
+        f.caption_bbox = fg.get("caption_bbox")
         src = fg.get("image_path") or ""
-        if src and Path(src).exists():
-            dst = fig_dir / f"p{page_no:04d}_{seq:02d}{Path(src).suffix.lower() or '.jpg'}"
-            shutil.copy2(src, dst)
-            rel = dst.relative_to(settings.library_data_dir).as_posix()
-        db.add(Figure(document_id=d.id, page_id=page.id, seq=seq,
-                      bbox=[round(float(v), 5) for v in (fg.get("bbox") or [0, 0, 0, 0])],
-                      image_relpath=rel, caption=str(fg.get("caption", "")), label=str(fg.get("label", "")),
-                      caption_bbox=fg.get("caption_bbox")))
-    page.text = str(res.get("text", ""))
+        if src and Path(src).is_file():
+            # 文件名由内容而非 seq 决定；插入新图块不会覆盖保留下来的旧图裁片。
+            src_path = Path(src)
+            dst = fig_dir / f"p{page_no:04d}_{sha256_file(src_path)[:20]}{src_path.suffix.lower() or '.jpg'}"
+            if src_path.resolve() != dst.resolve():
+                shutil.copy2(src_path, dst)
+            f.image_relpath = dst.relative_to(settings.library_data_dir).as_posix()
+    db.flush()
+    retained_figures = []
+    for f in old_figures:
+        if f.id in used_figures:
+            continue
+        if f.caption or f.label or f.note or f.review_status != "machine":
+            f.seq = len(figures) + len(retained_figures)
+            retained_figures.append(f.id)
+        else:
+            page.figures.remove(f)
+    page.text = "\n".join(s.text for s in current if s.text and s.kind not in ("header", "page_number"))
     page.width = int(res.get("width") or page.width or 0)
     page.height = int(res.get("height") or page.height or 0)
     page.image_sha256 = str(res.get("image_sha256") or page.image_sha256 or "")
     page.engine = str(res.get("engine") or engine)
     page.status, page.error = "done", ""
     confs = [b.get("confidence") for b in blocks if b.get("confidence") is not None]
-    page.stats = {"segments": len(blocks), "figures": len(res.get("figures") or []),
+    page.stats = {**(res.get("stats") or {}), "segments": len(current), "figures": len(figures) + len(retained_figures),
                   "confidence": round(sum(confs) / len(confs), 4) if confs else None,
                   "seconds": res.get("seconds")}
+    if res.get("extra"):
+        page.stats["ocr_normalization"] = res["extra"]
+    if retained or retained_figures:
+        page.stats["retained_review"] = {"segment_ids": retained, "figure_ids": retained_figures,
+                                         "message": "重建时部分旧记录未能可靠匹配，已保留人工工作，请复核。"}
     page.ocr_at = datetime.now()
     db.commit()
 
@@ -426,17 +517,14 @@ def patch_segment(db: Session, s: Segment, text_edit: str | None, kind: str | No
     if base_revision is not None and base_revision != s.revision:
         raise HTTPException(409, f"该文段已被修改（当前版本 {s.revision}），请刷新后再保存")
     changed = False
-    if text_edit is not None and text_edit != s.text_edit:
-        s.text_edit = text_edit
-        changed = True
-    if kind is not None:
-        s.kind = kind
-    if review is not None:
-        s.review_status = review
-    if note is not None:
-        s.note = note
+    text_changed = text_edit is not None and text_edit != s.text_edit
+    for attr, value in (("text_edit", text_edit), ("kind", kind), ("review_status", review), ("note", note)):
+        if value is not None and value != getattr(s, attr):
+            setattr(s, attr, value)
+            changed = True
     if changed:
         s.revision += 1
+    if text_changed:
         db.execute(sql("DELETE FROM segments_fts WHERE segment_id = :i"), {"i": s.id})
         db.execute(sql("INSERT INTO segments_fts(text, segment_id, document_id, page_no) VALUES (:t, :i, :d, :p)"),
                    {"t": s.text_edit or s.text, "i": s.id, "d": s.document_id, "p": s.page.page_no})

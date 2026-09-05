@@ -10,15 +10,15 @@
 - **分割**：用 SAM（点选 / 文字 / 示例框）和矩形 / 圆形 / 多边形 / 点，把画面切成一个个**实体**；
 - **标注**：每个实体是结构树的一个节点（整石 → 花纹带 / 层 → 场景 → 人物·物象 → 部件；榜题、残损为旁支），
   填写状态、父级、类别、概念、三层图像志文本与榜题录文；可由释文一键生成骨架；
-- **文献**：把释文（目前来自著录原书，人工录入）与文献段落关联到已标注的节点，文字按节点颜色高亮并锁定。
+- **文献**：释文与已标注节点关联，文字按节点颜色高亮并锁定；书库支持 PDF 入库、批量 OCR、逐页校勘与全库检索。
 
 路线：先把武梁祠西壁这一块做"完整"（底本、结构、文献、综合四层），再导入其他石头。
-下一阶段是文献库（PDF / OCR 批量识别书籍内容、分段审核、插图绑定）。
+文献库已可使用；后续补充节点与原书文段 / 插图之间的证据关联。
 
 技术栈：FastAPI + SQLAlchemy + SQLite（后端），React 19 + TypeScript + Vite（前端），
 OpenSeadragon（深度缩放）、three.js（三维）、zustand（状态）、react-resizable-panels（可拖拽布局）。
 
-> 本仓库只包含**程序**。照片 / 拓片 / 三维、石头简介与释文（`meta.json`）、标注数据库均不入库，见第十二节。
+> 本仓库只包含**程序**。照片 / 拓片 / 三维、文献 PDF、石头简介与释文（`meta.json`）、标注数据库均不入库，见第十一节。
 
 ## 一、目录结构
 
@@ -48,7 +48,8 @@ stonelab/
 │  │  ├─ routers/              system / stones（含 structure 骨架与归类）/ assets / annotations / concepts / library / segment / alignment
 │  │  ├─ services/             scanner / previews / alignment / transforms / textlinks / structure / seeds / library / segment / serialize
 │  │  ├─ sam_worker.py         SAM 推理子进程（独立 Python 环境中运行）
-│  │  └─ ocr_worker.py         OCR 子进程（--engine mineru|ndl，各在自己的环境中运行）
+│  │  ├─ ocr_worker.py         OCR 子进程（--engine mineru|ndl，各在自己的环境中运行）
+│  │  └─ ocr_normalize.py      MinerU 原始版面按物理页归一化，保留跨页续文的位置
 │  ├─ data/                    stonelab.db · previews/ · thumbs/ · library/（页图、插图裁片、OCR 原始输出）· *.log（不入库）
 │  └─ requirements.txt
 ├─ web/                        前端
@@ -62,11 +63,11 @@ stonelab/
 │  │  │  ├─ structure/         StructurePanel（结构树）/ NodeDetail（标注表单）/ ConceptPicker / SkeletonDialog
 │  │  │  ├─ viewer/            Viewer2D / Viewer3D / ViewerBar（含切图）/ AnnotationShapes / NodeInfoCard / useOsd
 │  │  │  ├─ tools/             ShapeTools / SegmentPanel
-│  │  │  └─ library/           TextArticle（释文全文：整篇阅读 / 编辑、拖选关联）
+│  │  │  └─ library/           TextArticle（释文全文）/ BookShelf / BookPicker / LibrarySearch / 逐页校勘组件
 │  │  ├─ hooks/useShortcuts.ts
 │  │  └─ lib/                  constants / format / geometry（Umeyama、坐标链叠加、外接矩形）/ tree（建树、展开、进度）
 │  └─ dist/                    npm run build 产物（后端可直接托管，不入库）
-├─ scripts/                    校验与运维脚本（见第九节）
+├─ scripts/                    校验与运维脚本（见第八节）
 ├─ .gitignore · .gitattributes · .editorconfig · .vscode/settings.json   仓库与编辑器约定（UTF-8、LF）
 ├─ 启动平台.ps1
 └─ README.md
@@ -170,7 +171,8 @@ cd web    ; npm run build                                                   # �
   「编辑全文」把整篇放进一个文本框，层与层之间以 `## 第N层 · 层名` 一行分隔（可改层名，不能增减层），保存时按层拆回；
 - 选中节点后**拖选一段文字 → 「关联到本节点」**，文字以节点颜色高亮并**锁定**：编辑时删改已关联文字会被拒绝（409），
   其他改动正常保存且全部关联区间自动重定位；一次只能关联同一段落（总述或某一层）内的文字，区间不能重叠；点高亮文字可反选节点。
-- 释文是目前唯一的"文献"，由著录原书人工录入 `meta.json`（重新扫描只在字段为空时填入，不覆盖人工编辑）。
+- 「关联释文」页签的文字由著录原书人工录入 `meta.json`（重新扫描只在字段为空时填入，不覆盖人工编辑）；
+  「书库」页签用于 PDF、OCR 与逐页校勘，详见第四之二节。
 
 ### 快捷键
 
@@ -214,7 +216,7 @@ cd web    ; npm run build                                                   # �
 
 **验收**：结构树筛选芯片 候选 / 无框 / 未归类 / 未关联释文 清零，即该石"结构完整"。
 
-## 四之二、文献库与 OCR（后端已就位，界面待做）
+## 四之二、文献库与 OCR
 
 文献来自书。PDF 放进 `assets/library/`（不入库），启动或 `POST /api/library/scan` 自动登记为 `documents`
 （编号 `DOC-001…`，文件名形如 `DOC-001_书名.pdf` 时取书名为题名），每个物理页一条 `doc_pages`。
@@ -240,6 +242,33 @@ cd web    ; npm run build                                                   # �
 每个词都 ≥3 字时走 FTS5 trigram 索引，否则退回 LIKE 子串匹配；结果按 **书 → 页 → 段** 的阅读顺序排列并支持 `offset` 翻页，
 同时返回总数与各书命中数（`facets`，不受 `document_id` 过滤，前端用作书签筛选），命中片段用 `[[ ]]` 标出命中词。
 原始输出留在 `server/data/library/doc<id>/ocr/`，页图缓存在 `pages/`（浏览 150 DPI，OCR 输入 300 DPI 并记 SHA-256）。
+
+**物理页与跨页段落**：MinerU 的 `content_list` / `para_blocks` 面向连续阅读，会把下一页续文并入上一页，
+并将原页标为 `lines_deleted`；不能直接用于逐页校勘。工作进程通过 `ocr_normalize.py` 读取
+`middle.json` 的 `preproc_blocks`，按物理页、原版面块顺序和本页坐标保存，图注与脚注保留独立边界。
+页索引缺失、重复或不在请求范围时返回错误，不将缺失结果当作完成。归一化版本记在
+`doc_pages.stats.ocr_normalization`。重新识别按文字与位置匹配旧段，保留段ID、人工校订与审核；
+未能可靠匹配的人工记录继续保留，并记入 `stats.retained_review`。
+
+旧缓存可在 OCR 队列空闲时无模型修复：`python scripts/repair_ocr_physical_pages.py` 先预览，
+加 `--apply` 后自动备份 SQLite 到 `server/data/library/repairs/<时间>/`，再重建已完成的 MinerU 页面及索引。
+原始OCR文件不修改；已应用同版本的页面自动跳过。更新代码后须重启后端及其 OCR 工作进程，
+浏览器刷新只会重新载入页面数据。回归验证：`python scripts/test_ocr_normalize.py` 和
+`python scripts/test_library_reconciliation.py`，无需启动模型或写入实际资料库。
+
+**全库顺序 OCR**：后端每次处理一本书；运维脚本自动按体例选择引擎并依次提交所有文献。
+先重启后端，使最新代码进入后端和 OCR 工作进程，再从项目根目录执行：
+
+```powershell
+python scripts/run_library_ocr.py --redo --state server/data/library/ocr-queue.json
+```
+
+`--redo` 包含已经完成的页；省略时只处理未完成页。脚本运行期间应保持进程开启，进度写入指定 JSON 文件，
+书库界面会自动发现当前作业和下一本书。点击界面「取消」会停止当前作业与后续队列。
+中断后用 `python scripts/run_library_ocr.py --resume --state server/data/library/ocr-queue.json` 恢复同一队列；
+恢复时跳过本轮已完成的页。若后端也重启或启动请求的响应丢失，脚本会停止并记录原因，需先核对作业状态。
+原有校订与审核按上述匹配规则保留。完整重跑前建议备份数据库，
+OCR 原始输出会随重新识别更新。队列回归测试：`python scripts/test_library_ocr_queue.py`。
 
 **接口**（`/api/library/…`）：`POST scan` · `GET/PATCH documents[/{id}]` · `GET documents/{id}/pages` · `GET documents/{id}/file` ·
 `GET pages/{id}`（文段 + 插图）· `GET pages/{id}/image?dpi=` · `POST documents/{id}/ocr`（`engine / pages / redo / backend`，后台逐页落库）·
@@ -320,6 +349,9 @@ SQLite（`server/data/stonelab.db`），经 SQLAlchemy ORM，启动时自动轻�
 | `setup_ocr_envs.ps1 [-Only mineru|ndl]` | 建立两个 OCR 工作环境（uv + Python 3.12）并下载 MinerU 模型 |
 | `ocr_worker_smoke.py <engine> <PDF或页图> [页…]` | 不经后端直接驱动 OCR 工作进程，看引擎原始输出 |
 | `verify_library.py [--engine] [--pages] [--backend]` | 文献库端到端验证：扫描、页图、OCR 作业、页详情、单书 / 全库检索、校订与 409 |
+| `run_library_ocr.py [--redo] [--state 路径] [--resume]` | 全库按体例顺序 OCR，保存队列进度、失败页，支持中断恢复 |
+| `repair_ocr_physical_pages.py [--apply]` | 从 MinerU 原始缓存修复跨页续文错位；默认预览，应用前自动备份数据库 |
+| `test_ocr_normalize.py` / `test_library_reconciliation.py` / `test_library_ocr_queue.py` | 物理页归一化、重跑保留人工记录、队列调度回归测试 |
 | `bench_photo_seg.py [--engine] [--prompt] [--asset]` | 同一张照片上对照 整图/切块 x 原图/增强/仿拓片 的检出数、分数与耗时（需 GPU 环境） |
 | `verify_research.py` | 释文关联（字段编辑/图文关联/锁定保护）验证 |
 | `verify_frame.py` | 统一坐标系（对齐入链+跨图投影）数学验证，用后自动清理 |

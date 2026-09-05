@@ -22,13 +22,17 @@ import hashlib
 import inspect
 import json
 import os
-import re
 import shutil
 import sys
 import tempfile
 import time
 import traceback
 from pathlib import Path
+
+if __package__:
+    from .ocr_normalize import normalize_mineru_output
+else:  # sidecar is launched as a script in an isolated Python environment
+    from ocr_normalize import normalize_mineru_output
 
 _PROTO = None
 
@@ -89,44 +93,6 @@ def pdf_info(pdf: str) -> dict:
 
 
 # ================================================================ MinerU（现代书籍）
-_LABEL_RE = re.compile(r"^\s*((?:图版|图|表|Fig\.?|Figure|Table|Plate)\s*[0-9一二三四五六七八九十]+(?:[.．\-－·][0-9]+)*)")
-
-# MinerU content_list 的块类型 -> 我们的文段类型
-KIND_MAP = {
-    "text": "text", "title": "title", "equation": "equation", "list": "list", "code": "text",
-    "header": "header", "footer": "header", "page_number": "page_number", "aside_text": "other",
-    "page_footnote": "footnote", "footnote": "footnote", "ref_text": "text",
-    "table": "table", "image_caption": "caption", "table_caption": "caption",
-    "image_footnote": "footnote", "table_footnote": "footnote",
-}
-
-
-def _bbox_norm(b) -> list[float]:
-    try:
-        x0, y0, x1, y1 = [float(v) / 1000.0 for v in b[:4]]
-        return [max(0.0, min(1.0, x0)), max(0.0, min(1.0, y0)), max(0.0, min(1.0, x1)), max(0.0, min(1.0, y1))]
-    except Exception:
-        return [0.0, 0.0, 0.0, 0.0]
-
-
-def _join(v) -> str:
-    if isinstance(v, list):
-        return "\n".join(str(x) for x in v if str(x).strip())
-    return str(v or "")
-
-
-_SUP_RE = re.compile(r"\$\s*\^\{\s*\[?([0-9]{1,3})\]?\s*\}\s*\$")
-_CJK = "\u4e00-\u9fff\u3000-\u303f\uff00-\uffef"
-
-
-def _clean_text(t: str) -> str:
-    """MinerU 把脚注号写成行内公式 $^{[1]}$：还原成 [1]，并去掉中文之间多出的空格。"""
-    t = _SUP_RE.sub(r"[\1]", t)
-    t = re.sub(rf"(?<=[{_CJK}])\s+(?=[{_CJK}\[])", "", t)
-    t = re.sub(rf"(?<=\])\s+(?=[{_CJK}])", "", t)
-    return t.strip()
-
-
 def _patch_fasttext_for_nonascii_path() -> None:
     """fasttext（C++）打不开含中文的路径：把小语种模型拷到 ASCII 临时目录并预先放进 fast_langdetect 的缓存。"""
     try:
@@ -184,87 +150,16 @@ class MinerUEngine:
         t0 = time.perf_counter()
         self._do_parse(**kw)
         seconds = time.perf_counter() - t0
-        # 优先 v1 平铺清单（文档化的 type/bbox/page_idx 结构），没有再退到 v2
-        cl_files = [p for p in sorted(out.rglob("*_content_list.json"))] or sorted(out.rglob("*_content_list_v2.json"))
-        if not cl_files:
-            raise RuntimeError(f"MinerU 未产出 content_list：{out}")
-        cl_path = cl_files[0]
-        blocks = json.loads(cl_path.read_text(encoding="utf-8"))
-        if isinstance(blocks, dict):          # v2 可能是 {"pages": [...]} 之类的包装
-            blocks = blocks.get("content_list") or blocks.get("blocks") or blocks.get("pages") or []
-        images_dir = cl_path.parent / "images"
-        # page_idx 一般是本次解析范围内的相对序号（从 0 起）；若超出范围则视为绝对页索引
-        idxs = [int(b.get("page_idx", 0)) for b in blocks if isinstance(b, dict)]
-        absolute = bool(idxs) and max(idxs) >= len(pages)
-        per_page: dict[int, dict] = {}
-        for b in blocks:
-            if not isinstance(b, dict):
-                continue
-            idx = int(b.get("page_idx", 0))
-            page_no = (idx + 1) if absolute else (start + idx)
-            per_page.setdefault(page_no, {"blocks": [], "figures": []})
-            self._absorb_block(b, per_page[page_no], images_dir)
-        result: dict[str, dict] = {}
-        for page_no in pages:
-            d = per_page.get(page_no, {"blocks": [], "figures": []})
-            for i, blk in enumerate(d["blocks"]):
-                blk["seq"] = i
-            for i, fg in enumerate(d["figures"]):
-                fg["seq"] = i
-            text = "\n".join(blk["text"] for blk in d["blocks"]
-                             if blk["kind"] in ("text", "title", "caption", "footnote", "list", "table") and blk["text"])
-            result[str(page_no)] = {
-                "page_no": page_no, "engine": f"mineru/{backend or 'hybrid-engine'}",
-                "seconds": round(seconds / max(1, len(pages)), 3), "text": text,
-                "blocks": d["blocks"], "figures": d["figures"],
-                "raw_dir": str(cl_path.parent),
-            }
-        return result
-
-    def _absorb_block(self, b: dict, acc: dict, images_dir: Path) -> None:
-        btype = str(b.get("type", "text"))
-        bbox = _bbox_norm(b.get("bbox") or [0, 0, 0, 0])
-        if btype in ("image", "chart"):
-            captions = _join(b.get("image_caption") or b.get("chart_caption") or b.get("caption"))
-            img_rel = b.get("img_path") or ""
-            img_path = ""
-            if img_rel:
-                cand = images_dir.parent / img_rel
-                img_path = str(cand) if cand.exists() else str(images_dir / Path(img_rel).name)
-            m = _LABEL_RE.match(captions)
-            acc["figures"].append({
-                "bbox": bbox, "image_path": img_path, "caption": captions,
-                "label": m.group(1).replace(" ", "") if m else "", "caption_bbox": None,
-                "extra": {"type": btype, "sub_type": b.get("sub_type", "")},
-            })
-            foot = _join(b.get("image_footnote") or b.get("chart_footnote"))
-            if foot:
-                acc["blocks"].append({"kind": "footnote", "text": foot, "bbox": bbox, "confidence": None, "extra": {"of": "image"}})
-            if captions:
-                acc["blocks"].append({"kind": "caption", "text": captions, "bbox": bbox, "confidence": None, "extra": {"of": "image"}})
-            return
-        if btype == "table":
-            body = b.get("table_body") or b.get("html") or ""
-            cap = _join(b.get("table_caption"))
-            acc["blocks"].append({"kind": "table", "text": body if isinstance(body, str) else _join(body),
-                                  "bbox": bbox, "confidence": None, "extra": {"caption": cap}})
-            if cap:
-                acc["blocks"].append({"kind": "caption", "text": cap, "bbox": bbox, "confidence": None, "extra": {"of": "table"}})
-            foot = _join(b.get("table_footnote"))
-            if foot:
-                acc["blocks"].append({"kind": "footnote", "text": foot, "bbox": bbox, "confidence": None, "extra": {"of": "table"}})
-            return
-        text = _join(b.get("text") if b.get("text") is not None else b.get("content"))
-        if btype == "list" and b.get("list_items"):
-            text = "\n".join(_join(x) for x in b["list_items"])
-        text = _clean_text(text)
-        if not text:
-            return
-        kind = KIND_MAP.get(btype, "other")
-        if btype == "text" and int(b.get("text_level") or 0) >= 1:
-            kind = "title"
-        acc["blocks"].append({"kind": kind, "text": text, "bbox": bbox, "confidence": None,
-                              "extra": {k: b[k] for k in ("text_level", "sub_type") if k in b}})
+        # content_list/para_blocks may merge text and tables across physical pages.
+        # The untouched preproc blocks retain the actual page and bounding box.
+        middle_files = sorted(out.rglob("*_middle.json"))
+        if len(middle_files) != 1:
+            raise RuntimeError(f"MinerU 未产出唯一的物理页 middle.json：{out}")
+        middle_path = middle_files[0]
+        return normalize_mineru_output(
+            json.loads(middle_path.read_text(encoding="utf-8")), pages,
+            middle_path.parent, f"mineru/{backend or 'hybrid-engine'}", seconds,
+        )
 
 
 # ================================================================ NDL-KotenOCR Lite（古籍）

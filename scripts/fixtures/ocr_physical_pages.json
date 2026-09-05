@@ -1,0 +1,1477 @@
+{
+  "description": "Synthetic-prose regression fixtures retaining the layout and merge structure of three reported MinerU failures. Every prose span has been replaced with an invented test sentence, consistently across original and merged copies. Physical bboxes, reading-order indices, page numbers, equation footnote markers, lines_deleted and cross_page flags are unchanged. page_idx is rebased to 0/1 for standalone two-page batches. The DOC-002 case retains bottom-left and top-right blocks to exercise column reading order. No book transcription is included.",
+  "cases": [
+    {
+      "name": "DOC-002 p122-123",
+      "document": "DOC-002",
+      "pages": [
+        122,
+        123
+      ],
+      "source": "server/data/library/doc2/ocr/mineru/p0121-0126/doc/hybrid_auto/doc_middle.json",
+      "source_page_indices": [
+        1,
+        2
+      ],
+      "middle": {
+        "pdf_info": [
+          {
+            "page_idx": 0,
+            "page_size": [
+              595,
+              841
+            ],
+            "preproc_blocks": [
+              {
+                "bbox": [
+                  313,
+                  692,
+                  525,
+                  745
+                ],
+                "type": "text",
+                "angle": 0,
+                "lines": [
+                  {
+                    "bbox": [
+                      313,
+                      692,
+                      525,
+                      745
+                    ],
+                    "spans": [
+                      {
+                        "bbox": [
+                          313,
+                          692,
+                          525,
+                          745
+                        ],
+                        "type": "text",
+                        "content": "合成文字片段第001号：这段虚构文字用于验证原始物理页上的文本归属、框选坐标和阅读顺序。"
+                      }
+                    ]
+                  }
+                ],
+                "index": 8,
+                "merge_prev": false
+              }
+            ],
+            "para_blocks": [
+              {
+                "bbox": [
+                  313,
+                  692,
+                  525,
+                  745
+                ],
+                "type": "text",
+                "angle": 0,
+                "lines": [
+                  {
+                    "bbox": [
+                      313,
+                      692,
+                      525,
+                      745
+                    ],
+                    "spans": [
+                      {
+                        "bbox": [
+                          313,
+                          692,
+                          525,
+                          745
+                        ],
+                        "type": "text",
+                        "content": "合成文字片段第001号：这段虚构文字用于验证原始物理页上的文本归属、框选坐标和阅读顺序。"
+                      }
+                    ]
+                  },
+                  {
+                    "bbox": [
+                      54,
+                      97,
+                      268,
+                      300
+                    ],
+                    "spans": [
+                      {
+                        "bbox": [
+                          54,
+                          97,
+                          268,
+                          300
+                        ],
+                        "type": "text",
+                        "content": "合成文字片段第002号：这段虚构文字用于验证原始物理页上的文本归属、框选坐标和阅读顺序。",
+                        "cross_page": true
+                      }
+                    ]
+                  }
+                ],
+                "index": 8,
+                "merge_prev": false
+              }
+            ],
+            "discarded_blocks": [
+              {
+                "bbox": [
+                  500,
+                  754,
+                  518,
+                  766
+                ],
+                "type": "page_number",
+                "angle": 0,
+                "lines": [
+                  {
+                    "bbox": [
+                      500,
+                      754,
+                      518,
+                      766
+                    ],
+                    "spans": [
+                      {
+                        "bbox": [
+                          500,
+                          754,
+                          518,
+                          766
+                        ],
+                        "type": "text",
+                        "content": "117"
+                      }
+                    ]
+                  }
+                ],
+                "index": 9
+              }
+            ]
+          },
+          {
+            "page_idx": 1,
+            "page_size": [
+              595,
+              841
+            ],
+            "preproc_blocks": [
+              {
+                "bbox": [
+                  54,
+                  97,
+                  268,
+                  300
+                ],
+                "type": "text",
+                "angle": 0,
+                "lines": [
+                  {
+                    "bbox": [
+                      54,
+                      97,
+                      268,
+                      300
+                    ],
+                    "spans": [
+                      {
+                        "bbox": [
+                          54,
+                          97,
+                          268,
+                          300
+                        ],
+                        "type": "text",
+                        "content": "合成文字片段第002号：这段虚构文字用于验证原始物理页上的文本归属、框选坐标和阅读顺序。"
+                      }
+                    ]
+                  }
+                ],
+                "index": 0,
+                "merge_prev": false
+              },
+              {
+                "bbox": [
+                  55,
+                  303,
+                  270,
+                  578
+                ],
+                "type": "text",
+                "angle": 0,
+                "lines": [
+                  {
+                    "bbox": [
+                      55,
+                      303,
+                      270,
+                      578
+                    ],
+                    "spans": [
+                      {
+                        "bbox": [
+                          55,
+                          303,
+                          270,
+                          578
+                        ],
+                        "type": "text",
+                        "content": "合成文字片段第003号：这段虚构文字用于验证原始物理页上的文本归属、框选坐标和阅读顺序。"
+                      }
+                    ]
+                  }
+                ],
+                "index": 1,
+                "merge_prev": false
+              },
+              {
+                "bbox": [
+                  57,
+                  655,
+                  271,
+                  745
+                ],
+                "type": "text",
+                "angle": 0,
+                "lines": [
+                  {
+                    "bbox": [
+                      57,
+                      655,
+                      271,
+                      745
+                    ],
+                    "spans": [
+                      {
+                        "bbox": [
+                          57,
+                          655,
+                          271,
+                          745
+                        ],
+                        "type": "text",
+                        "content": "左栏末段合成示例第004号：这段虚构文字用于验证原始物理页上的文本归属、框选坐标和阅读顺序。"
+                      }
+                    ]
+                  }
+                ],
+                "index": 4,
+                "merge_prev": false
+              },
+              {
+                "bbox": [
+                  283,
+                  98,
+                  498,
+                  150
+                ],
+                "type": "text",
+                "angle": 0,
+                "lines": [
+                  {
+                    "bbox": [
+                      283,
+                      98,
+                      498,
+                      150
+                    ],
+                    "spans": [
+                      {
+                        "bbox": [
+                          283,
+                          98,
+                          498,
+                          150
+                        ],
+                        "type": "text",
+                        "content": "右栏首段合成示例第005号：这段虚构文字用于验证原始物理页上的文本归属、框选坐标和阅读顺序。"
+                      }
+                    ]
+                  }
+                ],
+                "index": 5,
+                "merge_prev": false
+              }
+            ],
+            "para_blocks": [
+              {
+                "bbox": [
+                  54,
+                  97,
+                  268,
+                  300
+                ],
+                "type": "text",
+                "angle": 0,
+                "lines": [],
+                "index": 0,
+                "merge_prev": false,
+                "lines_deleted": true
+              },
+              {
+                "bbox": [
+                  55,
+                  303,
+                  270,
+                  578
+                ],
+                "type": "text",
+                "angle": 0,
+                "lines": [
+                  {
+                    "bbox": [
+                      55,
+                      303,
+                      270,
+                      578
+                    ],
+                    "spans": [
+                      {
+                        "bbox": [
+                          55,
+                          303,
+                          270,
+                          578
+                        ],
+                        "type": "text",
+                        "content": "合成文字片段第003号：这段虚构文字用于验证原始物理页上的文本归属、框选坐标和阅读顺序。"
+                      }
+                    ]
+                  }
+                ],
+                "index": 1,
+                "merge_prev": false
+              },
+              {
+                "bbox": [
+                  57,
+                  655,
+                  271,
+                  745
+                ],
+                "type": "text",
+                "angle": 0,
+                "lines": [
+                  {
+                    "bbox": [
+                      57,
+                      655,
+                      271,
+                      745
+                    ],
+                    "spans": [
+                      {
+                        "bbox": [
+                          57,
+                          655,
+                          271,
+                          745
+                        ],
+                        "type": "text",
+                        "content": "左栏末段合成示例第004号：这段虚构文字用于验证原始物理页上的文本归属、框选坐标和阅读顺序。"
+                      }
+                    ]
+                  }
+                ],
+                "index": 4,
+                "merge_prev": false
+              },
+              {
+                "bbox": [
+                  283,
+                  98,
+                  498,
+                  150
+                ],
+                "type": "text",
+                "angle": 0,
+                "lines": [
+                  {
+                    "bbox": [
+                      283,
+                      98,
+                      498,
+                      150
+                    ],
+                    "spans": [
+                      {
+                        "bbox": [
+                          283,
+                          98,
+                          498,
+                          150
+                        ],
+                        "type": "text",
+                        "content": "右栏首段合成示例第005号：这段虚构文字用于验证原始物理页上的文本归属、框选坐标和阅读顺序。"
+                      }
+                    ]
+                  }
+                ],
+                "index": 5,
+                "merge_prev": false
+              }
+            ],
+            "discarded_blocks": [
+              {
+                "bbox": [
+                  66,
+                  754,
+                  85,
+                  766
+                ],
+                "type": "page_number",
+                "angle": 0,
+                "lines": [
+                  {
+                    "bbox": [
+                      66,
+                      754,
+                      85,
+                      766
+                    ],
+                    "spans": [
+                      {
+                        "bbox": [
+                          66,
+                          754,
+                          85,
+                          766
+                        ],
+                        "type": "text",
+                        "content": "118"
+                      }
+                    ]
+                  }
+                ],
+                "index": 11
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "DOC-004 p74-75",
+      "document": "DOC-004",
+      "pages": [
+        74,
+        75
+      ],
+      "source": "server/data/library/doc4/ocr/mineru/p0073-0078/doc/hybrid_auto/doc_middle.json",
+      "source_page_indices": [
+        1,
+        2
+      ],
+      "middle": {
+        "pdf_info": [
+          {
+            "page_idx": 0,
+            "page_size": [
+              487,
+              728
+            ],
+            "preproc_blocks": [
+              {
+                "bbox": [
+                  79,
+                  647,
+                  449,
+                  683
+                ],
+                "type": "text",
+                "angle": 0,
+                "lines": [
+                  {
+                    "bbox": [
+                      79,
+                      647,
+                      449,
+                      683
+                    ],
+                    "spans": [
+                      {
+                        "bbox": [
+                          79,
+                          647,
+                          449,
+                          683
+                        ],
+                        "type": "text",
+                        "content": "合成文字片段第006号：这段虚构文字用于验证原始物理页上的文本归属、框选坐标和阅读顺序。"
+                      }
+                    ]
+                  }
+                ],
+                "index": 9,
+                "merge_prev": false
+              }
+            ],
+            "para_blocks": [
+              {
+                "bbox": [
+                  79,
+                  647,
+                  449,
+                  683
+                ],
+                "type": "text",
+                "angle": 0,
+                "lines": [
+                  {
+                    "bbox": [
+                      79,
+                      647,
+                      449,
+                      683
+                    ],
+                    "spans": [
+                      {
+                        "bbox": [
+                          79,
+                          647,
+                          449,
+                          683
+                        ],
+                        "type": "text",
+                        "content": "合成文字片段第006号：这段虚构文字用于验证原始物理页上的文本归属、框选坐标和阅读顺序。"
+                      }
+                    ]
+                  },
+                  {
+                    "bbox": [
+                      41,
+                      84,
+                      361,
+                      99
+                    ],
+                    "spans": [
+                      {
+                        "bbox": [
+                          41,
+                          84,
+                          361,
+                          99
+                        ],
+                        "type": "text",
+                        "content": "合成文字片段第007号：这段虚构文字用于验证原始物理页上的文本归属、框选坐标和阅读顺序。",
+                        "cross_page": true
+                      }
+                    ]
+                  }
+                ],
+                "index": 9,
+                "merge_prev": false
+              }
+            ],
+            "discarded_blocks": [
+              {
+                "bbox": [
+                  23,
+                  40,
+                  36,
+                  49
+                ],
+                "type": "page_number",
+                "angle": 0,
+                "lines": [
+                  {
+                    "bbox": [
+                      23,
+                      40,
+                      36,
+                      49
+                    ],
+                    "spans": [
+                      {
+                        "bbox": [
+                          23,
+                          40,
+                          36,
+                          49
+                        ],
+                        "type": "text",
+                        "content": "64"
+                      }
+                    ]
+                  }
+                ],
+                "index": 0
+              },
+              {
+                "bbox": [
+                  47,
+                  39,
+                  106,
+                  49
+                ],
+                "type": "header",
+                "angle": 0,
+                "lines": [
+                  {
+                    "bbox": [
+                      47,
+                      39,
+                      106,
+                      49
+                    ],
+                    "spans": [
+                      {
+                        "bbox": [
+                          47,
+                          39,
+                          106,
+                          49
+                        ],
+                        "type": "text",
+                        "content": "合成文字片段第008号：这段虚构文字用于验证原始物理页上的文本归属、框选坐标和阅读顺序。"
+                      }
+                    ]
+                  }
+                ],
+                "index": 1
+              }
+            ]
+          },
+          {
+            "page_idx": 1,
+            "page_size": [
+              487,
+              728
+            ],
+            "preproc_blocks": [
+              {
+                "bbox": [
+                  41,
+                  84,
+                  361,
+                  99
+                ],
+                "type": "text",
+                "angle": 0,
+                "lines": [
+                  {
+                    "bbox": [
+                      41,
+                      84,
+                      361,
+                      99
+                    ],
+                    "spans": [
+                      {
+                        "bbox": [
+                          41,
+                          84,
+                          361,
+                          99
+                        ],
+                        "type": "text",
+                        "content": "合成文字片段第007号：这段虚构文字用于验证原始物理页上的文本归属、框选坐标和阅读顺序。"
+                      }
+                    ]
+                  }
+                ],
+                "index": 2,
+                "merge_prev": false
+              },
+              {
+                "bbox": [
+                  40,
+                  105,
+                  411,
+                  183
+                ],
+                "type": "text",
+                "angle": 0,
+                "lines": [
+                  {
+                    "bbox": [
+                      40,
+                      105,
+                      411,
+                      183
+                    ],
+                    "spans": [
+                      {
+                        "bbox": [
+                          40,
+                          105,
+                          411,
+                          183
+                        ],
+                        "type": "text",
+                        "content": "合成文字片段第009号：这段虚构文字用于验证原始物理页上的文本归属、框选坐标和阅读顺序。"
+                      },
+                      {
+                        "bbox": [
+                          40,
+                          105,
+                          411,
+                          183
+                        ],
+                        "type": "inline_equation",
+                        "content": "^{140}"
+                      },
+                      {
+                        "bbox": [
+                          40,
+                          105,
+                          411,
+                          183
+                        ],
+                        "type": "text",
+                        "content": "合成文字片段第010号：这段虚构文字用于验证原始物理页上的文本归属、框选坐标和阅读顺序。"
+                      }
+                    ]
+                  }
+                ],
+                "index": 3,
+                "merge_prev": false
+              }
+            ],
+            "para_blocks": [
+              {
+                "bbox": [
+                  41,
+                  84,
+                  361,
+                  99
+                ],
+                "type": "text",
+                "angle": 0,
+                "lines": [],
+                "index": 2,
+                "merge_prev": false,
+                "lines_deleted": true
+              },
+              {
+                "bbox": [
+                  40,
+                  105,
+                  411,
+                  183
+                ],
+                "type": "text",
+                "angle": 0,
+                "lines": [
+                  {
+                    "bbox": [
+                      40,
+                      105,
+                      411,
+                      183
+                    ],
+                    "spans": [
+                      {
+                        "bbox": [
+                          40,
+                          105,
+                          411,
+                          183
+                        ],
+                        "type": "text",
+                        "content": "合成文字片段第009号：这段虚构文字用于验证原始物理页上的文本归属、框选坐标和阅读顺序。"
+                      },
+                      {
+                        "bbox": [
+                          40,
+                          105,
+                          411,
+                          183
+                        ],
+                        "type": "inline_equation",
+                        "content": "^{140}"
+                      },
+                      {
+                        "bbox": [
+                          40,
+                          105,
+                          411,
+                          183
+                        ],
+                        "type": "text",
+                        "content": "合成文字片段第010号：这段虚构文字用于验证原始物理页上的文本归属、框选坐标和阅读顺序。"
+                      }
+                    ]
+                  }
+                ],
+                "index": 3,
+                "merge_prev": false
+              }
+            ],
+            "discarded_blocks": [
+              {
+                "bbox": [
+                  375,
+                  40,
+                  442,
+                  51
+                ],
+                "type": "header",
+                "angle": 0,
+                "lines": [
+                  {
+                    "bbox": [
+                      375,
+                      40,
+                      442,
+                      51
+                    ],
+                    "spans": [
+                      {
+                        "bbox": [
+                          375,
+                          40,
+                          442,
+                          51
+                        ],
+                        "type": "text",
+                        "content": "合成文字片段第011号：这段虚构文字用于验证原始物理页上的文本归属、框选坐标和阅读顺序。"
+                      }
+                    ]
+                  }
+                ],
+                "index": 0
+              },
+              {
+                "bbox": [
+                  454,
+                  40,
+                  464,
+                  50
+                ],
+                "type": "page_number",
+                "angle": 0,
+                "lines": [
+                  {
+                    "bbox": [
+                      454,
+                      40,
+                      464,
+                      50
+                    ],
+                    "spans": [
+                      {
+                        "bbox": [
+                          454,
+                          40,
+                          464,
+                          50
+                        ],
+                        "type": "text",
+                        "content": "65"
+                      }
+                    ]
+                  }
+                ],
+                "index": 1
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "DOC-004 p101-102",
+      "document": "DOC-004",
+      "pages": [
+        101,
+        102
+      ],
+      "source": "server/data/library/doc4/ocr/mineru/p0097-0102/doc/hybrid_auto/doc_middle.json",
+      "source_page_indices": [
+        4,
+        5
+      ],
+      "middle": {
+        "pdf_info": [
+          {
+            "page_idx": 0,
+            "page_size": [
+              487,
+              728
+            ],
+            "preproc_blocks": [
+              {
+                "bbox": [
+                  37,
+                  543,
+                  409,
+                  685
+                ],
+                "type": "text",
+                "angle": 0,
+                "lines": [
+                  {
+                    "bbox": [
+                      37,
+                      543,
+                      409,
+                      685
+                    ],
+                    "spans": [
+                      {
+                        "bbox": [
+                          37,
+                          543,
+                          409,
+                          685
+                        ],
+                        "type": "text",
+                        "content": "合成文字片段第012号：这段虚构文字用于验证原始物理页上的文本归属、框选坐标和阅读顺序。"
+                      },
+                      {
+                        "bbox": [
+                          37,
+                          543,
+                          409,
+                          685
+                        ],
+                        "type": "inline_equation",
+                        "content": "^{113}"
+                      },
+                      {
+                        "bbox": [
+                          37,
+                          543,
+                          409,
+                          685
+                        ],
+                        "type": "text",
+                        "content": "合成文字片段第013号：这段虚构文字用于验证原始物理页上的文本归属、框选坐标和阅读顺序。"
+                      },
+                      {
+                        "bbox": [
+                          37,
+                          543,
+                          409,
+                          685
+                        ],
+                        "type": "inline_equation",
+                        "content": "^{114}"
+                      },
+                      {
+                        "bbox": [
+                          37,
+                          543,
+                          409,
+                          685
+                        ],
+                        "type": "text",
+                        "content": "合成文字片段第014号：这段虚构文字用于验证原始物理页上的文本归属、框选坐标和阅读顺序。"
+                      },
+                      {
+                        "bbox": [
+                          37,
+                          543,
+                          409,
+                          685
+                        ],
+                        "type": "inline_equation",
+                        "content": "^{115}"
+                      },
+                      {
+                        "bbox": [
+                          37,
+                          543,
+                          409,
+                          685
+                        ],
+                        "type": "text",
+                        "content": "合成文字片段第015号：这段虚构文字用于验证原始物理页上的文本归属、框选坐标和阅读顺序。"
+                      },
+                      {
+                        "bbox": [
+                          37,
+                          543,
+                          409,
+                          685
+                        ],
+                        "type": "inline_equation",
+                        "content": "^{116}"
+                      },
+                      {
+                        "bbox": [
+                          37,
+                          543,
+                          409,
+                          685
+                        ],
+                        "type": "text",
+                        "content": "合成文字片段第016号：这段虚构文字用于验证原始物理页上的文本归属、框选坐标和阅读顺序。"
+                      }
+                    ]
+                  }
+                ],
+                "index": 10,
+                "merge_prev": false
+              }
+            ],
+            "para_blocks": [
+              {
+                "bbox": [
+                  37,
+                  543,
+                  409,
+                  685
+                ],
+                "type": "text",
+                "angle": 0,
+                "lines": [
+                  {
+                    "bbox": [
+                      37,
+                      543,
+                      409,
+                      685
+                    ],
+                    "spans": [
+                      {
+                        "bbox": [
+                          37,
+                          543,
+                          409,
+                          685
+                        ],
+                        "type": "text",
+                        "content": "合成文字片段第012号：这段虚构文字用于验证原始物理页上的文本归属、框选坐标和阅读顺序。"
+                      },
+                      {
+                        "bbox": [
+                          37,
+                          543,
+                          409,
+                          685
+                        ],
+                        "type": "inline_equation",
+                        "content": "^{113}"
+                      },
+                      {
+                        "bbox": [
+                          37,
+                          543,
+                          409,
+                          685
+                        ],
+                        "type": "text",
+                        "content": "合成文字片段第013号：这段虚构文字用于验证原始物理页上的文本归属、框选坐标和阅读顺序。"
+                      },
+                      {
+                        "bbox": [
+                          37,
+                          543,
+                          409,
+                          685
+                        ],
+                        "type": "inline_equation",
+                        "content": "^{114}"
+                      },
+                      {
+                        "bbox": [
+                          37,
+                          543,
+                          409,
+                          685
+                        ],
+                        "type": "text",
+                        "content": "合成文字片段第014号：这段虚构文字用于验证原始物理页上的文本归属、框选坐标和阅读顺序。"
+                      },
+                      {
+                        "bbox": [
+                          37,
+                          543,
+                          409,
+                          685
+                        ],
+                        "type": "inline_equation",
+                        "content": "^{115}"
+                      },
+                      {
+                        "bbox": [
+                          37,
+                          543,
+                          409,
+                          685
+                        ],
+                        "type": "text",
+                        "content": "合成文字片段第015号：这段虚构文字用于验证原始物理页上的文本归属、框选坐标和阅读顺序。"
+                      },
+                      {
+                        "bbox": [
+                          37,
+                          543,
+                          409,
+                          685
+                        ],
+                        "type": "inline_equation",
+                        "content": "^{116}"
+                      },
+                      {
+                        "bbox": [
+                          37,
+                          543,
+                          409,
+                          685
+                        ],
+                        "type": "text",
+                        "content": "合成文字片段第016号：这段虚构文字用于验证原始物理页上的文本归属、框选坐标和阅读顺序。"
+                      }
+                    ]
+                  },
+                  {
+                    "bbox": [
+                      88,
+                      77,
+                      459,
+                      196
+                    ],
+                    "spans": [
+                      {
+                        "bbox": [
+                          88,
+                          77,
+                          459,
+                          196
+                        ],
+                        "type": "text",
+                        "content": "合成文字片段第017号：这段虚构文字用于验证原始物理页上的文本归属、框选坐标和阅读顺序。",
+                        "cross_page": true
+                      },
+                      {
+                        "bbox": [
+                          88,
+                          77,
+                          459,
+                          196
+                        ],
+                        "type": "inline_equation",
+                        "content": "^{17}",
+                        "cross_page": true
+                      },
+                      {
+                        "bbox": [
+                          88,
+                          77,
+                          459,
+                          196
+                        ],
+                        "type": "text",
+                        "content": "合成文字片段第018号：这段虚构文字用于验证原始物理页上的文本归属、框选坐标和阅读顺序。",
+                        "cross_page": true
+                      }
+                    ]
+                  }
+                ],
+                "index": 10,
+                "merge_prev": false
+              }
+            ],
+            "discarded_blocks": [
+              {
+                "bbox": [
+                  371,
+                  40,
+                  438,
+                  50
+                ],
+                "type": "header",
+                "angle": 0,
+                "lines": [
+                  {
+                    "bbox": [
+                      371,
+                      40,
+                      438,
+                      50
+                    ],
+                    "spans": [
+                      {
+                        "bbox": [
+                          371,
+                          40,
+                          438,
+                          50
+                        ],
+                        "type": "text",
+                        "content": "合成文字片段第019号：这段虚构文字用于验证原始物理页上的文本归属、框选坐标和阅读顺序。"
+                      }
+                    ]
+                  }
+                ],
+                "index": 0
+              },
+              {
+                "bbox": [
+                  451,
+                  41,
+                  460,
+                  50
+                ],
+                "type": "page_number",
+                "angle": 0,
+                "lines": [
+                  {
+                    "bbox": [
+                      451,
+                      41,
+                      460,
+                      50
+                    ],
+                    "spans": [
+                      {
+                        "bbox": [
+                          451,
+                          41,
+                          460,
+                          50
+                        ],
+                        "type": "text",
+                        "content": "91"
+                      }
+                    ]
+                  }
+                ],
+                "index": 1
+              }
+            ]
+          },
+          {
+            "page_idx": 1,
+            "page_size": [
+              487,
+              728
+            ],
+            "preproc_blocks": [
+              {
+                "bbox": [
+                  88,
+                  77,
+                  459,
+                  196
+                ],
+                "type": "text",
+                "angle": 0,
+                "lines": [
+                  {
+                    "bbox": [
+                      88,
+                      77,
+                      459,
+                      196
+                    ],
+                    "spans": [
+                      {
+                        "bbox": [
+                          88,
+                          77,
+                          459,
+                          196
+                        ],
+                        "type": "text",
+                        "content": "合成文字片段第017号：这段虚构文字用于验证原始物理页上的文本归属、框选坐标和阅读顺序。"
+                      },
+                      {
+                        "bbox": [
+                          88,
+                          77,
+                          459,
+                          196
+                        ],
+                        "type": "inline_equation",
+                        "content": "^{17}"
+                      },
+                      {
+                        "bbox": [
+                          88,
+                          77,
+                          459,
+                          196
+                        ],
+                        "type": "text",
+                        "content": "合成文字片段第018号：这段虚构文字用于验证原始物理页上的文本归属、框选坐标和阅读顺序。"
+                      }
+                    ]
+                  }
+                ],
+                "index": 2,
+                "merge_prev": false
+              },
+              {
+                "bbox": [
+                  133,
+                  213,
+                  445,
+                  227
+                ],
+                "type": "text",
+                "angle": 0,
+                "lines": [
+                  {
+                    "bbox": [
+                      133,
+                      213,
+                      445,
+                      227
+                    ],
+                    "spans": [
+                      {
+                        "bbox": [
+                          133,
+                          213,
+                          445,
+                          227
+                        ],
+                        "type": "text",
+                        "content": "合成文字片段第020号：这段虚构文字用于验证原始物理页上的文本归属、框选坐标和阅读顺序。"
+                      },
+                      {
+                        "bbox": [
+                          133,
+                          213,
+                          445,
+                          227
+                        ],
+                        "type": "inline_equation",
+                        "content": "^{118}"
+                      }
+                    ]
+                  }
+                ],
+                "index": 3,
+                "merge_prev": false
+              }
+            ],
+            "para_blocks": [
+              {
+                "bbox": [
+                  88,
+                  77,
+                  459,
+                  196
+                ],
+                "type": "text",
+                "angle": 0,
+                "lines": [],
+                "index": 2,
+                "merge_prev": false,
+                "lines_deleted": true
+              },
+              {
+                "bbox": [
+                  133,
+                  213,
+                  445,
+                  227
+                ],
+                "type": "text",
+                "angle": 0,
+                "lines": [
+                  {
+                    "bbox": [
+                      133,
+                      213,
+                      445,
+                      227
+                    ],
+                    "spans": [
+                      {
+                        "bbox": [
+                          133,
+                          213,
+                          445,
+                          227
+                        ],
+                        "type": "text",
+                        "content": "合成文字片段第020号：这段虚构文字用于验证原始物理页上的文本归属、框选坐标和阅读顺序。"
+                      },
+                      {
+                        "bbox": [
+                          133,
+                          213,
+                          445,
+                          227
+                        ],
+                        "type": "inline_equation",
+                        "content": "^{118}"
+                      }
+                    ]
+                  }
+                ],
+                "index": 3,
+                "merge_prev": false
+              }
+            ],
+            "discarded_blocks": [
+              {
+                "bbox": [
+                  36,
+                  33,
+                  46,
+                  42
+                ],
+                "type": "page_number",
+                "angle": 0,
+                "lines": [
+                  {
+                    "bbox": [
+                      36,
+                      33,
+                      46,
+                      42
+                    ],
+                    "spans": [
+                      {
+                        "bbox": [
+                          36,
+                          33,
+                          46,
+                          42
+                        ],
+                        "type": "text",
+                        "content": "92"
+                      }
+                    ]
+                  }
+                ],
+                "index": 0
+              },
+              {
+                "bbox": [
+                  58,
+                  32,
+                  118,
+                  42
+                ],
+                "type": "header",
+                "angle": 0,
+                "lines": [
+                  {
+                    "bbox": [
+                      58,
+                      32,
+                      118,
+                      42
+                    ],
+                    "spans": [
+                      {
+                        "bbox": [
+                          58,
+                          32,
+                          118,
+                          42
+                        ],
+                        "type": "text",
+                        "content": "合成文字片段第008号：这段虚构文字用于验证原始物理页上的文本归属、框选坐标和阅读顺序。"
+                      }
+                    ]
+                  }
+                ],
+                "index": 1
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}
