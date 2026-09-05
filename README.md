@@ -90,7 +90,8 @@ cd web    ; npm run build                                                   # �
 ```
 
 全部服务只绑定 127.0.0.1。数据（标注、对齐、主图、编辑内容）都在
-`server/data/stonelab.db`，重启不丢；整个 stonelab 文件夹拷走即完成备份。
+`server/data/stonelab.db`，重启不丢。运行期间应通过 SQLite 备份接口生成一致的数据库副本，
+再连同素材与 OCR 输出备份；服务及计算任务全部停止后，也可完整备份项目目录。恢复所需文件见第十一节。
 后端**启动时自动扫描**素材目录并在后台预热预览缓存，同时播种概念词表；顶栏「重新扫描」可随时手动触发。
 
 ### 配置（环境变量，均可选）
@@ -270,6 +271,14 @@ python scripts/run_library_ocr.py --redo --state server/data/library/ocr-queue.j
 原有校订与审核按上述匹配规则保留。完整重跑前建议备份数据库，
 OCR 原始输出会随重新识别更新。队列回归测试：`python scripts/test_library_ocr_queue.py`。
 
+**最近一次全库重跑（2026-09-05，本机资料库）**：北京时间 09:28:39 开始，15:27:35 完成，
+10 本文献共 **2517 页全部处理成功，失败 0 页**，其中 MinerU 2280 页、NDL 237 页。
+完成后核验了队列目标页与数据库记录、全部页的本轮识别时间，以及 2280 页的物理页归一化版本；
+20820 条文段与 FTS 检索索引一致，1614 张插图文件齐全。处理成功表示识别作业完成，文字准确性仍需逐页人工校勘。
+通过 SQLite 备份接口生成的数据库副本、队列快照与核验报告保存在
+`_backup/ocr-completed-20260905-154229/`，副本通过完整性与外键检查。
+OCR 原始输出、页图和插图继续保留在 `server/data/library/`，与上述备份均不上传 GitHub。
+
 **接口**（`/api/library/…`）：`POST scan` · `GET/PATCH documents[/{id}]` · `GET documents/{id}/pages` · `GET documents/{id}/file` ·
 `GET pages/{id}`（文段 + 插图）· `GET pages/{id}/image?dpi=` · `POST documents/{id}/ocr`（`engine / pages / redo / backend`，后台逐页落库）·
 `GET ocr/status` · `POST ocr/cancel` · `PATCH segments/{id}`（`text_edit / kind / review_status / base_revision`）· `PATCH figures/{id}` ·
@@ -316,7 +325,9 @@ SQLite（`server/data/stonelab.db`），经 SQLAlchemy ORM，启动时自动轻�
 大文件留在文件系统，库中只存元数据与标注。表：
 `stones` / `layers` / `assets`（extra 内含 is_master 与 align_to_master 坐标链）/
 `annotations`（结构节点、测量与对齐记录）/ `concepts`（概念词，跨石头共享）/ `annotation_concepts`（节点—概念多对多）。
-未来需多人协作时改 `app/config.py` 的 `database_url` 换 PostgreSQL 即可。
+文献相关数据保存在 `documents` / `doc_pages` / `segments` / `figures`，检索使用 SQLite FTS5 表 `segments_fts`。
+多人协作仍需增加账号权限、标注保存冲突处理与修改历史；若迁移 PostgreSQL，
+还需适配数据库配置、SQLite 专用迁移语句及 FTS5 检索，不能只替换连接地址。
 
 ## 七、接口
 
@@ -362,6 +373,9 @@ SQLite（`server/data/stonelab.db`），经 SQLAlchemy ORM，启动时自动轻�
 
 ## 九、当前边界
 
+- 当前为本地单机版，团队账号、完整保存冲突保护和 OSS 存储接入尚未实现。
+  四人私有标注版计划由北京 ECS 承载应用与标注数据库，私有 OSS 承载大文件，本地工作站继续执行 OCR 和 SAM；
+  待 OSS 准备完成后继续实施。云端启用前须适配资源扫描，避免本地文件缺失被当成资源删除而连带删除标注；
 - 2D 预览为长边 2560 的 sRGB JPEG（首次打开生成缓存；扫描后后台预热）；全分辨率深度缩放需 DZI 瓦片，未做；
 - 三维查看用低模；816 MB 高模不进浏览器；三维与照片的坐标打通（相机位姿配准）本轮不做，跨图投影与叠加仅覆盖 2D；
 - 测量无比例尺标定：2D 为原图像素，3D 为模型单位；
@@ -398,7 +412,9 @@ SQLite（`server/data/stonelab.db`），经 SQLAlchemy ORM，启动时自动轻�
 - 仓库：https://github.com/wahonet/WSC3D ，远程只保留 `main`。旧 WSC3D 项目（v0.2–v0.9）与当前 `main` 没有共同历史，
   其完整提交只保留在本机分支 `legacy/wsc3d`（不推送）；确认不再需要时 `git branch -D legacy/wsc3d`。
 - **只上传程序壳子**。不入库：`assets/stones/**`（照片、拓片、三维、**以及 `meta.json` 简介与释文**）、`ml/`、
-  `server/data/`（数据库、缓存、日志、截图）、`web/node_modules`、`web/dist`、`_backup/`。
-  换机器时把 `assets/stones/`、`ml/`、`server/data/stonelab.db` 三处单独拷贝即可复原。
+  `assets/library/`（文献 PDF）、`server/data/`（数据库、缓存、日志、截图）、`web/node_modules`、`web/dist`、`_backup/`。
+  换机器时需另行迁移 `assets/stones/`、`assets/library/`、`server/data/`（数据库使用一致备份，
+  保留文献页图、插图与 OCR 原始输出）；模型权重和独立运行环境按目标机器情况迁移或重新安装。
+  仅克隆仓库无法恢复本地研究资料。
 - 本机 git 全局配置了代理 `127.0.0.1:18081`；代理未开时推送需临时绕过：
   `git -c http.proxy= -c https.proxy= push origin main`。
