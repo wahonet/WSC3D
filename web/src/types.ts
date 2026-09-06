@@ -104,6 +104,26 @@ export const EMPTY_SEMANTICS: Semantics = {
   inscription: { transcription: '', translation: '', notes: '' },
 }
 
+export interface AnnotationReference {
+  id: number
+  annotation_id: number
+  kind: 'description' | 'segment' | 'figure'
+  desc_source: string | null
+  desc_start: number | null
+  desc_end: number | null
+  text: string
+  document_id: number | null
+  document_title: string | null
+  document_code: string | null
+  page_id: number | null
+  page_no: number | null
+  segment_id: number | null
+  figure_id: number | null
+  figure_label: string
+  image_url: string | null
+  source_missing: boolean
+}
+
 export interface Annotation {
   id: number
   stone_id: number
@@ -120,6 +140,7 @@ export interface Annotation {
   desc_start: number | null
   desc_end: number | null
   desc_text: string
+  references: AnnotationReference[]
   parent_id: number | null
   level: Level
   category: string

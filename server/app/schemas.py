@@ -143,6 +143,37 @@ class Semantics(BaseModel):
     inscription: InscriptionSem = Field(default_factory=InscriptionSem)
 
 
+class AnnotationReferenceCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    kind: Literal["description", "segment", "figure"]
+    desc_source: str | None = None
+    desc_start: int | None = None
+    desc_end: int | None = None
+    text: str | None = None
+    segment_id: int | None = None
+    figure_id: int | None = None
+
+
+class AnnotationReferenceOut(BaseModel):
+    id: int
+    annotation_id: int
+    kind: Literal["description", "segment", "figure"]
+    desc_source: str | None = None
+    desc_start: int | None = None
+    desc_end: int | None = None
+    text: str = ""
+    document_id: int | None = None
+    document_title: str | None = None
+    document_code: str | None = None
+    page_id: int | None = None
+    page_no: int | None = None
+    segment_id: int | None = None
+    figure_id: int | None = None
+    figure_label: str = ""
+    image_url: str | None = None
+    source_missing: bool = False
+
+
 class AnnotationOut(BaseModel):
     id: int
     stone_id: int
@@ -159,6 +190,7 @@ class AnnotationOut(BaseModel):
     desc_start: int | None
     desc_end: int | None
     desc_text: str
+    references: list[AnnotationReferenceOut] = Field(default_factory=list)
     parent_id: int | None = None
     level: str = ""
     category: str = ""
@@ -223,7 +255,7 @@ class AnnotationPatch(BaseModel):
     label: str | None = None
     note: str | None = None
     color: str | None = None
-    # 图文关联：三者同时给出即建立/更新关联；clear_link 解除
+    # 旧客户端兼容：三者同时给出更新首条释文引用；clear_link 仅解除该条
     desc_source: str | None = None
     desc_start: int | None = None
     desc_end: int | None = None

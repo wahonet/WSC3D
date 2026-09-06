@@ -2,6 +2,8 @@ import { useMemo } from 'react'
 import { X } from 'lucide-react'
 import { LEVEL_LABEL, REVIEW_LABEL, REVIEW_TONE } from '../../lib/constants'
 import { ancestors, isStructural } from '../../lib/tree'
+import { hasReferences } from '../../lib/references'
+import NodeReferences from '../library/NodeReferences'
 import { useApp } from '../../store/useApp'
 import { Badge, Button } from '../ui'
 
@@ -45,8 +47,8 @@ export default function NodeInfoCard() {
           {sem.iconological && <p><b>阐释</b>{sem.iconological}</p>}
         </div>
       )}
-      {a.desc_text && <div className="nc-text" style={{ borderColor: a.color }}>{a.desc_text}</div>}
-      {!hasSem && !a.desc_text && cnames.length === 0 && <div className="hint">尚未填写标注内容——到「标注」模块补齐层级、概念与图像志描述。</div>}
+      {hasReferences(a) && <NodeReferences annotation={a} readOnly initiallyOpen={false} />}
+      {!hasSem && !hasReferences(a) && cnames.length === 0 && <div className="hint">尚未填写标注内容——到「标注」模块补齐层级、概念与图像志描述。</div>}
     </div>
   )
 }

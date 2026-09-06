@@ -170,15 +170,9 @@ function writeHash(assetId: number | null, page: Page) {
   if (assetId) q.set('a', String(assetId))
   if (page !== 'home') q.set('p', page)
   // 文献模块的子页（关联释文 / 书库）与书库深链（doc / pg / 检索词 q）由页面自己维护，这里只保留
-  if (page === 'library') for (const k of ['lib', 'doc', 'pg', 'q']) { const v = cur.get(k); if (v) q.set(k, v) }
+  if (page === 'library') for (const k of ['lib', 'doc', 'pg', 'q', 'seg', 'fig', 'src', 'off']) { const v = cur.get(k); if (v) q.set(k, v) }
   const h = q.toString()
   history.replaceState(null, '', h ? `#${h}` : location.pathname)
-}
-
-/** 进入某模块时的默认工具：分割模块直接进入绘制，其余回到选中 */
-const defaultTool = (page: Page, prev: Tool): Tool => {
-  if (page === 'segment') return prev === 'segment' || prev === 'annotate' ? prev : 'annotate'
-  return PAGE_TOOLS[page].includes(prev) ? prev : 'select'
 }
 
 export const useApp = create<AppState>((set, get) => ({
@@ -225,7 +219,7 @@ export const useApp = create<AppState>((set, get) => ({
       get().loadStats().catch(() => undefined)
       get().loadConcepts().catch(() => undefined)
       const { assetId, page, engine } = readHash()
-      set({ page, tool: defaultTool(page, 'select') })
+      set({ page, tool: 'select' })
       if (assetId) {
         for (const stone of list) {
           const asset = stone.groups.flatMap(g => g.assets).find(a => a.id === assetId)
@@ -337,7 +331,8 @@ export const useApp = create<AppState>((set, get) => ({
   setTool: t => { if (PAGE_TOOLS[get().page].includes(t)) set({ tool: t }) },
   setShape: s => { if (PAGE_TOOLS[get().page].includes('annotate')) set({ shape: s, tool: 'annotate' }) },
   setPage: p => {
-    set(s => ({ page: p, tool: defaultTool(p, s.tool), multiSel: [] }))
+    // 模块导航（包括再次点击当前模块）都回到拖动 / 选中；绘制必须由用户主动启用。
+    set({ page: p, tool: 'select', multiSel: [] })
     writeHash(get().curAsset?.id ?? null, p)
   },
   toggleTheme: () => {

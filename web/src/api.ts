@@ -1,5 +1,5 @@
 import type {
-  Annotation, Concept, DocFigure, DocSegment, DocumentInfo, ExemplarBox, GeometryIntent, Level, OcrEngine, OcrJob,
+  Annotation, AnnotationReference, Concept, DocFigure, DocSegment, DocumentInfo, ExemplarBox, GeometryIntent, Level, OcrEngine, OcrJob,
   OcrStatus, PageBrief, PageDetail, ParentSuggestion, ProjectedAnnotation, Quality, ReviewStatus, ScanReport,
   SearchOut, SegDetection, SegEngineState, SegPreprocess, SegStatus, SegTiling, SegmentKind, SegmentReview, Semantics,
   SkeletonItem, Stats, StoneInfo, StoneNode, Taxonomy,
@@ -115,6 +115,19 @@ export const createAnnotation = (a: NewAnnotation) => api.post<Annotation>('/ann
 export const createAnnotations = (items: NewAnnotation[]) => api.post<Annotation[]>('/annotations/batch', { items })
 export const patchAnnotation = (id: number, body: AnnotationPatchBody) =>
   api.patch<Annotation>(`/annotations/${id}`, body)
+export interface AnnotationReferenceBody {
+  kind: AnnotationReference['kind']
+  desc_source?: string
+  desc_start?: number
+  desc_end?: number
+  text?: string
+  segment_id?: number
+  figure_id?: number
+}
+export const addAnnotationReference = (id: number, body: AnnotationReferenceBody) =>
+  api.post<Annotation>(`/annotations/${id}/references`, body)
+export const deleteAnnotationReference = (id: number, referenceId: number) =>
+  api.del<Annotation>(`/annotations/${id}/references/${referenceId}`)
 export const patchAnnotations = (items: AnnotationBatchItem[]) =>
   api.patch<Annotation[]>('/annotations/batch', { items })
 export const deleteAnnotation = (id: number) => api.del<{ ok: boolean; message: string }>(`/annotations/${id}`)

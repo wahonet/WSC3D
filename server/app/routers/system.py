@@ -28,7 +28,7 @@ def stats(db: Session = Depends(get_db)):
     assets_2d = db.query(func.count(Asset.id)).filter(Asset.kind.in_(TWO_D_KINDS)).scalar() or 0
     assets_all = db.query(func.count(Asset.id)).scalar() or 0
     linked = (db.query(func.count(Annotation.id))
-              .filter(Annotation.desc_text != "", Annotation.desc_start.isnot(None)).scalar() or 0)
+              .filter(Annotation.references.any()).scalar() or 0)
     return StatsOut(
         stones=db.query(func.count(Stone.id)).scalar() or 0,
         assets=assets_all, assets_2d=assets_2d, assets_3d=assets_all - assets_2d,

@@ -10,9 +10,9 @@ from ..db import get_db
 from ..models import Annotation, Asset
 from ..schemas import (
     AdoptIn, AnnotationBatchCreate, AnnotationBatchPatch, AnnotationBatchPatchItem, AnnotationCreate,
-    AnnotationOut, AnnotationPatch, IdList, OkOut, ParentSuggestion,
+    AnnotationOut, AnnotationPatch, AnnotationReferenceCreate, AnnotationReferenceOut, IdList, OkOut, ParentSuggestion,
 )
-from ..services import structure, textlinks
+from ..services import references, structure, textlinks
 from ..services.serialize import annotation_out, annotations_out
 from .deps import get_annotation
 
@@ -115,7 +115,8 @@ def delete_batch(body: IdList, db: Session = Depends(get_db)):
 @router.patch("/{anno_id}", response_model=AnnotationOut, summary="编辑标注：内容 / 图文关联 / 结构 / 语义 / 挂接几何")
 def patch(body: AnnotationPatch, x: Annotation = Depends(get_annotation),
           db: Session = Depends(get_db)):
-    """desc_start/desc_end/desc_text 三者齐全即建立关联（校验区间、重叠）；clear_link=true 解除。
+    """兼容旧客户端：desc_* 更新第一条释文引用，clear_link=true 仅解除第一条。
+    多条引用应使用 /references 追加与逐条删除；引用操作不覆盖 note。
     asset_id/atype/geometry 三者齐全即给节点挂接（替换）几何。concept_ids 整体替换概念集合。"""
     if body.clear_link:
         textlinks.clear_link(x)
@@ -143,6 +144,25 @@ def patch(body: AnnotationPatch, x: Annotation = Depends(get_annotation),
         x.asset_id, x.atype, x.geometry = aid, body.atype, (body.geometry if body.atype != "none" else {})
         if x.tool not in ("annotate", "segment"):
             x.tool = "annotate"
+    db.commit()
+    return annotation_out(x)
+
+
+@router.get("/{anno_id}/references", response_model=list[AnnotationReferenceOut], summary="节点的全部文献与图像引用")
+def list_references(x: Annotation = Depends(get_annotation), db: Session = Depends(get_db)):
+    return references.references_out(db, list(x.references))
+
+
+@router.post("/{anno_id}/references", response_model=AnnotationOut, summary="追加释文、文段或插图引用")
+def add_reference(body: AnnotationReferenceCreate, x: Annotation = Depends(get_annotation), db: Session = Depends(get_db)):
+    references.add_reference(db, x, body)
+    db.commit()
+    return annotation_out(x)
+
+
+@router.delete("/{anno_id}/references/{reference_id}", response_model=AnnotationOut, summary="仅解除指定引用")
+def delete_reference(reference_id: int, x: Annotation = Depends(get_annotation), db: Session = Depends(get_db)):
+    references.remove_reference(db, x, reference_id)
     db.commit()
     return annotation_out(x)
 

@@ -1,5 +1,6 @@
 import type { Annotation } from '../types'
 import { LEVEL_RANK } from './constants'
+import { hasReferences } from './references'
 
 /** 结构树节点：标注 + 子节点 + 深度 */
 export interface TreeNode { a: Annotation; children: TreeNode[]; depth: number }
@@ -92,7 +93,7 @@ export function progress(rows: Annotation[]): Progress {
     if (a.review_status === 'candidate') p.candidates++
     if (!hasGeometry(a)) p.noGeometry++
     if (a.parent_id == null && a.level !== 'whole' && a.review_status !== 'candidate') p.orphans++
-    if (a.desc_text) p.linked++
+    if (hasReferences(a)) p.linked++
     if (a.concept_ids.length) p.withConcept++
   }
   return p

@@ -3,6 +3,7 @@ import {
   ChevronDown, ChevronRight, EyeOff, GitBranch, Link2, ListTree, Plus, Search, Sparkles, Tags, Wand2,
 } from 'lucide-react'
 import { LEVELS, LEVEL_LABEL, LEVEL_SHORT } from '../../lib/constants'
+import { hasReferences } from '../../lib/references'
 import { ancestors, buildTree, descendantIds, flatten, hasGeometry, isStructural, progress, type TreeNode } from '../../lib/tree'
 import { useApp } from '../../store/useApp'
 import { toast } from '../../store/useToast'
@@ -11,7 +12,7 @@ import { Badge, Button, Chip, Empty } from '../ui'
 import SkeletonDialog from './SkeletonDialog'
 
 type Filter = 'all' | 'candidate' | 'nogeo' | 'orphan' | 'unlinked'
-const FILTERS: [Filter, string][] = [['all', '全部'], ['candidate', '候选'], ['nogeo', '无框'], ['orphan', '未归类'], ['unlinked', '未关联释文']]
+const FILTERS: [Filter, string][] = [['all', '全部'], ['candidate', '候选'], ['nogeo', '无框'], ['orphan', '未归类'], ['unlinked', '未关联文献']]
 
 /** 节点在当前图上的可见性：自有 / 投影 / 无几何 / 在别的图上且不可投影 */
 type Vis = 'own' | 'proj' | 'none' | 'hidden'
@@ -67,7 +68,7 @@ export default function StructurePanel() {
     if (filter === 'candidate' && a.review_status !== 'candidate') return false
     if (filter === 'nogeo' && hasGeometry(a)) return false
     if (filter === 'orphan' && (a.parent_id != null || a.level === 'whole')) return false
-    if (filter === 'unlinked' && a.desc_text) return false
+    if (filter === 'unlinked' && hasReferences(a)) return false
     if (query) {
       const q = query.trim().toLowerCase()
       if (!a.label.toLowerCase().includes(q) && !(a.note || '').toLowerCase().includes(q)
@@ -249,7 +250,7 @@ export default function StructurePanel() {
             {['whole', 'layer', 'scene', 'figure', 'inscription'].map(lv => prog.byLevel[lv] ? (
               <span key={lv}>{LEVEL_LABEL[lv]} <b>{prog.byLevel[lv]}</b></span>
             ) : null)}
-            <span>释文 <b>{prog.linked}</b></span>
+            <span>文献 <b>{prog.linked}</b></span>
             <span>概念 <b>{prog.withConcept}</b></span>
           </>
         )}
@@ -291,7 +292,7 @@ export default function StructurePanel() {
               {v === 'none' && <Badge outline title="尚无几何：选中后在图上绘制即挂接，或把候选拖到它上面并入">无框</Badge>}
               {v === 'proj' && <Badge tone="violet" title="在其他图上，以投影显示">投影</Badge>}
               {v === 'hidden' && <span className="ic" title="在其他图上且本图未入链"><EyeOff size={11} /></span>}
-              {a.desc_text && <span className="ic amber" title="已关联释文"><Link2 size={11} /></span>}
+              {hasReferences(a) && <span className="ic amber" title="已关联文献或图像"><Link2 size={11} /></span>}
               {a.concept_ids.length > 0 && <span className="ic" title={`${a.concept_ids.length} 个概念`}><Tags size={11} /></span>}
               {children.length > 0 && !filtering && <span className="cnt"><GitBranch size={10} />{children.length}</span>}
             </div>

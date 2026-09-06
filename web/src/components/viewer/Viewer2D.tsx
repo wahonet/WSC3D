@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import OpenSeadragon from 'openseadragon'
 import { preprocessedUrl, previewUrl } from '../../api'
 import { COLORS } from '../../lib/constants'
@@ -59,17 +59,16 @@ export default function Viewer2D({ asset }: { asset: AssetBrief }) {
   const [, forceDraft] = useState(0)
   const [cursor, setCursor] = useState<Pt | null>(null)
 
-  const toolRef = useRef(tool); toolRef.current = tool
   const shapeRef = useRef(shape); shapeRef.current = shape
   const assetRef = useRef(asset); assetRef.current = asset
   const segModeRef = useRef<'point' | 'box' | 'none'>('none')
   segModeRef.current = seg.engine === 'mobilesam' ? 'point' : seg.promptMode === 'box' ? 'box' : 'none'
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     viewerRef.current?.setMouseNavEnabled(interactive)
     draftRef.current = EMPTY
     forceDraft(x => x + 1)
-  }, [tool, shape, interactive, viewerRef])
+  }, [page, tool, shape, seg.engine, seg.promptMode, interactive, viewerRef, ready])
 
   useEffect(() => { overlayItemRef.current = null; draftRef.current = EMPTY }, [asset.id])
 
@@ -135,7 +134,7 @@ export default function Viewer2D({ asset }: { asset: AssetBrief }) {
     }
 
     const down = (e: PointerEvent) => {
-      const t = toolRef.current
+      const t = useApp.getState().tool
       if (e.button !== 0 || !viewerRef.current?.world.getItemAt(0)) return
       if (t === 'segment') {
         const mode = segModeRef.current
@@ -176,6 +175,9 @@ export default function Viewer2D({ asset }: { asset: AssetBrief }) {
     }
     const up = () => {
       const d = draftRef.current
+      // 工具退出后即使收到拖拽末尾的 pointerup，也不能保存已取消的草稿。
+      const t = useApp.getState().tool
+      if ((d.kind === 'segbox' && t !== 'segment') || (d.kind !== 'segbox' && t !== 'annotate')) return
       if ((d.kind === 'rect' || d.kind === 'ellipse' || d.kind === 'segbox') && d.start && d.cur) {
         const x = Math.min(d.start[0], d.cur[0]), y = Math.min(d.start[1], d.cur[1])
         const w = Math.abs(d.cur[0] - d.start[0]), h = Math.abs(d.cur[1] - d.start[1])
@@ -190,7 +192,7 @@ export default function Viewer2D({ asset }: { asset: AssetBrief }) {
     }
     const dbl = () => {
       const d = draftRef.current
-      if (d.kind !== 'polygon') return
+      if (useApp.getState().tool !== 'annotate' || d.kind !== 'polygon') return
       const pts = d.pts.filter((p, i, arr) => i === 0 || Math.hypot(p[0] - arr[i - 1][0], p[1] - arr[i - 1][1]) > 0.003)
       if (pts.length >= 3) createShape({ atype: 'polygon', geometry: { points: pts } })
       draftRef.current = EMPTY

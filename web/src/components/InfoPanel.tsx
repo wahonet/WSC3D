@@ -1,9 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Landmark, Link2, Pencil, Save, X } from 'lucide-react'
-import { patchLayer, patchStone } from '../api'
+import { addAnnotationReference, patchLayer, patchStone } from '../api'
+import { annotationReferences } from '../lib/references'
+import { isStructural } from '../lib/tree'
 import { useApp } from '../store/useApp'
 import { toast } from '../store/useToast'
 import TextArticle, { buildSources, joinArticle, splitArticle, type PendingSel } from './library/TextArticle'
+import NodeReferences from './library/NodeReferences'
 import { Badge, Button, Empty, Field } from './ui'
 
 type Fields = { dims_text: string; era: string; material: string; carving: string; location: string }
@@ -13,7 +16,7 @@ const FIELD_LABELS: [keyof Fields, string][] = [
 
 /**
  * 文献模块右栏：顶部固定的关联操作栏 + 可滚动正文（石头信息折叠块、释文全文）。
- * 释文是目前唯一的"文献"，来自著录原书人工录入；总述与各层连成一篇阅读，整篇一个文本框编辑。
+ * 本栏展示人工录入的总述与各层释文；书库另可关联 OCR 文段和插图。
  * 选中节点后在正文里拖选一段文字 → 顶部「关联到本节点」；已关联文字按节点颜色高亮并锁定。
  */
 export default function InfoPanel() {
@@ -22,7 +25,6 @@ export default function InfoPanel() {
   const selectedId = useApp(s => s.selectedId)
   const select = useApp(s => s.select)
   const flyTo = useApp(s => s.flyToAnnotation)
-  const update = useApp(s => s.updateAnnotation)
   const refreshStoneInfo = useApp(s => s.refreshStoneInfo)
   const refreshAnnos = useApp(s => s.refreshAnnos)
 
@@ -30,6 +32,7 @@ export default function InfoPanel() {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState('')
   const [saving, setSaving] = useState(false)
+  const [linking, setLinking] = useState(false)
   const [fields, setFields] = useState<Fields>({ dims_text: '', era: '', material: '', carving: '', location: '' })
   const [fieldsDirty, setFieldsDirty] = useState(false)
 
@@ -40,8 +43,11 @@ export default function InfoPanel() {
   }, [info])
 
   const sources = useMemo(() => (info ? buildSources(info) : []), [info])
-  const links = useMemo(() => stoneAnnos.filter(a => a.desc_text && a.desc_start != null), [stoneAnnos])
-  const selected = selectedId != null ? stoneAnnos.find(a => a.id === selectedId) ?? null : null
+  const links = useMemo(() => stoneAnnos.flatMap(a => annotationReferences(a)
+    .filter(r => r.kind === 'description' && r.desc_start != null && r.desc_end != null)
+    .map(r => ({ ...a, desc_source: r.desc_source || 'description', desc_start: r.desc_start, desc_end: r.desc_end, desc_text: r.text }))), [stoneAnnos])
+  const selected = selectedId != null ? stoneAnnos.find(a => a.id === selectedId && isStructural(a)) ?? null : null
+  useEffect(() => { setPending(null) }, [info?.id])
 
   if (!info) return <Empty icon={<Landmark size={22} />} title="未选择画像石">先在首页选择一块画像石</Empty>
 
@@ -77,13 +83,16 @@ export default function InfoPanel() {
   }
 
   const doLink = async () => {
-    if (!selected || !pending) return
-    const r = await update(selected.id, { desc_source: pending.source, desc_start: pending.start, desc_end: pending.end, desc_text: pending.text })
-    if (r) {
+    if (!selected || !pending || linking) return
+    setLinking(true)
+    try {
+      await addAnnotationReference(selected.id, { kind: 'description', desc_source: pending.source,
+        desc_start: pending.start, desc_end: pending.end, text: pending.text })
+      await refreshAnnos()
       setPending(null)
       window.getSelection()?.removeAllRanges()
-      toast.ok(`已把这段释文关联到「${selected.label}」`)
-    }
+      toast.ok(`已为「${selected.label}」添加这段释文，可继续添加`)
+    } catch (e) { toast.error(e) } finally { setLinking(false) }
   }
   const dropPending = () => { setPending(null); window.getSelection()?.removeAllRanges() }
   const excerpt = (t: string) => (t.length > 22 ? t.slice(0, 22) + '…' : t)
@@ -100,7 +109,7 @@ export default function InfoPanel() {
               <Link2 size={13} className="muted" />
               <span className="lib-sel">已选 <b>{pending.text.length}</b> 字：<q>{excerpt(pending.text)}</q></span>
               {selected
-                ? <Button size="sm" variant="primary" onClick={doLink}>关联到「{excerpt(selected.label)}」</Button>
+                ? <Button size="sm" variant="primary" onClick={doLink} disabled={linking}>{linking ? '关联中…' : `关联到「${excerpt(selected.label)}」`}</Button>
                 : <span className="hint">（先在左侧树或图上选中一个节点）</span>}
               <Button size="sm" variant="ghost" icon={<X size={12} />} onClick={dropPending} title="放弃选区" />
             </>
@@ -108,12 +117,9 @@ export default function InfoPanel() {
             <>
               <span className="sw" style={{ background: selected.color }} />
               <span className="lib-sel">节点「<b>{excerpt(selected.label)}</b>」</span>
-              {selected.desc_text
-                ? <Badge tone="amber">已关联 {selected.desc_text.length} 字</Badge>
+              {annotationReferences(selected).length > 0
+                ? <Badge tone="amber">已关联 {annotationReferences(selected).length} 条 · 可继续添加</Badge>
                 : <span className="hint">在下方释文里拖选一段文字，这里会出现「关联」按钮</span>}
-              {selected.desc_text && (
-                <Button size="xs" variant="ghost" onClick={() => update(selected.id, { clear_link: true })} title="解除关联，文字恢复可编辑">解除</Button>
-              )}
             </>
           ) : (
             <span className="hint">先在左侧结构树或图上选中一个节点，再在下方释文里拖选文字关联</span>
@@ -132,6 +138,7 @@ export default function InfoPanel() {
 
       {/* ---------- 正文（滚动） ---------- */}
       <div className="lib-body">
+        {selected && <NodeReferences key={selected.id} annotation={selected} initiallyOpen={false} />}
         <details className="lib-meta">
           <summary>
             <b>{info.name}</b>

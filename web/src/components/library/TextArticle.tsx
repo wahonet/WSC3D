@@ -1,6 +1,6 @@
-import { useRef } from 'react'
+import { useEffect, useRef } from 'react'
 import { rgba } from '../../lib/format'
-import type { Annotation, StoneInfo } from '../../types'
+import type { Annotation, AnnotationReference, StoneInfo } from '../../types'
 
 /** 一个文本源：总述（description）或某一层释文（layer:N）；关联区间按源内偏移记录 */
 export interface TextSource { key: string; title: string; seq: number | null; name: string; text: string }
@@ -48,9 +48,11 @@ export function splitArticle(text: string, sources: TextSource[]):
 function buildSegments(text: string, links: Annotation[]): Seg[] {
   const sorted = [...links].sort((a, b) => (a.desc_start ?? 0) - (b.desc_start ?? 0))
   const segs: Seg[] = []
+  const chars = Array.from(text)
   let pos = 0
   for (const a of sorted) {
-    const s = a.desc_start ?? 0, e = a.desc_end ?? 0
+    // API offsets count Unicode code points; DOM ranges count UTF-16 code units.
+    const s = chars.slice(0, a.desc_start ?? 0).join('').length, e = chars.slice(0, a.desc_end ?? 0).join('').length
     if (s > pos) segs.push({ start: pos, end: s, annoId: null })
     segs.push({ start: s, end: e, annoId: a.id, label: a.label, color: a.color })
     pos = e
@@ -75,6 +77,25 @@ export default function TextArticle({ sources, links, selectedId, onPending, onS
   onDraft: (v: string) => void
 }) {
   const boxRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const scrollTo = (source: string | null, start: number) => {
+      const section = Array.from(boxRef.current?.querySelectorAll<HTMLElement>('[data-src]') ?? [])
+        .find(el => el.dataset.src === source)
+      const text = sources.find(s => s.key === source)?.text || ''
+      const offset = Array.from(text).slice(0, start).join('').length
+      const span = Array.from(section?.querySelectorAll<HTMLElement>('[data-s]') ?? []).find(el => Number(el.dataset.s) === offset)
+      ;(span || section)?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+    }
+    const locate = (e: Event) => {
+      const r = (e as CustomEvent<AnnotationReference>).detail
+      scrollTo(r.desc_source, r.desc_start ?? 0)
+    }
+    window.addEventListener('stonelab:locate-description', locate)
+    // A jump from another module can happen before this article has mounted.
+    const q = new URLSearchParams(location.hash.replace(/^#/, ''))
+    if (q.get('lib') === 'link' && q.has('src')) scrollTo(q.get('src'), Number(q.get('off')) || 0)
+    return () => window.removeEventListener('stonelab:locate-description', locate)
+  }, [sources])
 
   /* 选区捕获：把 DOM 选区换算为某文本源中的字符区间 */
   const onMouseUp = () => {
@@ -86,10 +107,12 @@ export default function TextArticle({ sources, links, selectedId, onPending, onS
     if (!box.contains(range.startContainer) || !box.contains(range.endContainer)) return
     const locate = (node: Node, o: number): { src: string; off: number } | null => {
       const el = node.nodeType === Node.TEXT_NODE ? node.parentElement : node as HTMLElement
-      const span = el?.closest?.('[data-s]') as HTMLElement | null
       const blk = el?.closest?.('[data-src]') as HTMLElement | null
-      if (!span || !blk) return null
-      return { src: blk.dataset.src!, off: Number(span.dataset.s) + o }
+      if (!blk) return null
+      const prefix = document.createRange()
+      prefix.selectNodeContents(blk)
+      prefix.setEnd(node, o)
+      return { src: blk.dataset.src!, off: prefix.toString().length }
     }
     const A = locate(range.startContainer, range.startOffset)
     const B = locate(range.endContainer, range.endOffset)
@@ -99,12 +122,13 @@ export default function TextArticle({ sources, links, selectedId, onPending, onS
     if (a > b) [a, b] = [b, a]
     if (a === b) { onPending(null); return }
     const srcText = sources.find(s => s.key === A.src)?.text ?? ''
+    const start = Array.from(srcText.slice(0, a)).length, end = Array.from(srcText.slice(0, b)).length
     for (const l of links.filter(x => x.desc_source === A.src)) {
-      if (!(b <= (l.desc_start ?? 0) || a >= (l.desc_end ?? 0))) {
+      if (!(end <= (l.desc_start ?? 0) || start >= (l.desc_end ?? 0))) {
         onError('选区与已关联的文字重叠，请换一段'); onPending(null); return
       }
     }
-    onPending({ source: A.src, start: a, end: b, text: srcText.slice(a, b) })
+    onPending({ source: A.src, start, end, text: srcText.slice(a, b) })
   }
 
   if (editing) {

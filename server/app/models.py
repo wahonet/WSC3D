@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from uuid import uuid4
 
 from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -15,6 +16,11 @@ from .db import Base
 
 def now() -> datetime:
     return datetime.now()
+
+
+def reference_identity() -> str:
+    """来源的持久身份；SQLite 复用数字主键也不能让旧引用指向新资料。"""
+    return uuid4().hex
 
 
 class Stone(Base):
@@ -126,10 +132,13 @@ class Annotation(Base):
     asset: Mapped[Asset] = relationship(back_populates="annotations")
     concept_links: Mapped[list["AnnotationConcept"]] = relationship(
         back_populates="annotation", cascade="all, delete-orphan")
+    references: Mapped[list["AnnotationReference"]] = relationship(
+        back_populates="annotation", cascade="all, delete-orphan", order_by="AnnotationReference.id",
+        lazy="selectin")
 
     @property
     def is_linked(self) -> bool:
-        return bool(self.desc_text) and self.desc_start is not None
+        return bool(self.references) or (bool(self.desc_text) and self.desc_start is not None)
 
     @property
     def has_geometry(self) -> bool:
@@ -139,6 +148,37 @@ class Annotation(Base):
     def is_structural(self) -> bool:
         """结构树节点：排除测量与对齐记录。"""
         return self.tool in ("annotate", "segment") and self.atype != "align"
+
+
+class AnnotationReference(Base):
+    """节点的多条研究依据；源元数据与引文保存快照，OCR 重建不会级联删除引用。
+
+    只有 annotation_id 建外键；文献、页、文段和插图 id 是可失效的来源锚点。
+    源已不存在时仍返回快照，并由序列化器明确标记 source_missing。
+    """
+    __tablename__ = "annotation_references"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    annotation_id: Mapped[int] = mapped_column(ForeignKey("annotations.id"), index=True)
+    kind: Mapped[str] = mapped_column(String(16))
+    desc_source: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    desc_start: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    desc_end: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    text: Mapped[str] = mapped_column(Text, default="")
+    document_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    document_title: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    document_code: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    page_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    page_no: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    segment_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    figure_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    figure_label: Mapped[str] = mapped_column(String(64), default="")
+    document_identity: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    page_identity: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    source_identity: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
+
+    annotation: Mapped[Annotation] = relationship(back_populates="references")
 
 
 class Concept(Base):
@@ -174,6 +214,7 @@ class Document(Base):
     __tablename__ = "documents"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    reference_identity: Mapped[str] = mapped_column(String(32), default=reference_identity)
     code: Mapped[str] = mapped_column(String(32), unique=True, index=True)     # DOC-001
     title: Mapped[str] = mapped_column(String(256), default="")
     authors: Mapped[str] = mapped_column(String(256), default="")
@@ -199,6 +240,7 @@ class Page(Base):
     __tablename__ = "doc_pages"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    reference_identity: Mapped[str] = mapped_column(String(32), default=reference_identity)
     document_id: Mapped[int] = mapped_column(ForeignKey("documents.id"), index=True)
     page_no: Mapped[int] = mapped_column(Integer)                             # 1-based 物理页
     width: Mapped[int] = mapped_column(Integer, default=0)                    # OCR 页图像素
@@ -226,6 +268,7 @@ class Segment(Base):
     __tablename__ = "segments"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    reference_identity: Mapped[str] = mapped_column(String(32), default=reference_identity)
     document_id: Mapped[int] = mapped_column(ForeignKey("documents.id"), index=True)
     page_id: Mapped[int] = mapped_column(ForeignKey("doc_pages.id"), index=True)
     seq: Mapped[int] = mapped_column(Integer)                                 # 页内阅读顺序
@@ -251,6 +294,7 @@ class Figure(Base):
     __tablename__ = "figures"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    reference_identity: Mapped[str] = mapped_column(String(32), default=reference_identity)
     document_id: Mapped[int] = mapped_column(ForeignKey("documents.id"), index=True)
     page_id: Mapped[int] = mapped_column(ForeignKey("doc_pages.id"), index=True)
     seq: Mapped[int] = mapped_column(Integer)

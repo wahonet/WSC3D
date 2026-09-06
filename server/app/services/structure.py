@@ -265,12 +265,9 @@ def adopt_geometry(db: Session, target: Annotation, source: Annotation) -> Annot
     for l in list(source.concept_links):
         if l.concept_id not in have:
             db.add(AnnotationConcept(annotation_id=target.id, concept_id=l.concept_id))
-    # 来源若有释文关联而目标没有，则转移
-    if source.is_linked and not target.is_linked:
-        src, st, en, txt = source.desc_source, source.desc_start, source.desc_end, source.desc_text
-        textlinks.clear_link(source)
-        db.flush()
-        textlinks.set_link(db, target, src, st, en, txt)
+    # 来源的全部释文、文段和插图依据一并保留，目标已有依据也不能覆盖。
+    from .references import transfer_references
+    transfer_references(source, target)
     db.delete(source)
     return target
 

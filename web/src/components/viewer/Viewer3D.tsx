@@ -48,6 +48,20 @@ export default function Viewer3D({ asset }: { asset: AssetBrief }) {
   }, [brightness])
 
   useEffect(() => {
+    // 退出测量时取消尚未落下第二个端点的草稿，重新启用测量从新端点开始。
+    const st = S.current
+    st.measureA = null
+    for (const obj of st.tempObjs) {
+      st.scene?.remove(obj)
+      const mesh = obj as THREE.Mesh
+      mesh.geometry?.dispose()
+      const materials = Array.isArray(mesh.material) ? mesh.material : mesh.material ? [mesh.material] : []
+      materials.forEach(material => material.dispose())
+    }
+    st.tempObjs = []
+  }, [tool])
+
+  useEffect(() => {
     const host = hostRef.current!
     const st = S.current
     const scene = new THREE.Scene()

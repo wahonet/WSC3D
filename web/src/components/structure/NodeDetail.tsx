@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Check, Crosshair, Eraser, Link2, RotateCcw, Save, SquareDashed, Trash2, Unlink, X } from 'lucide-react'
+import { Check, Crosshair, Eraser, RotateCcw, Save, SquareDashed, Trash2, X } from 'lucide-react'
 import { parentSuggestions, patchAnnotation, type AnnotationPatchBody } from '../../api'
 import { ATYPE_LABEL, LEVELS, LEVEL_LABEL, PALETTE, REVIEW_LABEL } from '../../lib/constants'
 import { fmtTime, fmtValue, rgba } from '../../lib/format'
@@ -10,6 +10,7 @@ import type { Annotation, GeometryIntent, Level, ParentSuggestion, Quality, Revi
 import { EMPTY_SEMANTICS } from '../../types'
 import { Badge, Button, Empty, Field } from '../ui'
 import ConceptPicker from './ConceptPicker'
+import NodeReferences from '../library/NodeReferences'
 
 /** SOP 一层类别 -> 新增概念时的默认分类 */
 const CATEGORY_TO_CONCEPT_CAT: Record<string, string> = {
@@ -82,13 +83,11 @@ function StructuralForm({ a }: { a: Annotation }) {
   const stoneAnnos = useApp(s => s.stoneAnnos)
   const stones = useApp(s => s.stones)
   const curAsset = useApp(s => s.curAsset)
-  const page = useApp(s => s.page)
   const taxonomy = useApp(s => s.taxonomy)
   const update = useApp(s => s.updateAnnotation)
   const remove = useApp(s => s.removeAnnotation)
   const flyTo = useApp(s => s.flyToAnnotation)
   const select = useApp(s => s.select)
-  const setPage = useApp(s => s.setPage)
   const setTool = useApp(s => s.setTool)
 
   const [d, setD] = useState<Draft>(() => fromAnno(a))
@@ -235,21 +234,7 @@ function StructuralForm({ a }: { a: Annotation }) {
         <ConceptPicker value={d.concept_ids} onChange={ids => set('concept_ids', ids)} defaultCategory={CATEGORY_TO_CONCEPT_CAT[d.category]} />
       </div>
 
-      {/* ---------- 释文关联（在文献模块操作） ---------- */}
-      <div className="nd-row">
-        <span className="nd-k">释文</span>
-        <div className="nd-v">
-          {a.desc_text ? (
-            <>
-              <div className="ra-linkedtext" style={{ background: rgba(a.color, 0.14), borderColor: rgba(a.color, 0.55), flex: 1 }}>{a.desc_text}</div>
-              <Button size="xs" variant="ghost" icon={<Unlink size={12} />} onClick={() => update(a.id, { clear_link: true })} title="解除关联，文字恢复可编辑">解除</Button>
-            </>
-          ) : (
-            <span className="hint">未关联。{page !== 'library' && <>到「文献」模块拖选一段释文即可关联到本节点。<button className="stree-link" onClick={() => setPage('library')}>去文献 <Link2 size={10} /></button></>}
-              {page === 'library' && '在右侧释文中拖选文字，点「关联到本节点」。'}</span>
-          )}
-        </div>
-      </div>
+      <NodeReferences annotation={a} />
 
       {/* ---------- 图像志三层 / 榜题 ---------- */}
       <details className="nd-sec" open={semOpen}>

@@ -28,7 +28,7 @@ from sqlalchemy.orm import Session
 
 from ..config import settings
 from ..db import SessionLocal
-from ..models import Document, Figure, Page, Segment
+from ..models import AnnotationReference, Document, Figure, Page, Segment
 
 log = logging.getLogger("stonelab.library")
 
@@ -419,6 +419,12 @@ def _store_page(db: Session, d: Document, page_no: int, res: dict, engine: str) 
     page = db.query(Page).filter(Page.document_id == d.id, Page.page_no == page_no).one()
     old_segments = list(page.segments)
     protected = {s.id for s in old_segments if _segment_has_human_work(s, page)}
+    referenced_segments = set(db.query(AnnotationReference.segment_id, AnnotationReference.source_identity)
+                              .filter(AnnotationReference.page_id == page.id,
+                                      AnnotationReference.document_identity == d.reference_identity,
+                                      AnnotationReference.page_identity == page.reference_identity,
+                                      AnnotationReference.kind == "segment").all())
+    protected.update(s.id for s in old_segments if (s.id, s.reference_identity) in referenced_segments)
     blocks = sorted(res.get("blocks") or [], key=lambda b: int(b.get("seq", 0)))
     matches = _match_ocr_segments(old_segments, blocks)
     matched_ids = {s.id for s in matches.values()}
@@ -455,6 +461,11 @@ def _store_page(db: Session, d: Document, page_no: int, res: dict, engine: str) 
                    {"t": s.text_edit or s.text, "i": s.id, "d": d.id, "p": page_no})
 
     old_figures = list(page.figures)
+    referenced_figures = set(db.query(AnnotationReference.figure_id, AnnotationReference.source_identity)
+                             .filter(AnnotationReference.page_id == page.id,
+                                     AnnotationReference.document_identity == d.reference_identity,
+                                     AnnotationReference.page_identity == page.reference_identity,
+                                     AnnotationReference.kind == "figure").all())
     used_figures: set[int] = set()
     figures = sorted(res.get("figures") or [], key=lambda fg: int(fg.get("seq", 0)))
     fig_dir = doc_dir(d) / "figures"
@@ -487,7 +498,7 @@ def _store_page(db: Session, d: Document, page_no: int, res: dict, engine: str) 
     for f in old_figures:
         if f.id in used_figures:
             continue
-        if f.caption or f.label or f.note or f.review_status != "machine":
+        if (f.id, f.reference_identity) in referenced_figures or f.caption or f.label or f.note or f.review_status != "machine":
             f.seq = len(figures) + len(retained_figures)
             retained_figures.append(f.id)
         else:
@@ -506,7 +517,7 @@ def _store_page(db: Session, d: Document, page_no: int, res: dict, engine: str) 
         page.stats["ocr_normalization"] = res["extra"]
     if retained or retained_figures:
         page.stats["retained_review"] = {"segment_ids": retained, "figure_ids": retained_figures,
-                                         "message": "重建时部分旧记录未能可靠匹配，已保留人工工作，请复核。"}
+                                         "message": "重建时部分旧记录未能可靠匹配，已保留人工工作及节点引用的来源，请复核。"}
     page.ocr_at = datetime.now()
     db.commit()
 

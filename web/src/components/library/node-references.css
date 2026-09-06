@@ -1,0 +1,16 @@
+.node-references { width: 100%; min-width: 0; border-top: 1px solid var(--line); padding: 8px 0; }
+.node-references > summary { display: flex; align-items: center; gap: 6px; cursor: pointer; font-weight: 600; padding: 3px 0; }
+.node-ref-add { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin: 7px 0; }
+.node-ref-list { display: grid; gap: 8px; max-height: 380px; overflow-y: auto; margin-top: 6px; }
+.node-ref { background: var(--bg-2); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 9px; min-width: 0; }
+.node-ref-head { display: flex; align-items: flex-start; gap: 7px; }
+.node-ref-source { color: var(--text-2); font-size: 11px; overflow-wrap: anywhere; }
+.node-ref-content { display: flex; gap: 9px; margin-top: 7px; }
+.node-ref-content > div { min-width: 0; flex: 1; }
+.node-ref-thumb { width: 72px; height: 64px; object-fit: contain; background: var(--bg-0); border: 1px solid var(--line); border-radius: 4px; }
+.node-ref-quote > summary { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; cursor: pointer; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--text-2); }
+.node-ref-quote[open] > summary { -webkit-line-clamp: 1; margin-bottom: 6px; color: var(--text-3); }
+.node-ref-quote[open] > summary::before { content: '收起摘录 · '; }
+.node-ref-quote p { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--text-2); }
+.node-ref-actions { display: flex; justify-content: flex-end; flex-wrap: wrap; align-items: center; gap: 5px; margin-top: 7px; }
+.node-ref-actions .hint { flex: 1; }

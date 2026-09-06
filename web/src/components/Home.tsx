@@ -25,7 +25,7 @@ export default function Home() {
           <div className="stat-grid">
             <div className="stat"><div className="v">{stats.stones}</div><div className="k">画像石</div></div>
             <div className="stat"><div className="v">{stats.assets_2d} <span className="muted" style={{ fontSize: 13 }}>+ {stats.assets_3d} 三维</span></div><div className="k">照片 / 局部 / 拓片</div></div>
-            <div className="stat"><div className="v">{stats.annotations}</div><div className="k">节点（{stats.linked_annotations} 条已关联释文）</div></div>
+            <div className="stat"><div className="v">{stats.annotations}</div><div className="k">节点（{stats.linked_annotations} 条已关联文献）</div></div>
             <div className="stat"><div className="v">{stats.previews_cached}</div><div className="k">预览缓存 · {fmtBytes(stats.preview_cache_bytes)}</div></div>
           </div>
         )}

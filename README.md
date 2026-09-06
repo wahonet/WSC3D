@@ -1,4 +1,4 @@
-﻿# StoneLab · 汉画像石研究平台
+# StoneLab · 汉画像石研究平台
 
 面向武氏祠（及后续 40+ 块画像石）的本地研究平台。工作按**流水线**推进，首页集中展示成果：
 
@@ -10,10 +10,11 @@
 - **分割**：用 SAM（点选 / 文字 / 示例框）和矩形 / 圆形 / 多边形 / 点，把画面切成一个个**实体**；
 - **标注**：每个实体是结构树的一个节点（整石 → 花纹带 / 层 → 场景 → 人物·物象 → 部件；榜题、残损为旁支），
   填写状态、父级、类别、概念、三层图像志文本与榜题录文；可由释文一键生成骨架；
-- **文献**：释文与已标注节点关联，文字按节点颜色高亮并锁定；书库支持 PDF 入库、批量 OCR、逐页校勘与全库检索。
+- **文献**：每个节点可关联多段总述 / 层释文，以及不同书中的 OCR 文段与插图；释文按节点颜色高亮并锁定，
+  引用可逐条查看来源或解除。书库支持 PDF 入库、批量 OCR、逐页校勘与全库检索。
 
 路线：先把武梁祠西壁这一块做"完整"（底本、结构、文献、综合四层），再导入其他石头。
-文献库已可使用；后续补充节点与原书文段 / 插图之间的证据关联。
+文献库与节点证据关联已可使用；后续继续完善释文与原书页的自动对齐和观点综合。
 
 技术栈：FastAPI + SQLAlchemy + SQLite（后端），React 19 + TypeScript + Vite（前端），
 OpenSeadragon（深度缩放）、three.js（三维）、zustand（状态）、react-resizable-panels（可拖拽布局）。
@@ -60,7 +61,7 @@ stonelab/
 │  │  ├─ components/           TopBar（流水线导航）/ CenterView（查看器区）/ Home（仪表）/ StoneTree / LayerPanel /
 │  │  │  │                     MeasureTools / ShapeList / AlignSidebar / AlignView / InfoPanel（元数据 + 释文关联）/
 │  │  │  │                     ErrorBoundary / Toaster / ui
-│  │  │  ├─ structure/         StructurePanel（结构树）/ NodeDetail（标注表单）/ ConceptPicker / SkeletonDialog
+│  │  │  ├─ structure/         StructurePanel（结构树）/ NodeDetail（标注表单与引用列表）/ ConceptPicker / SkeletonDialog
 │  │  │  ├─ viewer/            Viewer2D / Viewer3D / ViewerBar（含切图）/ AnnotationShapes / NodeInfoCard / useOsd
 │  │  │  ├─ tools/             ShapeTools / SegmentPanel
 │  │  │  └─ library/           TextArticle（释文全文）/ BookShelf / BookPicker / LibrarySearch / 逐页校勘组件
@@ -138,8 +139,10 @@ cd web    ; npm run build                                                   # �
 
 ### 模块二 · 分割
 
-- 左下 **分割工具**：矩形 `1` / 圆形 `2` / 多边形 `3` / 点 `4`（`A` 进入绘制；多边形连点、双击闭合、`Esc` 取消；
-  圆形为内切于拖拽框的圆 / 椭圆），以及 **SAM 分割**（`S`）；
+- **默认选中 / 拖图**：打开分割模块、刷新深链或切换模块后均回到选中工具，拖动图像不会绘制。
+  点击左下的形状按钮或按 `A` 才启用手绘，点击「SAM 分割」或按 `S` 才启用 SAM；
+- 左下 **分割工具**：矩形 / 圆形 / 多边形 / 点；进入手绘后可用 `1` / `2` / `3` / `4` 切换形状。
+  多边形连点、双击闭合，圆形为内切于拖拽框的圆 / 椭圆；按 `Esc`、点击「选中」或切换模块可退出工具并取消尚未完成的绘图草稿；
 - SAM 三个引擎——点选（MobileSAM，CPU）、SAM3 / SAM3.1（文字与示例框概念分割，GPU）；模型按需加载 / 卸载，
   推理运行在独立 Python 环境的 sidecar 进程中（含 CUDA torch 与 sam3 / mobile_sam 包，路径不存在时设 `STONELAB_SAM_PYTHON`）：
   - 点选：单击加正点、`Alt` + 单击加负点，可撤销；
@@ -160,18 +163,22 @@ cd web    ; npm run build                                                   # �
   「节点」新建无框子节点；顶部进度：整石 / 层 / 场景 / 人物 / 榜题 数与已关联释文、已挂概念数；
 - 中央图像：点选节点；选中无框节点时按 `A` 绘制即挂接；
 - 右侧 **标注表单**：名称、层级、次序、状态（候选 / 已审 / 已核定 / 已否决，候选有「转正并保存」）、父级
-  （下拉手选，或采纳按几何包含给出的建议）、SOP 类别、概念（搜索 / 现场新增）、释文关联（只读，去文献模块操作）、
+  （下拉手选，或采纳按几何包含给出的建议）、SOP 类别、概念（搜索 / 现场新增）、**引用列表**（多条释文 / OCR 文段 / 插图，
+  每条可查看来源或独立解除，通过文献模块继续追加）、
   图像志三层文本（前图像志 / 图像志 / 图像学）、榜题录文 / 今译 / 释读注、几何（定位 / 重画）、颜色、备注、
   高级（标注质量 / 几何语义）。**修改后点「保存」**（`Ctrl+S`）；切换到别的节点时未保存的修改会自动保存。
 
 ### 模块四 · 文献
 
-- 左侧同一棵结构树（标题显示已关联释文的节点数）；中央图像；
+- 左侧同一棵结构树（标题显示已有关联依据的节点数）；中央图像；
 - 右侧 **文献与释文**：顶部是**固定不随滚动的操作栏**——显示当前选中节点，拖选文字后出现「关联到本节点」；
   正文是一篇连贯的文章：总述 + 各层释文，层名为行内小标题（上方可折叠的「石头信息」块编辑尺寸 / 年代 / 材质 / 刻法 / 收藏）。
   「编辑全文」把整篇放进一个文本框，层与层之间以 `## 第N层 · 层名` 一行分隔（可改层名，不能增减层），保存时按层拆回；
 - 选中节点后**拖选一段文字 → 「关联到本节点」**，文字以节点颜色高亮并**锁定**：编辑时删改已关联文字会被拒绝（409），
-  其他改动正常保存且全部关联区间自动重定位；一次只能关联同一段落（总述或某一层）内的文字，区间不能重叠；点高亮文字可反选节点。
+  其他改动正常保存且全部关联区间自动重定位；每次选择同一文本源（总述或某一层）内的文字，可重复操作，
+  给同一节点追加多条、跨层的释文依据。同一文本源上的关联区间不能重叠；点高亮文字可反选节点。
+- 节点详情按条列出全部引用，**「查看来源」**跳到对应释文或书库的原页、文段 / 插图，**解除**只删除这一条关联，
+  保留节点及其他引用。书库文段与插图可来自不同文献，同一节点重复添加同一来源不会生成重复记录。
 - 「关联释文」页签的文字由著录原书人工录入 `meta.json`（重新扫描只在字段为空时填入，不覆盖人工编辑）；
   「书库」页签用于 PDF、OCR 与逐页校勘，详见第四之二节。
 
@@ -179,14 +186,14 @@ cd web    ; npm run build                                                   # �
 
 | 键 | 作用 | 生效模块 |
 |---|---|---|
-| `V` / `Esc` | 选中工具；`Esc` 在选中工具下取消选中、绘制中取消 | 全部 |
+| `V` / `Esc` | 回到选中 / 拖图，取消未完成的绘图草稿；`Esc` 在选中工具下取消节点选择，输入 SAM 提示词时也可退出工具 | 全部 |
 | `M` | 测量 | 首页 |
-| `A` · `1`/`2`/`3`/`4` | 绘制 · 矩形 / 圆形 / 多边形 / 点 | 分割（标注模块 `A` 用于给无框节点挂接） |
+| `A` · `1`/`2`/`3`/`4` | `A` 启用绘制；已在绘制时用数字键切换矩形 / 圆形 / 多边形 / 点 | 分割（标注模块 `A` 用于给无框节点挂接） |
 | `S` | SAM 分割 | 分割 |
 | `F` | 适应窗口 | 全部 |
 | `↑` / `↓` · `Enter` | 结构树上下移动 · 定位到选中节点 | 标注、文献 |
 | `R` | 把选中的机器候选转正 | 分割、标注 |
-| `Ctrl+S` | 保存标注表单 | 标注 |
+| `Ctrl+S` | 保存标注表单；书库文段编辑框内保存校订稿 | 标注、书库 |
 | `Del` 两次 | 删除选中（多选时删全部所选；子节点上挂一级）；首页只删测量记录 | 首页、对齐、分割、标注 |
 
 **颜色**：新建实体自动从 18 色调色板中分配当前图上用得最少的颜色；正红保留给选中态。图形描边按层级区分：
@@ -207,7 +214,21 @@ cd web    ; npm run build                                                   # �
 | `review_status` | candidate 候选 / reviewed 已审 / approved 已核定 / rejected 已否决 | SAM 产物默认 candidate（虚线）；转正 = reviewed |
 | `quality` / `geometry_intent` | weak/silver/gold；visible_trace/semantic_extent/reconstructed_extent | 「高级」折叠区 |
 | 几何 | `atype` rect / ellipse / polygon / point；`none` + `geometry={}` 为**无框骨架节点** | 圆形投影与包含判断按 32 边多边形处理 |
-| `desc_source/desc_start/desc_end/desc_text` | 释文关联 | 文本源为 `description`（总述）或 `layer:N` |
+| `desc_source/desc_start/desc_end/desc_text` | 旧版单条释文兼容字段 | 现由首条释文引用同步，完整引用使用 `references` 集合 |
+
+**节点引用**单独保存在 `annotation_references` 表，一个节点可有多条，接口通过 `Annotation.references` 返回：
+
+| 字段 | 说明 |
+|---|---|
+| `annotation_id` / `kind` | 所属节点；`description` 为总述或层释文，`segment` 为书库文段，`figure` 为书库插图 |
+| `desc_source` / `desc_start` / `desc_end` | 释文源 `description` 或 `layer:N` 与文字区间；其他类型为空 |
+| `document_id` / `page_id` / `segment_id` / `figure_id` | 定位原书页与文段 / 插图的来源锚点 |
+| `text` / `document_title` / `document_code` / `page_no` / `figure_label` | 添加引用时保存的引文或图注、文献题名 / 编号、物理页码与图号快照 |
+| `source_missing` / `image_url` | 接口动态返回来源是否失效及当前可用的插图地址 |
+
+旧单条释文关联在启动迁移时补入引用表，重复启动不会重复添加。删除源文段 / 插图或重跑 OCR 后，
+引用快照继续保留；来源锚点失效时明确提示，不能继续跳到原记录。插图预览使用现有裁片，快照保存的是图号与图注，
+并不额外复制一份永久图片。解除一条释文引用后，只释放该条区间的编辑保护。
 
 **从释文生成骨架**（标注模块「骨架」）：后端解析总述与各层释文——"一则 / 二则"为场景、"首刻 / 次一人"为人物、
 "数词 + 名词"枚举为物象、引号内为榜题录文、"第 N、M 层间饰…花纹带"为花纹带——预览勾选（可改名）后创建；
@@ -289,15 +310,19 @@ OCR 原始输出、页图和插图继续保留在 `server/data/library/`，与�
 
 - 左栏顶部是**全库检索框**（吸顶）：输入两字起即搜（防抖 350 ms），一字需回车，Esc 清空；有输入时检索结果接管整栏，
   按书分组、每条显示页码与高亮片段，多本书命中时出现各书的书签可筛选，「更多」翻页。点一条命中直达那本书的那一页，
-  校勘台自动选中该文段并滚到可见，检索词在文段卡片里高亮；深链的 `doc / pg / q` 随浏览实时回写，刷新即回到原处。
+  校勘台自动选中该文段并滚到可见，检索词在文段卡片里高亮；深链的 `doc / pg / q` 随浏览实时回写，
+  `seg` / `fig` 可定位指定文段或插图，刷新即回到原处。
 - 检索框之下是**选书下拉**（同样吸顶）：按钮上是当前书的编号 / 题名 / OCR 进度，展开后列出全部书目并可按编号 / 题名 /
   作者 / 年份筛选，每本带页数、进度、文段 / 插图数、体例、类型、是否正在 OCR；书多了也不必上下滚动。再往下是所选书的
   文献信息（题名 / 作者 / 年份 / 体例 / 类型）、OCR 作业（引擎、MinerU 后端、页范围、重做开关、开始 / 取消、工作进程状态、
   进度；作业属于另一本书时标出其编号）、按状态着色的页格。
 - 右侧是逐页校勘台：原刊页图叠版面块（按类别配色，插图红色虚线）| 插图卡与文段卡（类别、机器 / 已校 / 否决三态，
   机器底稿只读，展开写校订稿，Ctrl+S 保存，`base_revision` 乐观锁）。
+- 校勘台右栏顶部可选择**当前画像石的关联节点**，默认沿用已经选中的结构节点。点击文段 / 插图卡的「关联到节点」逐条追加，
+  换书或换页后可继续添加；已添加的来源显示「已关联」。存在未保存的校订稿、图号或图注时，先保存再关联。
+  从节点引用列表返回时，校勘台自动滚到对应卡片并选中原页上的版面框；原有左书目、中页图、右校勘布局与拖拽比例保持不变。
 
-下一步：证据表（节点 ↔ 文段 / 插图）、释文与原书页的自动对齐、图版页竖排图注的补漏。
+下一步：释文与原书页的自动对齐、图版页竖排图注的补漏，以及多来源依据的观点综合。
 
 ## 五、素材与释文的准备（每块石头）
 
@@ -324,8 +349,10 @@ SQLite（`server/data/stonelab.db`），经 SQLAlchemy ORM，启动时自动轻�
 （`migrations.py` 以 ALTER 补列；一次性数据修正记录在 `schema_fixes` 表，不会重复执行）。
 大文件留在文件系统，库中只存元数据与标注。表：
 `stones` / `layers` / `assets`（extra 内含 is_master 与 align_to_master 坐标链）/
-`annotations`（结构节点、测量与对齐记录）/ `concepts`（概念词，跨石头共享）/ `annotation_concepts`（节点—概念多对多）。
+`annotations`（结构节点、测量与对齐记录）/ `annotation_references`（节点的多条释文、文段与插图引用）/
+`concepts`（概念词，跨石头共享）/ `annotation_concepts`（节点—概念多对多）。
 文献相关数据保存在 `documents` / `doc_pages` / `segments` / `figures`，检索使用 SQLite FTS5 表 `segments_fts`。
+引用表仅对节点建立外键；文献来源删除或 OCR 重建不会级联删除研究依据，来源快照与失效状态仍可查看。
 多人协作仍需增加账号权限、标注保存冲突处理与修改历史；若迁移 PostgreSQL，
 还需适配数据库配置、SQLite 专用迁移语句及 FTS5 检索，不能只替换连接地址。
 
@@ -340,6 +367,7 @@ SQLite（`server/data/stonelab.db`），经 SQLAlchemy ORM，启动时自动轻�
 | 结构 | `GET /api/stones/{id}/structure/skeleton`（释文解析预览） · `POST /api/stones/{id}/structure/skeleton`（按选定清单建节点） · `POST /api/stones/{id}/structure/auto-parent`（按几何包含归类） |
 | 资产 | `GET /api/assets/{id}/preview` · `GET /api/assets/{id}/thumb` · `GET /api/assets/{id}/preprocessed?mode=&invert=` · `GET /api/assets/{id}/model/{fname}` · `GET /api/assets/{id}/projected` |
 | 标注 | `GET /api/annotations?asset_id=` · `POST /api/annotations`（`auto_parent`、`parent_id`、`level`…） · `POST /api/annotations/batch` · `PATCH /api/annotations/batch`（名称/颜色/父级/层级/类别/次序/审核） · `POST /api/annotations/batch-delete` · `PATCH/DELETE /api/annotations/{id}`（含 `semantics`、`concept_ids`、挂接几何） · `GET /api/annotations/{id}/parent-suggestions` · `POST /api/annotations/{id}/adopt` |
+| 节点引用 | `POST /api/annotations/{id}/references`（`kind=description/segment/figure`，传释文位置或 `segment_id` / `figure_id`；追加、同源幂等） · `DELETE /api/annotations/{id}/references/{reference_id}`（逐条解除）；均返回含完整 `references` 的节点 |
 | 概念 | `GET /api/concepts/taxonomy` · `GET/POST /api/concepts` · `PATCH/DELETE /api/concepts/{id}` |
 | 分割 | `GET /api/tools/segment/status` · `POST /api/tools/segment/load|unload/{engine}` · `POST /api/tools/segment/point` · `POST /api/tools/segment/text`（`prompt` / `boxes[]` / `preprocess` / `invert` / `tiling`） |
 | 对齐 | `POST /api/align/commit` |
@@ -363,6 +391,8 @@ SQLite（`server/data/stonelab.db`），经 SQLAlchemy ORM，启动时自动轻�
 | `run_library_ocr.py [--redo] [--state 路径] [--resume]` | 全库按体例顺序 OCR，保存队列进度、失败页，支持中断恢复 |
 | `repair_ocr_physical_pages.py [--apply]` | 从 MinerU 原始缓存修复跨页续文错位；默认预览，应用前自动备份数据库 |
 | `test_ocr_normalize.py` / `test_library_reconciliation.py` / `test_library_ocr_queue.py` | 物理页归一化、重跑保留人工记录、队列调度回归测试 |
+| `test_annotation_references.py` | 多来源引用回归：追加、去重、逐条解除、释文保护、旧数据迁移、候选并入与 OCR 来源保留；只使用临时数据库和临时素材 |
+| `test_frontend_tools.mjs` | `node scripts/test_frontend_tools.mjs`：工具默认选中、模块切换与快捷键退出回归；网络调用使用模拟数据 |
 | `bench_photo_seg.py [--engine] [--prompt] [--asset]` | 同一张照片上对照 整图/切块 x 原图/增强/仿拓片 的检出数、分数与耗时（需 GPU 环境） |
 | `verify_research.py` | 释文关联（字段编辑/图文关联/锁定保护）验证 |
 | `verify_frame.py` | 统一坐标系（对齐入链+跨图投影）数学验证，用后自动清理 |
@@ -379,11 +409,11 @@ SQLite（`server/data/stonelab.db`），经 SQLAlchemy ORM，启动时自动轻�
 - 2D 预览为长边 2560 的 sRGB JPEG（首次打开生成缓存；扫描后后台预热）；全分辨率深度缩放需 DZI 瓦片，未做；
 - 三维查看用低模；816 MB 高模不进浏览器；三维与照片的坐标打通（相机位姿配准）本轮不做，跨图投影与叠加仅覆盖 2D；
 - 测量无比例尺标定：2D 为原图像素，3D 为模型单位；
-- 图文关联覆盖总述与各层释文，同一文本源上的关联区间不能重叠：骨架生成时场景 / 人物节点各占一段释文，
+- 一个节点可关联多条总述 / 层释文及跨书 OCR 文段 / 插图；总述与层释文的同一文本源上区间仍不能重叠：骨架生成时场景 / 人物节点各占一段释文，
   其下的物象、榜题不再自动关联（可手动关联未被占用的句子）；
 - 几何包含推断用主图坐标系下的外接矩形，未入链的图上的节点不参与建议与归类；
-- 概念是扁平词表 + 固定两级分类，暂无同义合并与概念间关系；文献库已可入库 / OCR / 校订 / 全库检索，
-  但节点与文段的证据链、观点综合属后续阶段；全库检索是精确子串（trigram），暂无繁简 / 异体字归一与语义检索。
+- 概念是扁平词表 + 固定两级分类，暂无同义合并与概念间关系；文献库已可入库 / OCR / 校订 / 全库检索及节点多来源引用，
+  释文与原书自动对齐、观点综合属后续阶段；全库检索是精确子串（trigram），暂无繁简 / 异体字归一与语义检索。
 
 ## 十、开发注意
 
@@ -406,15 +436,3 @@ SQLite（`server/data/stonelab.db`），经 SQLAlchemy ORM，启动时自动轻�
   `setSize(w, h, false)` 且 canvas 由 CSS 撑满：可拖拽面板的内层默认 `overflow: auto`，画布只要溢出
   1 px 就会弹出滚动条并与 ResizeObserver 形成每帧振荡（整个窗口抖动、模型加载不出来）。
 - 后端依赖：`pip install -r server/requirements.txt`；分割环境另见 `server/app/config.py`。
-
-## 十一、版本控制
-
-- 仓库：https://github.com/wahonet/WSC3D ，远程只保留 `main`。旧 WSC3D 项目（v0.2–v0.9）与当前 `main` 没有共同历史，
-  其完整提交只保留在本机分支 `legacy/wsc3d`（不推送）；确认不再需要时 `git branch -D legacy/wsc3d`。
-- **只上传程序壳子**。不入库：`assets/stones/**`（照片、拓片、三维、**以及 `meta.json` 简介与释文**）、`ml/`、
-  `assets/library/`（文献 PDF）、`server/data/`（数据库、缓存、日志、截图）、`web/node_modules`、`web/dist`、`_backup/`。
-  换机器时需另行迁移 `assets/stones/`、`assets/library/`、`server/data/`（数据库使用一致备份，
-  保留文献页图、插图与 OCR 原始输出）；模型权重和独立运行环境按目标机器情况迁移或重新安装。
-  仅克隆仓库无法恢复本地研究资料。
-- 本机 git 全局配置了代理 `127.0.0.1:18081`；代理未开时推送需临时绕过：
-  `git -c http.proxy= -c https.proxy= push origin main`。

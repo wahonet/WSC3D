@@ -21,18 +21,22 @@ export function useShortcuts(enabled: boolean) {
     let pendingDelete: { id: number; until: number } | null = null
 
     const onKey = (e: KeyboardEvent) => {
-      if (isTyping(e) || e.ctrlKey || e.metaKey || e.altKey) return
       const s = useApp.getState()
+      // Esc 始终能退出当前工具，包括刚在 SAM 提示词输入框中打字的情况。
+      if (e.key === 'Escape') {
+        if (s.tool !== 'select') {
+          e.preventDefault()
+          s.setTool('select')
+        } else if (!isTyping(e) && !e.defaultPrevented && (s.selectedId != null || s.multiSel.length)) s.select(null)
+        pendingDelete = null
+        return
+      }
+      if (isTyping(e) || e.ctrlKey || e.metaKey || e.altKey) return
       const asset = s.curAsset
       const is2d = asset != null && !asset.kind.startsWith('model')
       const allowed = PAGE_TOOLS[s.page]
       const k = e.key.toLowerCase()
 
-      if (k === 'escape') {
-        if (s.tool !== 'select') s.setTool('select')
-        else if (s.selectedId != null || s.multiSel.length) s.select(null)
-        return
-      }
       if (k === 'v') { s.setTool('select'); return }
 
       // 结构树导航（标注 / 文献模块）

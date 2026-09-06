@@ -1,0 +1,10 @@
+.pwb-reference-column { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.pwb-reference-column > .pwb-list { flex: 1; }
+.pwb-reference-target { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; padding: 8px 10px; background: var(--bg-1); border-left: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.pwb-reference-target label { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: var(--text-2); white-space: nowrap; }
+.pwb-reference-target .select { flex: 1; width: auto; min-width: 140px; }
+.pwb-reference-target > .hint { flex-basis: 100%; }
+.pwb-reference-action { display: flex; align-items: center; justify-content: flex-end; gap: 6px; margin-top: 5px; }
+.pwb-reference-action .btn { white-space: nowrap; }
+.pwb-list .figc.on { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.pwb-list [data-seg], .pwb-list [data-fig] { scroll-margin-block: 10px; }

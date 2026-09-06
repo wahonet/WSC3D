@@ -22,10 +22,10 @@ export default function ShapeTools() {
 
   return (
     <div className="tools">
-      <button className={`tool${tool === 'select' ? ' on' : ''}`} onClick={() => setTool('select')} title="选中（V）">
+      <button className={`tool${tool === 'select' ? ' on' : ''}`} onClick={() => setTool('select')} title="拖动图像 / 选中图形（V）；Esc 退出绘制">
         <span className="tic"><MousePointer2 size={15} /></span>
         <span className="tlabel">选中</span>
-        <span className="thint">点击图形<Kbd>V</Kbd></span>
+        <span className="thint">拖动图像 / 点击图形<Kbd>V</Kbd></span>
       </button>
       <div className="shape-grid">
         {SHAPES.map(s => (

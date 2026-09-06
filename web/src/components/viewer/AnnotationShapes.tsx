@@ -1,5 +1,6 @@
 import type { MouseEvent } from 'react'
 import { COLORS, LEVEL_STYLE } from '../../lib/constants'
+import { hasReferences } from '../../lib/references'
 import type { Pt } from '../../lib/geometry'
 import type { Annotation, ProjectedAnnotation } from '../../types'
 
@@ -38,7 +39,7 @@ export function AnnoShape({ a, toEl, selected, interactive, onSelect, linkedTint
   if (a.atype === 'align' || a.atype === 'point3d' || a.atype === 'line3d' || a.atype === 'none') return null
   const isCand = a.review_status === 'candidate'
   const ls = LEVEL_STYLE[a.level] ?? LEVEL_STYLE['']
-  const stroke = selected ? COLORS.select : linkedTint && a.desc_text ? COLORS.linked : (a.color || COLORS.amber)
+  const stroke = selected ? COLORS.select : linkedTint && hasReferences(a) ? COLORS.linked : (a.color || COLORS.amber)
   const common = {
     stroke, strokeWidth: selected ? 2.6 : isCand ? 1.8 : ls.width,
     fill: stroke, fillOpacity: selected ? 0.2 : isCand ? 0.13 : ls.fill,

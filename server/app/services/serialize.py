@@ -3,24 +3,27 @@
 from __future__ import annotations
 
 from sqlalchemy import func
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, object_session
 
 from ..constants import GROUPS, KIND_LABEL, TREE_MODEL_KINDS
 from ..models import Annotation, AnnotationConcept, Asset, Concept, Stone
 from ..schemas import (
-    AnnotationOut, AssetBrief, AssetGroup, ConceptOut, LayerOut, Semantics, StoneDetail, StoneNode,
+    AnnotationOut, AnnotationReferenceOut, AssetBrief, AssetGroup, ConceptOut, LayerOut, Semantics, StoneDetail, StoneNode,
 )
-from . import previews
+from . import previews, references
 
 
 def _iso(dt) -> str | None:
     return dt.isoformat(timespec="seconds") if dt else None
 
 
-def annotation_out(x: Annotation, concept_ids: list[int] | None = None) -> AnnotationOut:
+def annotation_out(x: Annotation, concept_ids: list[int] | None = None,
+                   reference_rows: list[AnnotationReferenceOut] | None = None) -> AnnotationOut:
     """concept_ids 未给出时走关系加载（单条场景）；批量请用 annotations_out 避免 N+1。"""
     if concept_ids is None:
         concept_ids = [l.concept_id for l in x.concept_links]
+    if reference_rows is None:
+        reference_rows = references.references_out(object_session(x), list(x.references))
     return AnnotationOut(
         id=x.id, stone_id=x.stone_id, asset_id=x.asset_id,
         tool=x.tool, atype=x.atype, geometry=x.geometry or {},
@@ -28,6 +31,7 @@ def annotation_out(x: Annotation, concept_ids: list[int] | None = None) -> Annot
         value=x.value, unit=x.unit or "",
         desc_source=x.desc_source or "description",
         desc_start=x.desc_start, desc_end=x.desc_end, desc_text=x.desc_text or "",
+        references=reference_rows,
         parent_id=x.parent_id, level=x.level or "", category=x.category or "", seq=x.seq,
         review_status=x.review_status or "reviewed", quality=x.quality or "",
         geometry_intent=x.geometry_intent or "",
@@ -44,7 +48,10 @@ def annotations_out(db: Session, rows: list[Annotation]) -> list[AnnotationOut]:
         for aid, cid in (db.query(AnnotationConcept.annotation_id, AnnotationConcept.concept_id)
                          .filter(AnnotationConcept.annotation_id.in_(ids)).all()):
             links[aid].append(cid)
-    return [annotation_out(x, links[x.id]) for x in rows]
+    ref_rows = {i: [] for i in ids}
+    for r in references.references_out(db, [r for x in rows for r in x.references]):
+        ref_rows[r.annotation_id].append(r)
+    return [annotation_out(x, links[x.id], ref_rows[x.id]) for x in rows]
 
 
 def concept_out(c: Concept, usage: int = 0) -> ConceptOut:
