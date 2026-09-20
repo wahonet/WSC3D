@@ -1,0 +1,5 @@
+# Full installed main environment, including API, retrieval, PDF, RapidOCR and SAM.
+# The API and SAM worker share runtime/python; MinerU and NDL remain isolated.
+# Prefer the verified portable runtime archive for offline migration. Pip alone
+# does not restore the interpreter, model weights, patches or OpenCV compatibility kit.
+-r ../config/environments/main.lock.txt

@@ -1,0 +1,2081 @@
+{
+  "version": 2,
+  "description": "按文物和石面登记照片贴图；含转角、双面三角隔梁、蔡题三石及耳杯盛鱼顶面",
+  "imageTreatment": "Existing scans use UV crops; the two supplied placeholder photographs use recorded four-corner geometric rectification to cover each complete stone face.",
+  "entries": [
+    {
+      "id": "2 武梁祠后壁",
+      "file": "stone-02.webp",
+      "crop": [
+        54,
+        80,
+        881,
+        605
+      ],
+      "imageSize": [
+        1000,
+        1000
+      ],
+      "normal": [
+        0,
+        0,
+        1
+      ],
+      "sourceKind": "scan-front-view-png",
+      "sourcePath": "data/stones/2 武梁祠后壁/rubbing.png",
+      "sourceSha256": "eb6eef424924907072bc6d416aca0f22f3eee35e0433d74fa7b4ba5569d2775e",
+      "mappingEvidence": "data/stones named folder; exact hash match to source 02 scan png",
+      "fit": "face"
+    },
+    {
+      "id": "3 武梁祠东壁",
+      "file": "stone-03.webp",
+      "crop": [
+        240,
+        77,
+        535,
+        704
+      ],
+      "imageSize": [
+        1000,
+        1000
+      ],
+      "normal": [
+        0,
+        0,
+        1
+      ],
+      "sourceKind": "scan-front-view-png",
+      "sourcePath": "data/stones/3 武梁祠东壁/rubbing.png",
+      "sourceSha256": "5a48799656af6519dc40f4919b1b5511956162c36a93599f8783286e599f7c40",
+      "mappingEvidence": "data/stones named folder; exact hash match to source 02 scan png",
+      "fit": "face"
+    },
+    {
+      "id": "4 武梁祠西壁",
+      "file": "stone-04.webp",
+      "crop": [
+        234,
+        64,
+        533,
+        697
+      ],
+      "imageSize": [
+        1000,
+        1000
+      ],
+      "normal": [
+        0,
+        0,
+        1
+      ],
+      "sourceKind": "scan-front-view-png",
+      "sourcePath": "data/stones/4 武梁祠西壁/rubbing.png",
+      "sourceSha256": "c416ba5e13cad31885148632965a4aed65380e2922f13101d70408df08f9a6b7",
+      "mappingEvidence": "data/stones named folder; exact hash match to source 02 scan png",
+      "fit": "face"
+    },
+    {
+      "id": "7 前石室后壁西承檐石",
+      "file": "stone-07.webp",
+      "crop": [
+        58,
+        286,
+        891,
+        211
+      ],
+      "imageSize": [
+        1000,
+        1000
+      ],
+      "normal": [
+        0,
+        0,
+        1
+      ],
+      "sourceKind": "scan-front-view-png",
+      "sourcePath": "data/stones/7 前石室后壁西承檐石/rubbing.png",
+      "sourceSha256": "1065a859461e5f2c4515b57406a10d91ea70b00e1ace0745a696138eabb2c25a",
+      "mappingEvidence": "data/stones named folder; exact hash match to source 02 scan png",
+      "fit": "face"
+    },
+    {
+      "id": "8 前石室东壁上石",
+      "file": "stone-08.webp",
+      "crop": [
+        107,
+        174,
+        800,
+        460
+      ],
+      "imageSize": [
+        1000,
+        1000
+      ],
+      "normal": [
+        0,
+        0,
+        1
+      ],
+      "sourceKind": "scan-front-view-png",
+      "sourcePath": "data/stones/8 前石室东壁上石/rubbing.png",
+      "sourceSha256": "1f403699bec20146b6c7f23eb87acce4ea5c58aa6aa8db12739a3f51b30191bf",
+      "mappingEvidence": "data/stones named folder; exact hash match to source 02 scan png",
+      "fit": "face"
+    },
+    {
+      "id": "9 前石室后壁小龛后壁",
+      "file": "stone-09.webp",
+      "crop": [
+        88,
+        250,
+        832,
+        345
+      ],
+      "imageSize": [
+        1000,
+        1000
+      ],
+      "normal": [
+        0,
+        0,
+        1
+      ],
+      "sourceKind": "scan-front-view-png",
+      "sourcePath": "data/stones/9 前石室后壁小龛后壁/rubbing.png",
+      "sourceSha256": "bbb280006a006caa647d8d6df610f05b3ddcf3dc4585aa00e9d4939cf4d99223",
+      "mappingEvidence": "data/stones named folder; exact hash match to source 02 scan png",
+      "fit": "face"
+    },
+    {
+      "id": "10 前石室后壁横额",
+      "file": "stone-10.webp",
+      "crop": [
+        52,
+        344,
+        896,
+        142
+      ],
+      "imageSize": [
+        1000,
+        1000
+      ],
+      "normal": [
+        0,
+        0,
+        1
+      ],
+      "sourceKind": "scan-front-view-png",
+      "sourcePath": "data/stones/10 前石室后壁横额/rubbing.png",
+      "sourceSha256": "85897b1f8c5ee55bc0cae8e02c0e2f6cf0bb31000a60316601f783013356f090",
+      "mappingEvidence": "data/stones named folder; exact hash match to source 02 scan png",
+      "fit": "face"
+    },
+    {
+      "id": "11 前石室西壁上石",
+      "file": "stone-11.webp",
+      "crop": [
+        108,
+        164,
+        793,
+        461
+      ],
+      "imageSize": [
+        1000,
+        1000
+      ],
+      "normal": [
+        0,
+        0,
+        1
+      ],
+      "sourceKind": "scan-front-view-png",
+      "sourcePath": "data/stones/11 前石室西壁上石/rubbing.png",
+      "sourceSha256": "f6998fdc74f06cfd744c4a6dd366fb42972ead7f2bf48854112c5eff6d31ef4c",
+      "mappingEvidence": "data/stones named folder; exact hash match to source 02 scan png",
+      "fit": "face"
+    },
+    {
+      "id": "12 前石室西壁下石",
+      "file": "stone-12.webp",
+      "crop": [
+        92,
+        216,
+        812,
+        384
+      ],
+      "imageSize": [
+        1000,
+        1000
+      ],
+      "normal": [
+        0,
+        0,
+        1
+      ],
+      "sourceKind": "scan-front-view-png",
+      "sourcePath": "data/stones/12 前石室西壁下石/rubbing.png",
+      "sourceSha256": "e156fc66fdb722f3afdb776b54285b0a01e8dffdd5aa7a894806b026eb01b6f8",
+      "mappingEvidence": "data/stones named folder; exact hash match to source 02 scan png",
+      "fit": "face"
+    },
+    {
+      "id": "13 前石室东壁下石",
+      "file": "stone-13.webp",
+      "crop": [
+        90,
+        221,
+        817,
+        385
+      ],
+      "imageSize": [
+        1000,
+        1000
+      ],
+      "normal": [
+        0,
+        0,
+        1
+      ],
+      "sourceKind": "scan-front-view-png",
+      "sourcePath": "data/stones/13 前石室东壁下石/rubbing.png",
+      "sourceSha256": "2bcef0e6d8ff3e0c79e9100915013fb03b77430ef983a7eb993032583b7a3112",
+      "mappingEvidence": "data/stones named folder; exact hash match to source 02 scan png",
+      "fit": "face"
+    },
+    {
+      "id": "14 前石室隔梁石",
+      "file": "stone-14.webp",
+      "crop": [
+        53,
+        271,
+        895,
+        243
+      ],
+      "imageSize": [
+        1000,
+        1000
+      ],
+      "normal": [
+        0,
+        0,
+        1
+      ],
+      "sourceKind": "scan-front-view-png",
+      "sourcePath": "data/stones/14 前石室隔梁石/rubbing.png",
+      "sourceSha256": "b9758be472345cbe2d3bab216044ae9082e3a8619212273f19c8a3b3caa0a263",
+      "mappingEvidence": "data/stones named folder; exact hash match to source 02 scan png",
+      "fit": "face"
+    },
+    {
+      "id": "15 前石室前壁承檐枋东石正面",
+      "file": "stone-15.webp",
+      "crop": [
+        65,
+        302,
+        884,
+        147
+      ],
+      "imageSize": [
+        1000,
+        1000
+      ],
+      "normal": [
+        0,
+        0,
+        1
+      ],
+      "sourceKind": "scan-front-view-png",
+      "sourcePath": "data/stones/15 前石室前壁承檐枋东石正面/rubbing.png",
+      "sourceSha256": "d1a2896d848cd03b1aa796d9ea64a1ee4b55cd0aeb629315840acd60780fe355",
+      "mappingEvidence": "data/stones named folder; exact hash match to source 02 scan png",
+      "fit": "face"
+    },
+    {
+      "id": "18 前石室前壁承檐枋西石",
+      "file": "stone-18.webp",
+      "crop": [
+        48,
+        306,
+        906,
+        137
+      ],
+      "imageSize": [
+        1000,
+        1000
+      ],
+      "normal": [
+        0,
+        0,
+        1
+      ],
+      "sourceKind": "scan-front-view-png",
+      "sourcePath": "data/stones/18 前石室前壁承檐枋西石/rubbing.png",
+      "sourceSha256": "214ea2036e2c53647c155124c6fef5b37674107fe880053bcb9802a64166abdd",
+      "mappingEvidence": "data/stones named folder; exact hash match to source 02 scan png",
+      "fit": "face"
+    },
+    {
+      "id": "19 左石室屋顶后坡东石",
+      "file": "stone-19.webp",
+      "crop": [
+        155,
+        117,
+        708,
+        627
+      ],
+      "imageSize": [
+        1000,
+        1000
+      ],
+      "normal": [
+        0,
+        0,
+        1
+      ],
+      "sourceKind": "scan-front-view-png",
+      "sourcePath": "data/stones/19 左石室屋顶后坡东石/rubbing.png",
+      "sourceSha256": "59d2cf89f77da2cb2a6a1971835a4f9a1bfbd88a152f30c360ec9ed1482ff32b",
+      "mappingEvidence": "data/stones named folder; exact hash match to source 02 scan png",
+      "fit": "face"
+    },
+    {
+      "id": "21 左石室屋顶前坡西石",
+      "file": "stone-21.webp",
+      "crop": [
+        144,
+        125,
+        732,
+        557
+      ],
+      "imageSize": [
+        1000,
+        1000
+      ],
+      "normal": [
+        0,
+        0,
+        1
+      ],
+      "sourceKind": "scan-front-view-png",
+      "sourcePath": "data/stones/21 左石室屋顶前坡西石/rubbing.png",
+      "sourceSha256": "e8fd83df5d499b14edd498926834dc6ef9fb60ed9ae3434a1ffd4db464632b6d",
+      "mappingEvidence": "data/stones named folder; exact hash match to source 02 scan png",
+      "fit": "face"
+    },
+    {
+      "id": "22 前石室屋顶前坡西石",
+      "file": "stone-22.webp",
+      "crop": [
+        106,
+        190,
+        797,
+        449
+      ],
+      "imageSize": [
+        1000,
+        1000
+      ],
+      "normal": [
+        0,
+        0,
+        1
+      ],
+      "sourceKind": "scan-front-view-png",
+      "sourcePath": "data/stones/22 前石室屋顶前坡西石/rubbing.png",
+      "sourceSha256": "2c19511efe110123598929f105d0a868ef16fd1e5810b77e55e05619e3da5aa6",
+      "mappingEvidence": "data/stones named folder; exact hash match to source 02 scan png",
+      "fit": "face"
+    },
+    {
+      "id": "23 前石室屋顶前坡东石",
+      "file": "stone-23.webp",
+      "crop": [
+        142,
+        194,
+        717,
+        389
+      ],
+      "imageSize": [
+        1000,
+        1000
+      ],
+      "normal": [
+        0,
+        0,
+        1
+      ],
+      "sourceKind": "scan-front-view-png",
+      "sourcePath": "data/stones/23 前石室屋顶前坡东石/rubbing.png",
+      "sourceSha256": "5b552b51acb427c1525e3b2174b93fe25d1253b79f7e604d8cdb18ba5e050d58",
+      "mappingEvidence": "data/stones named folder; exact hash match to source 02 scan png",
+      "fit": "face"
+    },
+    {
+      "id": "24 左石室后壁横额",
+      "file": "stone-24.webp",
+      "crop": [
+        58,
+        282,
+        885,
+        182
+      ],
+      "imageSize": [
+        1000,
+        1000
+      ],
+      "normal": [
+        0,
+        0,
+        1
+      ],
+      "sourceKind": "scan-front-view-png",
+      "sourcePath": "data/stones/24 左石室后壁横额/rubbing.png",
+      "sourceSha256": "b54c10913b44c8338c55bdb8546dee8ba1a30eebdbb1eb7335235fa467ead4a8",
+      "mappingEvidence": "data/stones named folder; exact hash match to source 02 scan png",
+      "fit": "face"
+    },
+    {
+      "id": "25 左石室西壁下石",
+      "file": "stone-25.webp",
+      "crop": [
+        76,
+        190,
+        856,
+        401
+      ],
+      "imageSize": [
+        1000,
+        1000
+      ],
+      "normal": [
+        0,
+        0,
+        1
+      ],
+      "sourceKind": "scan-front-view-png",
+      "sourcePath": "data/stones/25 左石室西壁下石/rubbing.png",
+      "sourceSha256": "712c96e9ad1c530778ebf525093b321cf2661398f01ceedccc0d1271d9943c02",
+      "mappingEvidence": "data/stones named folder; exact hash match to source 02 scan png",
+      "fit": "face"
+    },
+    {
+      "id": "27 左石室西壁上石",
+      "file": "stone-27.webp",
+      "crop": [
+        87,
+        211,
+        845,
+        364
+      ],
+      "imageSize": [
+        1000,
+        1000
+      ],
+      "normal": [
+        0,
+        0,
+        1
+      ],
+      "sourceKind": "scan-front-view-png",
+      "sourcePath": "data/stones/27 左石室西壁上石/rubbing.png",
+      "sourceSha256": "2515543d5c8a9ceacb6911c948af60199cb015565ce6a616d5a1468426f14ee3",
+      "mappingEvidence": "data/stones named folder; exact hash match to source 02 scan png",
+      "fit": "face"
+    },
+    {
+      "id": "28 左石室东壁上石",
+      "file": "stone-28.webp",
+      "crop": [
+        70,
+        181,
+        874,
+        370
+      ],
+      "imageSize": [
+        1000,
+        1000
+      ],
+      "normal": [
+        0,
+        0,
+        1
+      ],
+      "sourceKind": "scan-front-view-png",
+      "sourcePath": "data/stones/28 左石室东壁上石/rubbing.png",
+      "sourceSha256": "8082012505831132ca6da8addd8048bca19b5e730b284e2f4cfd6b19d7b49845",
+      "mappingEvidence": "data/stones named folder; exact hash match to source 02 scan png",
+      "fit": "face"
+    },
+    {
+      "id": "29 左石室东壁下石",
+      "file": "stone-29.webp",
+      "crop": [
+        77,
+        192,
+        846,
+        395
+      ],
+      "imageSize": [
+        1000,
+        1000
+      ],
+      "normal": [
+        0,
+        0,
+        1
+      ],
+      "sourceKind": "scan-front-view-png",
+      "sourcePath": "data/stones/29 左石室东壁下石/rubbing.png",
+      "sourceSha256": "1d7cf7787f6229a3e3804384e05fffea04f70a19b10ae3cea06b9040ebd86d8b",
+      "mappingEvidence": "data/stones named folder; exact hash match to source 02 scan png",
+      "fit": "face"
+    },
+    {
+      "id": "30 左石室后壁小龛西侧",
+      "file": "stone-30.webp",
+      "crop": [
+        272,
+        111,
+        446,
+        611
+      ],
+      "imageSize": [
+        1000,
+        1000
+      ],
+      "normal": [
+        0,
+        0,
+        1
+      ],
+      "sourceKind": "scan-front-view-png",
+      "sourcePath": "data/stones/30 左石室后壁小龛西侧/rubbing.png",
+      "sourceSha256": "44789af5f6f5cf91a1c9aa61b341e655fe6358b0d6eb382c9d9b5ff9e2afb36b",
+      "mappingEvidence": "data/stones named folder; exact hash match to source 02 scan png",
+      "fit": "face"
+    },
+    {
+      "id": "31 左石室后壁小龛东侧",
+      "file": "stone-31.webp",
+      "crop": [
+        218,
+        105,
+        531,
+        628
+      ],
+      "imageSize": [
+        1000,
+        1000
+      ],
+      "normal": [
+        0,
+        0,
+        1
+      ],
+      "sourceKind": "scan-front-view-png",
+      "sourcePath": "data/stones/31 左石室后壁小龛东侧/rubbing.png",
+      "sourceSha256": "adf294118a7de9d3de6a005274281685dbe1e1745f53ca09b3ce24fd98624c38",
+      "mappingEvidence": "data/stones named folder; exact hash match to source 02 scan png",
+      "fit": "face"
+    },
+    {
+      "id": "32 左石室后壁东承檐石",
+      "file": "stone-32.webp",
+      "crop": [
+        80,
+        302,
+        843,
+        188
+      ],
+      "imageSize": [
+        1000,
+        1000
+      ],
+      "normal": [
+        0,
+        0,
+        1
+      ],
+      "sourceKind": "scan-front-view-png",
+      "sourcePath": "data/stones/32 左石室后壁东承檐石/rubbing.png",
+      "sourceSha256": "4cd37713f8ac03d803f5d55f3b765ab301d3d0c730ffaf458b0ad868caffa4c6",
+      "mappingEvidence": "data/stones named folder; exact hash match to source 02 scan png",
+      "fit": "face"
+    },
+    {
+      "id": "33 左石室后壁小龛东壁",
+      "file": "stone-33.webp",
+      "crop": [
+        204,
+        131,
+        561,
+        543
+      ],
+      "imageSize": [
+        1000,
+        1000
+      ],
+      "normal": [
+        0,
+        0,
+        1
+      ],
+      "sourceKind": "scan-front-view-png",
+      "sourcePath": "data/stones/33 左石室后壁小龛东壁/rubbing.png",
+      "sourceSha256": "5a4819474bfc77d4927b8d73c4e63b6fc23c87d4a6aa16fa2c58a8138b8097c7",
+      "mappingEvidence": "data/stones named folder; exact hash match to source 02 scan png",
+      "fit": "face"
+    },
+    {
+      "id": "34 左石室后壁小龛西壁",
+      "file": "stone-34.webp",
+      "crop": [
+        210,
+        132,
+        571,
+        560
+      ],
+      "imageSize": [
+        1000,
+        1000
+      ],
+      "normal": [
+        0,
+        0,
+        1
+      ],
+      "sourceKind": "scan-front-view-png",
+      "sourcePath": "data/stones/34 左石室后壁小龛西壁/rubbing.png",
+      "sourceSha256": "fc93ae714c0081d700adb8b562f35939ea327fbdafc731f2fe3da33625380c44",
+      "mappingEvidence": "data/stones named folder; exact hash match to source 02 scan png",
+      "fit": "face"
+    },
+    {
+      "id": "35 左石室后壁小龛后壁",
+      "file": "stone-35.webp",
+      "crop": [
+        93,
+        214,
+        819,
+        368
+      ],
+      "imageSize": [
+        1000,
+        1000
+      ],
+      "normal": [
+        0,
+        0,
+        1
+      ],
+      "sourceKind": "scan-front-view-png",
+      "sourcePath": "data/stones/35 左石室后壁小龛后壁/rubbing.png",
+      "sourceSha256": "3d9ae6d4551d1f81a358a15da3fadeb5b7dc00ab8298021fbbe0db57d7e08355",
+      "mappingEvidence": "data/stones named folder; exact hash match to source 02 scan png",
+      "fit": "face"
+    },
+    {
+      "id": "37 南道旁",
+      "file": "stone-37.webp",
+      "crop": [
+        84,
+        207,
+        817,
+        374
+      ],
+      "imageSize": [
+        1000,
+        1000
+      ],
+      "normal": [
+        0,
+        0,
+        1
+      ],
+      "sourceKind": "scan-front-view-png",
+      "sourcePath": "data/stones/37 南道旁/rubbing.png",
+      "sourceSha256": "cac1af554e51765c3a0086651064de0b790ad365c042e58d554e1f694152aee9",
+      "mappingEvidence": "data/stones named folder; exact hash match to source 02 scan png",
+      "fit": "face"
+    },
+    {
+      "id": "39 蔡题一石",
+      "file": "stone-39.webp",
+      "crop": [
+        67,
+        186,
+        867,
+        364
+      ],
+      "imageSize": [
+        1000,
+        1000
+      ],
+      "normal": [
+        0,
+        0,
+        1
+      ],
+      "sourceKind": "scan-front-view-png",
+      "sourcePath": "data/stones/39 蔡题一石/rubbing.png",
+      "sourceSha256": "d7da1c445afcc63273c0e79cd275773ece348df1167c3b7ba3278e14c6c0a1be",
+      "mappingEvidence": "data/stones named folder; exact hash match to source 02 scan png",
+      "fit": "contain"
+    },
+    {
+      "id": "40 蔡题二石",
+      "file": "stone-40.webp",
+      "crop": [
+        81,
+        189,
+        860,
+        406
+      ],
+      "imageSize": [
+        1000,
+        1000
+      ],
+      "normal": [
+        0,
+        0,
+        1
+      ],
+      "sourceKind": "scan-front-view-png",
+      "sourcePath": "data/stones/40 蔡题二石/rubbing.png",
+      "sourceSha256": "bf2f15e75ef1f120d3f7d62b504af5c5d5d55934b32ea21a5c26dac43aec6a1a",
+      "mappingEvidence": "data/stones named folder; exact hash match to source 02 scan png",
+      "fit": "face"
+    },
+    {
+      "id": "44 脊石画像石",
+      "file": "stone-44.webp",
+      "crop": [
+        60,
+        317,
+        894,
+        142
+      ],
+      "imageSize": [
+        1000,
+        1000
+      ],
+      "normal": [
+        0,
+        0,
+        1
+      ],
+      "sourceKind": "scan-front-view-png",
+      "sourcePath": "data/stones/44 脊石画像石/rubbing.png",
+      "sourceSha256": "16f2bc5761bef04a09ec9a6abad88118649ea5d42bad8308b657f1d12b2f9744",
+      "mappingEvidence": "data/stones named folder; exact hash match to source 02 scan png",
+      "fit": "face"
+    },
+    {
+      "id": "45 前石室后壁小龛下供案石",
+      "file": "stone-45.webp",
+      "crop": [
+        66,
+        309,
+        889,
+        149
+      ],
+      "imageSize": [
+        1000,
+        1000
+      ],
+      "normal": [
+        0,
+        0,
+        1
+      ],
+      "sourceKind": "scan-front-view-png",
+      "sourcePath": "data/stones/45 前石室后壁小龛下供案石/rubbing.png",
+      "sourceSha256": "88dc3409c507306b8a1fcce0b2f3461cdf430ba974e0741d0ee1a1ae7ba26e5f",
+      "mappingEvidence": "data/stones named folder; exact hash match to source 02 scan png",
+      "fit": "face"
+    },
+    {
+      "id": "46 菱纹残石",
+      "file": "stone-46.webp",
+      "crop": [
+        153,
+        286,
+        709,
+        257
+      ],
+      "imageSize": [
+        1000,
+        1000
+      ],
+      "normal": [
+        0,
+        0,
+        1
+      ],
+      "sourceKind": "scan-front-view-png",
+      "sourcePath": "data/stones/46 菱纹残石/rubbing.png",
+      "sourceSha256": "68bd30f2633fc3a5f52928278e9c423c51a336ea85db7c0a7e1e0abd9afbc4f8",
+      "mappingEvidence": "data/stones named folder; exact hash match to source 02 scan png",
+      "fit": "face"
+    },
+    {
+      "id": "占位石A 167×140×22",
+      "file": "catalogue-wu027.webp",
+      "crop": [
+        0,
+        0,
+        2386,
+        2000
+      ],
+      "imageSize": [
+        2386,
+        2000
+      ],
+      "normal": [
+        0,
+        0,
+        1
+      ],
+      "up": [
+        1,
+        0,
+        0
+      ],
+      "fit": "face",
+      "sourceKind": "20260907-supplied-frontal-photograph",
+      "sourcePath": "data/stones/占位石A 167×140×22/media/previews/78c19e3dec3eaaf595b1.jpg",
+      "sourceSha256": "08114fb6bc133fff92ec4f65b4528caa2ee687bbad22badb2063504ed1b4ddf0",
+      "sourceQuadNormalized": [
+        [
+          0.09,
+          0.034
+        ],
+        [
+          0.925,
+          0.027
+        ],
+        [
+          0.922,
+          0.965
+        ],
+        [
+          0.075,
+          0.965
+        ]
+      ],
+      "mappingEvidence": "整理目录明确替换占位石，文物主名：屋顶前坡东段画像",
+      "imageTreatment": "Geometric four-corner rectification and WebP encoding only; complete front face, no invented image content"
+    },
+    {
+      "id": "5 武梁祠屋顶前坡",
+      "faceKey": "front",
+      "faceLabel": "屋顶前坡完整雕刻面",
+      "file": "corrected-012-front.webp",
+      "crop": [
+        0,
+        0,
+        4096,
+        1674
+      ],
+      "imageSize": [
+        4096,
+        1674
+      ],
+      "normal": [
+        0,
+        0,
+        1
+      ],
+      "up": [
+        0,
+        1,
+        0
+      ],
+      "fit": "face",
+      "primaryFace": true,
+      "sourceKind": "20260907-supplied-photograph",
+      "sourcePath": "data/stones/5 武梁祠屋顶前坡/media/previews/979cac78a31fa0717150.jpg",
+      "sourceSha256": "18b8477f1c00abbab1c727ea40afa0715a11a20c908bd9bd0e22a99471112d97",
+      "sourceQuadNormalized": [
+        [
+          0.026,
+          0.065
+        ],
+        [
+          0.966,
+          0.068
+        ],
+        [
+          0.972,
+          0.907
+        ],
+        [
+          0.025,
+          0.907
+        ]
+      ],
+      "mappingEvidence": "断石柱：蒋英炬、吴文祺2014修订本书页91、配置书页65；小龛：整体照片核对转角关系及分面照片；其余按整理目录名称对应",
+      "imageTreatment": "Four-corner geometric rectification only; no generative changes to archaeological imagery"
+    },
+    {
+      "id": "6 武梁祠屋顶后坡",
+      "faceKey": "front",
+      "faceLabel": "屋顶后坡完整雕刻面",
+      "file": "corrected-013-front.webp",
+      "crop": [
+        0,
+        0,
+        4096,
+        1680
+      ],
+      "imageSize": [
+        4096,
+        1680
+      ],
+      "normal": [
+        0,
+        0,
+        1
+      ],
+      "up": [
+        0,
+        1,
+        0
+      ],
+      "fit": "face",
+      "primaryFace": true,
+      "sourceKind": "20260907-supplied-photograph",
+      "sourcePath": "data/stones/6 武梁祠屋顶后坡/media/previews/31d0a3bdf9d1d0a05d1f.jpg",
+      "sourceSha256": "7dad350bc763c6d6f8aacd47e0ae1108cf5a26cb89ca5619d6b3fa6a781da834",
+      "sourceQuadNormalized": [
+        [
+          0.024,
+          0.071
+        ],
+        [
+          0.973,
+          0.088
+        ],
+        [
+          0.977,
+          0.93
+        ],
+        [
+          0.019,
+          0.92
+        ]
+      ],
+      "mappingEvidence": "断石柱：蒋英炬、吴文祺2014修订本书页91、配置书页65；小龛：整体照片核对转角关系及分面照片；其余按整理目录名称对应",
+      "imageTreatment": "Four-corner geometric rectification only; no generative changes to archaeological imagery"
+    },
+    {
+      "id": "16 前石室后壁小龛西壁",
+      "faceKey": "wall",
+      "faceLabel": "小龛西壁",
+      "file": "corrected-023-wall.webp",
+      "crop": [
+        0,
+        0,
+        3600,
+        2681
+      ],
+      "imageSize": [
+        3600,
+        2681
+      ],
+      "normal": [
+        0,
+        0,
+        1
+      ],
+      "up": [
+        0,
+        1,
+        0
+      ],
+      "fit": "face",
+      "primaryFace": true,
+      "sourceKind": "20260907-supplied-photograph",
+      "sourcePath": "data/stones/16 前石室后壁小龛西壁/media/previews/58cecd1749448983009b.jpg",
+      "sourceSha256": "a9712c33ec357e102af7e9e364dddb233082397332f7c0a24a0cb465ed3fe27a",
+      "sourceQuadNormalized": [
+        [
+          0.048,
+          0.039
+        ],
+        [
+          0.966,
+          0.041
+        ],
+        [
+          0.967,
+          0.959
+        ],
+        [
+          0.044,
+          0.958
+        ]
+      ],
+      "mappingEvidence": "断石柱：蒋英炬、吴文祺2014修订本书页91、配置书页65；小龛：整体照片核对转角关系及分面照片；其余按整理目录名称对应",
+      "imageTreatment": "Four-corner geometric rectification only; no generative changes to archaeological imagery",
+      "focusNormal": [
+        -1,
+        0,
+        1
+      ]
+    },
+    {
+      "id": "16 前石室后壁小龛西壁",
+      "faceKey": "outer",
+      "faceLabel": "小龛西侧（外侧）",
+      "file": "corrected-023-outer.webp",
+      "crop": [
+        0,
+        0,
+        3000,
+        2958
+      ],
+      "imageSize": [
+        3000,
+        2958
+      ],
+      "normal": [
+        -1,
+        0,
+        0
+      ],
+      "up": [
+        0,
+        1,
+        0
+      ],
+      "fit": "face",
+      "primaryFace": false,
+      "sourceKind": "20260907-supplied-photograph",
+      "sourcePath": "data/stones/16 前石室后壁小龛西壁/media/previews/bd5d3127721e5e68ea4e.jpg",
+      "sourceSha256": "9d375df701a73316e44dc26fc67a2e08a8fe345166fb825bc4d358d00688b12d",
+      "sourceQuadNormalized": [
+        [
+          0.147,
+          0.042
+        ],
+        [
+          0.846,
+          0.044
+        ],
+        [
+          0.861,
+          0.965
+        ],
+        [
+          0.143,
+          0.96
+        ]
+      ],
+      "mappingEvidence": "断石柱：蒋英炬、吴文祺2014修订本书页91、配置书页65；小龛：整体照片核对转角关系及分面照片；其余按整理目录名称对应",
+      "imageTreatment": "Four-corner geometric rectification only; no generative changes to archaeological imagery"
+    },
+    {
+      "id": "17 前石室后壁小龛东壁",
+      "faceKey": "wall",
+      "faceLabel": "小龛东壁",
+      "file": "corrected-024-wall.webp",
+      "crop": [
+        0,
+        0,
+        3600,
+        2681
+      ],
+      "imageSize": [
+        3600,
+        2681
+      ],
+      "normal": [
+        0,
+        0,
+        1
+      ],
+      "up": [
+        0,
+        1,
+        0
+      ],
+      "fit": "face",
+      "primaryFace": true,
+      "sourceKind": "20260907-supplied-photograph",
+      "sourcePath": "data/stones/17 前石室后壁小龛东壁/media/previews/c4d851199f7ac72bd884.jpg",
+      "sourceSha256": "0f1b506e86cc0502c4c8276a4134326d4287d2284e29a45649ca2290ac3e1514",
+      "sourceQuadNormalized": [
+        [
+          0.041,
+          0.039
+        ],
+        [
+          0.964,
+          0.034
+        ],
+        [
+          0.964,
+          0.952
+        ],
+        [
+          0.037,
+          0.959
+        ]
+      ],
+      "mappingEvidence": "断石柱：蒋英炬、吴文祺2014修订本书页91、配置书页65；小龛：整体照片核对转角关系及分面照片；其余按整理目录名称对应",
+      "imageTreatment": "Four-corner geometric rectification only; no generative changes to archaeological imagery",
+      "focusNormal": [
+        1,
+        0,
+        1
+      ]
+    },
+    {
+      "id": "17 前石室后壁小龛东壁",
+      "faceKey": "outer",
+      "faceLabel": "小龛东侧（外侧）",
+      "file": "corrected-024-outer.webp",
+      "crop": [
+        0,
+        0,
+        3000,
+        2958
+      ],
+      "imageSize": [
+        3000,
+        2958
+      ],
+      "normal": [
+        1,
+        0,
+        0
+      ],
+      "up": [
+        0,
+        1,
+        0
+      ],
+      "fit": "face",
+      "primaryFace": false,
+      "sourceKind": "20260907-supplied-photograph",
+      "sourcePath": "data/stones/17 前石室后壁小龛东壁/media/previews/9b2a7667b3fd0a1b88b3.jpg",
+      "sourceSha256": "74baf640a8a4edfc25ea82487b63be7d326be6542ed8e9642969437481ef8c34",
+      "sourceQuadNormalized": [
+        [
+          0.141,
+          0.036
+        ],
+        [
+          0.862,
+          0.038
+        ],
+        [
+          0.866,
+          0.96
+        ],
+        [
+          0.143,
+          0.958
+        ]
+      ],
+      "mappingEvidence": "断石柱：蒋英炬、吴文祺2014修订本书页91、配置书页65；小龛：整体照片核对转角关系及分面照片；其余按整理目录名称对应",
+      "imageTreatment": "Four-corner geometric rectification only; no generative changes to archaeological imagery"
+    },
+    {
+      "id": "36 有鸟如鹤",
+      "faceKey": "front",
+      "faceLabel": "祥瑞图残石完整残存面",
+      "file": "corrected-043-front.webp",
+      "crop": [
+        0,
+        0,
+        3400,
+        3400
+      ],
+      "imageSize": [
+        3400,
+        3400
+      ],
+      "normal": [
+        0,
+        0,
+        1
+      ],
+      "up": [
+        0,
+        1,
+        0
+      ],
+      "fit": "face",
+      "primaryFace": true,
+      "sourceKind": "20260907-supplied-photograph",
+      "sourcePath": "data/stones/36 有鸟如鹤/media/previews/85969b0d596819fe5a5a.jpg",
+      "sourceSha256": "ddea3fe6fb525f542ee9c0aa0a83e3dab912701f0bc65445af65afc4234e5026",
+      "sourceQuadNormalized": [
+        [
+          0.16,
+          0.028
+        ],
+        [
+          0.84,
+          0.028
+        ],
+        [
+          0.84,
+          0.97
+        ],
+        [
+          0.16,
+          0.97
+        ]
+      ],
+      "mappingEvidence": "断石柱：蒋英炬、吴文祺2014修订本书页91、配置书页65；小龛：整体照片核对转角关系及分面照片；其余按整理目录名称对应",
+      "imageTreatment": "Four-corner geometric rectification only; no generative changes to archaeological imagery"
+    },
+    {
+      "id": "占位石B 70×13.5×19",
+      "faceKey": "front",
+      "faceLabel": "正面（19厘米）：连弧纹、线刻波浪纹",
+      "file": "corrected-008-front.webp",
+      "crop": [
+        0,
+        0,
+        1042,
+        3840
+      ],
+      "imageSize": [
+        1042,
+        3840
+      ],
+      "normal": [
+        -1,
+        0,
+        0
+      ],
+      "up": [
+        0,
+        1,
+        0
+      ],
+      "fit": "face",
+      "primaryFace": true,
+      "sourceKind": "20260907-supplied-photograph",
+      "sourcePath": "data/stones/占位石B 70×13.5×19/media/previews/dc417f7ac582dd96ec41.jpg",
+      "sourceSha256": "b5a560be361fc0495be4d1cf70496c39e6afe5218d999209a0d63131b9fbd62c",
+      "sourceQuadNormalized": [
+        [
+          0.322,
+          0.028
+        ],
+        [
+          0.655,
+          0.027
+        ],
+        [
+          0.659,
+          0.959
+        ],
+        [
+          0.322,
+          0.959
+        ]
+      ],
+      "mappingEvidence": "断石柱：蒋英炬、吴文祺2014修订本书页91、配置书页65；小龛：整体照片核对转角关系及分面照片；其余按整理目录名称对应",
+      "imageTreatment": "Four-corner geometric rectification only; no generative changes to archaeological imagery"
+    },
+    {
+      "id": "占位石B 70×13.5×19",
+      "faceKey": "left",
+      "faceLabel": "左外侧（13.5厘米）：后刻“武家林”三字",
+      "file": "corrected-008-left.webp",
+      "crop": [
+        0,
+        0,
+        741,
+        3840
+      ],
+      "imageSize": [
+        741,
+        3840
+      ],
+      "normal": [
+        0,
+        0,
+        -1
+      ],
+      "up": [
+        0,
+        1,
+        0
+      ],
+      "fit": "face",
+      "primaryFace": false,
+      "sourceKind": "20260907-supplied-photograph",
+      "sourcePath": "data/stones/占位石B 70×13.5×19/media/previews/25d46ff5ea807c834029.jpg",
+      "sourceSha256": "731cc48ba2def4fcdc507374b23948efde4958effe79b5eac28786be98c7f003",
+      "sourceQuadNormalized": [
+        [
+          0.23809523809523808,
+          0.01953125
+        ],
+        [
+          0.7682539682539683,
+          0.01953125
+        ],
+        [
+          0.7841269841269841,
+          0.96240234375
+        ],
+        [
+          0.20634920634920634,
+          0.9375
+        ]
+      ],
+      "mappingEvidence": "断石柱：蒋英炬、吴文祺2014修订本书页91、配置书页65；小龛：整体照片核对转角关系及分面照片；其余按整理目录名称对应",
+      "imageTreatment": "Four-corner geometric rectification only; no generative changes to archaeological imagery"
+    },
+    {
+      "id": "占位石B 70×13.5×19",
+      "faceKey": "right",
+      "faceLabel": "右内侧（13.5厘米）：相叠二人、翼龙、鸟首云纹",
+      "file": "corrected-008-right.webp",
+      "crop": [
+        0,
+        0,
+        741,
+        3840
+      ],
+      "imageSize": [
+        741,
+        3840
+      ],
+      "normal": [
+        0,
+        0,
+        1
+      ],
+      "up": [
+        0,
+        1,
+        0
+      ],
+      "fit": "face",
+      "primaryFace": false,
+      "sourceKind": "20260907-supplied-photograph",
+      "sourcePath": "data/stones/占位石B 70×13.5×19/media/previews/a292c3d2694bbb1369c7.jpg",
+      "sourceSha256": "013787940d9c393c203fffaf540608fcac2dd8f6e9a3c74bbeaa7e51642ed0c5",
+      "sourceQuadNormalized": [
+        [
+          0.385,
+          0.021
+        ],
+        [
+          0.623,
+          0.021
+        ],
+        [
+          0.622,
+          0.98
+        ],
+        [
+          0.373,
+          0.98
+        ]
+      ],
+      "mappingEvidence": "断石柱：蒋英炬、吴文祺2014修订本书页91、配置书页65；小龛：整体照片核对转角关系及分面照片；其余按整理目录名称对应",
+      "imageTreatment": "Four-corner geometric rectification only; no generative changes to archaeological imagery"
+    },
+    {
+      "id": "42 耳杯盛鱼",
+      "faceKey": "top",
+      "faceLabel": "供案顶面：耳杯、鱼与圆孔",
+      "file": "hall-049-top-20260910.webp",
+      "imageSize": [
+        4096,
+        1520
+      ],
+      "crop": [
+        0,
+        0,
+        4096,
+        1520
+      ],
+      "fit": "face",
+      "normal": [
+        0,
+        1,
+        0
+      ],
+      "up": [
+        0,
+        0,
+        -1
+      ],
+      "primaryFace": true,
+      "focusLift": 0.25,
+      "sourceKind": "supplied-photograph",
+      "sourcePath": "data/stones/42 耳杯盛鱼/media/previews/dc2fbac25c39a6cca2f0.jpg",
+      "sourceSha256": "2f0cf31b043df3aee395974b93b0f76c574947ef7cea3498ced71285fe6e4f49",
+      "sourceVersion": "2024年",
+      "sourceOriginal": "media/originals/20260907/后展厅/42 耳杯盛鱼画像石/耳杯盛鱼画像石-A-03（2024年阮浩）.tif",
+      "sourceLandmarks": [
+        [
+          0.047,
+          0.024
+        ],
+        [
+          0.99,
+          0.026
+        ],
+        [
+          0.958,
+          0.973
+        ],
+        [
+          0.023,
+          0.954
+        ]
+      ],
+      "targetPerimeter": [
+        [
+          0,
+          0
+        ],
+        [
+          1,
+          0
+        ],
+        [
+          1,
+          1
+        ],
+        [
+          0,
+          1
+        ]
+      ],
+      "imageRotationDeg": 180,
+      "mappingEvidence": "按整理目录及不同年份纹饰逐面核对；耳杯盛鱼按2025年实照及原扫描确认平放顶面；蔡题三石正面取2010年完整照片，2025年照片两端未完整入镜。",
+      "imageTreatment": "Geometric rectification of supplied photos only; no generated archaeological imagery"
+    },
+    {
+      "id": "38 东北墓间",
+      "faceKey": "front",
+      "faceLabel": "东北墓间画像雕刻正面",
+      "file": "hall-045-front-20260910.webp",
+      "imageSize": [
+        3050,
+        3200
+      ],
+      "crop": [
+        0,
+        0,
+        3050,
+        3200
+      ],
+      "fit": "face",
+      "normal": [
+        0,
+        0,
+        1
+      ],
+      "up": [
+        0,
+        1,
+        0
+      ],
+      "primaryFace": true,
+      "focusLift": 0.25,
+      "sourceKind": "supplied-photograph",
+      "sourcePath": "data/stones/38 东北墓间/media/previews/fc9f3a9d5c6b208e8a71.jpg",
+      "sourceSha256": "cdbd472869567f18a0589d75a7b2028b546325acfb02ce1ebf1a1e65349a3901",
+      "sourceVersion": "2024年",
+      "sourceOriginal": "media/originals/20260907/后展厅/38 武氏祠东北墓间画像（其他石三）/武氏祠东北墓间画像-A-03（2024年阮浩）.tif",
+      "sourceLandmarks": [
+        [
+          0.045,
+          0.066
+        ],
+        [
+          0.89,
+          0.081
+        ],
+        [
+          0.875,
+          0.973
+        ],
+        [
+          0.028,
+          0.966
+        ]
+      ],
+      "targetPerimeter": [
+        [
+          0,
+          0
+        ],
+        [
+          1,
+          0
+        ],
+        [
+          1,
+          1
+        ],
+        [
+          0,
+          1
+        ]
+      ],
+      "imageRotationDeg": 0,
+      "mappingEvidence": "按整理目录及不同年份纹饰逐面核对；耳杯盛鱼按2025年实照及原扫描确认平放顶面；蔡题三石正面取2010年完整照片，2025年照片两端未完整入镜。",
+      "imageTreatment": "Geometric rectification of supplied photos only; no generated archaeological imagery"
+    },
+    {
+      "id": "26 左石室隔梁东面",
+      "faceKey": "east",
+      "faceLabel": "三角隔梁东面",
+      "file": "hall-033-east-20260910.webp",
+      "imageSize": [
+        4096,
+        1097
+      ],
+      "crop": [
+        0,
+        0,
+        4096,
+        1097
+      ],
+      "fit": "face",
+      "normal": [
+        0,
+        0,
+        1
+      ],
+      "up": [
+        0,
+        1,
+        0
+      ],
+      "primaryFace": true,
+      "focusLift": 0.25,
+      "sourceKind": "supplied-photograph",
+      "sourcePath": "data/stones/26 左石室隔梁东面/media/previews/104d38fbb413882bc053.jpg",
+      "sourceSha256": "09e2c66e43a82fa642ea2000b1bba39d701099007c22e501da0a6930048453d2",
+      "sourceVersion": "2024年",
+      "sourceOriginal": "media/originals/20260907/后展厅/26 左石室三角隔梁（后石室八）/东面/左石室三角隔梁东面-A-03（2024年阮浩）.tif",
+      "sourceLandmarks": [
+        [
+          0.043,
+          0.974
+        ],
+        [
+          0.956,
+          0.968
+        ],
+        [
+          0.988,
+          0.529
+        ],
+        [
+          0.554,
+          0.022
+        ],
+        [
+          0.018,
+          0.594
+        ]
+      ],
+      "targetPerimeter": [
+        [
+          0,
+          1
+        ],
+        [
+          1,
+          1
+        ],
+        [
+          1,
+          0.5625
+        ],
+        [
+          0.5,
+          0
+        ],
+        [
+          0,
+          0.5625
+        ]
+      ],
+      "imageRotationDeg": 0,
+      "mappingEvidence": "按整理目录及不同年份纹饰逐面核对；耳杯盛鱼按2025年实照及原扫描确认平放顶面；蔡题三石正面取2010年完整照片，2025年照片两端未完整入镜。",
+      "imageTreatment": "Geometric rectification of supplied photos only; no generated archaeological imagery"
+    },
+    {
+      "id": "26 左石室隔梁东面",
+      "faceKey": "west",
+      "faceLabel": "三角隔梁西面",
+      "file": "hall-033-west-20260910.webp",
+      "imageSize": [
+        4096,
+        1097
+      ],
+      "crop": [
+        0,
+        0,
+        4096,
+        1097
+      ],
+      "fit": "face",
+      "normal": [
+        0,
+        0,
+        -1
+      ],
+      "up": [
+        0,
+        1,
+        0
+      ],
+      "primaryFace": false,
+      "focusLift": 0.25,
+      "sourceKind": "supplied-photograph",
+      "sourcePath": "data/stones/26 左石室隔梁东面/media/previews/e6bd16152064a30dc432.jpg",
+      "sourceSha256": "32b1cc9f570f2e2bfa9b75ba0b6d2c29274eb327769bbdd403b280a034e5e8a5",
+      "sourceVersion": "2024年",
+      "sourceOriginal": "media/originals/20260907/后展厅/26 左石室三角隔梁（后石室八）/西面/左石室三角隔梁西面-A-03（2024年阮浩）.tif",
+      "sourceLandmarks": [
+        [
+          0.047,
+          0.953
+        ],
+        [
+          0.959,
+          0.954
+        ],
+        [
+          0.985,
+          0.518
+        ],
+        [
+          0.436,
+          0.031
+        ],
+        [
+          0.023,
+          0.51
+        ]
+      ],
+      "targetPerimeter": [
+        [
+          0,
+          1
+        ],
+        [
+          1,
+          1
+        ],
+        [
+          1,
+          0.5625
+        ],
+        [
+          0.5,
+          0
+        ],
+        [
+          0,
+          0.5625
+        ]
+      ],
+      "imageRotationDeg": 0,
+      "mappingEvidence": "按整理目录及不同年份纹饰逐面核对；耳杯盛鱼按2025年实照及原扫描确认平放顶面；蔡题三石正面取2010年完整照片，2025年照片两端未完整入镜。",
+      "imageTreatment": "Geometric rectification of supplied photos only; no generated archaeological imagery"
+    },
+    {
+      "id": "43 舞蹈画像石",
+      "faceKey": "front",
+      "faceLabel": "舞蹈画像完整雕刻面",
+      "file": "hall-050-front-20260910.webp",
+      "imageSize": [
+        4096,
+        1024
+      ],
+      "crop": [
+        0,
+        0,
+        4096,
+        1024
+      ],
+      "fit": "face",
+      "normal": [
+        0,
+        0,
+        1
+      ],
+      "up": [
+        0,
+        1,
+        0
+      ],
+      "primaryFace": true,
+      "focusLift": 1.2,
+      "sourceKind": "supplied-photograph",
+      "sourcePath": "data/stones/43 舞蹈画像石/media/previews/b7b353e17be1ca903fc0.jpg",
+      "sourceSha256": "90fc35468aa701832ae47cc02f21d4f9b4dae25422dcb2ada45428e9b8b2f94b",
+      "sourceVersion": "2024年",
+      "sourceOriginal": "media/originals/20260907/后展厅/43 舞蹈画像石/舞蹈画像石-A-03（2024年阮浩）.tif",
+      "sourceLandmarks": [
+        [
+          0.033,
+          0.031
+        ],
+        [
+          0.98,
+          0.027
+        ],
+        [
+          0.987,
+          0.953
+        ],
+        [
+          0.011,
+          0.974
+        ]
+      ],
+      "targetPerimeter": [
+        [
+          0,
+          0
+        ],
+        [
+          1,
+          0
+        ],
+        [
+          1,
+          1
+        ],
+        [
+          0,
+          1
+        ]
+      ],
+      "imageRotationDeg": 0,
+      "mappingEvidence": "按整理目录及不同年份纹饰逐面核对；耳杯盛鱼按2025年实照及原扫描确认平放顶面；蔡题三石正面取2010年完整照片，2025年照片两端未完整入镜。",
+      "imageTreatment": "Geometric rectification of supplied photos only; no generated archaeological imagery"
+    },
+    {
+      "id": "41 蔡题三石",
+      "faceKey": "front",
+      "faceLabel": "蔡题三石正面",
+      "file": "hall-048-front-20260910.webp",
+      "imageSize": [
+        4096,
+        1096
+      ],
+      "crop": [
+        0,
+        0,
+        4096,
+        1096
+      ],
+      "fit": "face",
+      "normal": [
+        0,
+        0,
+        1
+      ],
+      "up": [
+        0,
+        1,
+        0
+      ],
+      "primaryFace": true,
+      "focusLift": 0.9,
+      "sourceKind": "supplied-photograph",
+      "sourcePath": "data/stones/41 蔡题三石/media/previews/38df7af5319c04da2423.jpg",
+      "sourceSha256": "7d37bd2fc5f14c8990200023e94c378cc87ba7948699e27b85f64e96bbfb1fbe",
+      "sourceVersion": "2010年",
+      "sourceOriginal": "media/originals/20260907/后展厅/41 蔡题三石（其他石六）/正面/蔡题三石（正面）-A-01（2010年）.TIF",
+      "sourceLandmarks": [
+        [
+          0.104,
+          0.83
+        ],
+        [
+          0.895,
+          0.788
+        ],
+        [
+          0.965,
+          0.568
+        ],
+        [
+          0.52,
+          0.249
+        ],
+        [
+          0.026,
+          0.648
+        ]
+      ],
+      "targetPerimeter": [
+        [
+          0,
+          1
+        ],
+        [
+          1,
+          1
+        ],
+        [
+          1,
+          0.5614035087719298
+        ],
+        [
+          0.5,
+          0
+        ],
+        [
+          0,
+          0.6666666666666666
+        ]
+      ],
+      "imageRotationDeg": 0,
+      "mappingEvidence": "按整理目录及不同年份纹饰逐面核对；耳杯盛鱼按2025年实照及原扫描确认平放顶面；蔡题三石正面取2010年完整照片，2025年照片两端未完整入镜。",
+      "imageTreatment": "Geometric rectification of supplied photos only; no generated archaeological imagery"
+    },
+    {
+      "id": "41 蔡题三石",
+      "faceKey": "back",
+      "faceLabel": "蔡题三石背面",
+      "file": "hall-048-back-20260910.webp",
+      "imageSize": [
+        4096,
+        1096
+      ],
+      "crop": [
+        0,
+        0,
+        4096,
+        1096
+      ],
+      "fit": "face",
+      "normal": [
+        0,
+        0,
+        -1
+      ],
+      "up": [
+        0,
+        1,
+        0
+      ],
+      "primaryFace": false,
+      "focusLift": 0.25,
+      "sourceKind": "supplied-photograph",
+      "sourcePath": "data/stones/41 蔡题三石/media/previews/3c191e22102b982fb596.jpg",
+      "sourceSha256": "edeae42f5f03871f761e149bf9d8754fe83dc1f625cde70ca35373b9a7fd0706",
+      "sourceVersion": "2024年",
+      "sourceOriginal": "media/originals/20260907/后展厅/41 蔡题三石（其他石六）/背面/蔡题三石（背面）-A-03（2024年阮浩）.tif",
+      "sourceLandmarks": [
+        [
+          0.017,
+          0.949
+        ],
+        [
+          0.989,
+          0.948
+        ],
+        [
+          0.981,
+          0.551
+        ],
+        [
+          0.507,
+          0.041
+        ],
+        [
+          0.02,
+          0.642
+        ]
+      ],
+      "targetPerimeter": [
+        [
+          0,
+          1
+        ],
+        [
+          1,
+          1
+        ],
+        [
+          1,
+          0.6666666666666666
+        ],
+        [
+          0.5,
+          0
+        ],
+        [
+          0,
+          0.5614035087719298
+        ]
+      ],
+      "imageRotationDeg": 0,
+      "mappingEvidence": "按整理目录及不同年份纹饰逐面核对；耳杯盛鱼按2025年实照及原扫描确认平放顶面；蔡题三石正面取2010年完整照片，2025年照片两端未完整入镜。",
+      "imageTreatment": "Geometric rectification of supplied photos only; no generated archaeological imagery"
+    }
+  ],
+  "excluded": [
+    {
+      "id": "5 武梁祠屋顶前坡",
+      "source": "data/stones/5 武梁祠屋顶前坡/rubbing.png",
+      "imageWidth": 1000,
+      "imageHeight": 1000,
+      "sourceImageSize": [
+        1000,
+        1000
+      ],
+      "crop": [
+        68,
+        242,
+        867,
+        365
+      ],
+      "sourceKind": "scan-back-view-png",
+      "face": "IN",
+      "sign": 1,
+      "normal": [
+        0,
+        0,
+        1
+      ],
+      "sourceSha256": "fd09cf54eb8bc5268330ab6e81f0de617667f3faa34e9e4781c0213c1f4e89e8",
+      "cropMethod": "threshold background RGB 89 +/-4, white >248; rows/columns >3 foreground pixels; visually reviewed",
+      "mappingEvidence": "data/stones named folder; exact hash match to source 02 scan png",
+      "approved": false,
+      "exclusionReason": "图为屋顶瓦垄背面，未见画像正面"
+    },
+    {
+      "id": "6 武梁祠屋顶后坡",
+      "source": "data/stones/6 武梁祠屋顶后坡/rubbing.png",
+      "imageWidth": 1000,
+      "imageHeight": 1000,
+      "sourceImageSize": [
+        1000,
+        1000
+      ],
+      "crop": [
+        70,
+        224,
+        871,
+        343
+      ],
+      "sourceKind": "scan-back-view-png",
+      "face": "IN",
+      "sign": 1,
+      "normal": [
+        0,
+        0,
+        1
+      ],
+      "sourceSha256": "7cc5146d48d9e594ad57293eeda9009e7f0a14b9e1bcfd41ecbc1c6952ae5078",
+      "cropMethod": "threshold background RGB 89 +/-4, white >248; rows/columns >3 foreground pixels; visually reviewed",
+      "mappingEvidence": "data/stones named folder; exact hash match to source 02 scan png",
+      "approved": false,
+      "exclusionReason": "图为屋顶瓦垄背面，未见画像正面"
+    },
+    {
+      "id": "16 前石室后壁小龛西壁",
+      "source": "data/stones/16 前石室后壁小龛西壁/rubbing.png",
+      "imageWidth": 1000,
+      "imageHeight": 1000,
+      "sourceImageSize": [
+        1000,
+        1000
+      ],
+      "crop": [
+        202,
+        225,
+        626,
+        442
+      ],
+      "sourceKind": "scan-multiface-perspective-png",
+      "face": "IN",
+      "sign": 1,
+      "normal": [
+        0,
+        0,
+        1
+      ],
+      "sourceSha256": "d534e3dcfade81480fc9ddcad94e546b1763f5134d1830464c191812fc4e7c0a",
+      "cropMethod": "threshold background RGB 89 +/-4, white >248; rows/columns >3 foreground pixels; visually reviewed",
+      "mappingEvidence": "data/stones named folder; exact hash match to source 02 scan png",
+      "approved": false,
+      "exclusionReason": "L形石多面透视，不能整图直接贴单一面"
+    },
+    {
+      "id": "17 前石室后壁小龛东壁",
+      "source": "data/stones/17 前石室后壁小龛东壁/rubbing.png",
+      "imageWidth": 1000,
+      "imageHeight": 1000,
+      "sourceImageSize": [
+        1000,
+        1000
+      ],
+      "crop": [
+        159,
+        196,
+        662,
+        463
+      ],
+      "sourceKind": "scan-multiface-perspective-png",
+      "face": "IN",
+      "sign": 1,
+      "normal": [
+        0,
+        0,
+        1
+      ],
+      "sourceSha256": "f9335c4ca4e6737a1f8f0ac11d0c86b5f512cea745ce4860a270c94082a65a2d",
+      "cropMethod": "threshold background RGB 89 +/-4, white >248; rows/columns >3 foreground pixels; visually reviewed",
+      "mappingEvidence": "data/stones named folder; exact hash match to source 02 scan png",
+      "approved": false,
+      "exclusionReason": "L形石多面透视，不能整图直接贴单一面"
+    },
+    {
+      "id": "36 有鸟如鹤",
+      "source": "data/stones/36 有鸟如鹤/rubbing.png",
+      "imageWidth": 1000,
+      "imageHeight": 1000,
+      "sourceImageSize": [
+        1000,
+        1000
+      ],
+      "crop": [
+        241,
+        139,
+        574,
+        580
+      ],
+      "sourceKind": "scan-back-view-png",
+      "face": "IN",
+      "sign": 1,
+      "normal": [
+        0,
+        0,
+        1
+      ],
+      "sourceSha256": "84b0ce18b503090dcb2453d2743fb9fa3077291a6835d6ed3821a5b720941220",
+      "cropMethod": "threshold background RGB 89 +/-4, white >248; rows/columns >3 foreground pixels; visually reviewed",
+      "mappingEvidence": "data/stones named folder; exact hash match to source 02 scan png",
+      "approved": false,
+      "exclusionReason": "图为带榫孔/瓦垄背面，未见画像正面"
+    }
+  ]
+}

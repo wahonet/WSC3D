@@ -1,0 +1,2 @@
+# Installed versions. Do not upgrade during migration. Offline restoration uses the verified runtime archive.
+pip==24.3.1

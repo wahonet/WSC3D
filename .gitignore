@@ -1,38 +1,29 @@
-# ---- Python
+# Generated Python and frontend files
 __pycache__/
 *.py[cod]
-.venv/
-venv/
 .pytest_cache/
-
-# ---- Node / Vite / TypeScript
-web/node_modules/
-web/dist/
-web/.vite/
+node_modules/
 *.tsbuildinfo
-npm-debug.log*
+/src/frontend/dist/
+/tmp/
 
-# ---- Runtime data: SQLite db, preview/thumb caches, logs (see README section 6)
-server/data/
+# Build output, bundled binaries and model weights
+/build/
+/runtime/*.zip
+/models/
 
-# ---- Model weights (multi-GB; see README section 1 for expected layout under ml/)
-ml/
+# Original resources and research data stay with the local dataset
+/resources/
+/data/
+/logs/
+/config/rag_config.json
+.env
+.env.*
+!.env.example
 
-# ---- Stone assets: photos / rubbings / 3D models AND meta.json (stone descriptions, copyrighted
-#      transcriptions) stay on disk. The repository is the program shell only.
-assets/stones/
-
-# ---- Local backups and scratch (patch specs / commit message drafts written to the repo root)
-_backup/
-/_*.json
-/_*.txt
-
-# ---- OS / editor noise
+# OS/editor files
 .DS_Store
 Thumbs.db
 desktop.ini
 *.swp
 .idea/
-
-# ---- Library PDFs (copyrighted books) stay on disk
-assets/library/

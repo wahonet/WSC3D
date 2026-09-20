@@ -1,0 +1,25 @@
+.scene-waypoints { position:absolute; inset:0; z-index:6; pointer-events:none; overflow:hidden; }
+.scene-waypoints[hidden], .scene-waypoint[hidden] { display:none!important; }
+.scene-waypoints .scene-waypoint { position:absolute; left:0; top:0; width:44px; height:44px; margin:-22px; padding:0; display:grid; place-items:center; border:0; border-radius:50%; background:transparent; color:#f6d77b; cursor:pointer; pointer-events:auto; touch-action:manipulation; }
+.scene-waypoint-dot { display:block; width:15px; height:15px; box-sizing:border-box; border:3px solid #fff1b9; border-radius:50%; background:#e8b53f; box-shadow:0 0 0 6px #e6b84138, 0 2px 12px #30250c80; transition:box-shadow .18s, transform .18s; }
+.scene-waypoint-label { position:absolute; top:42px; left:50%; transform:translateX(-50%); padding:5px 10px; border:1px solid #e8c47777; border-radius:7px; background:#242b31ed; color:#f8e9bf; font-size:12px; line-height:1.4; font-weight:600; letter-spacing:.03em; white-space:nowrap; box-shadow:0 3px 12px #1114; }
+.scene-waypoint-label::before { content:''; position:absolute; height:12px; width:1px; bottom:100%; left:50%; background:#e8c477a3; }
+.scene-waypoint:is([data-waypoint="gate"],[data-waypoint="xcl"]) .scene-waypoint-label { left:auto; right:43px; top:8px; transform:none; }
+.scene-waypoint:is([data-waypoint="gate"],[data-waypoint="xcl"]) .scene-waypoint-label::before { width:12px; height:1px; left:100%; top:50%; bottom:auto; }
+.scene-waypoint:is([data-waypoint="que"],[data-waypoint="hall"]) .scene-waypoint-label { left:43px; top:8px; transform:none; }
+.scene-waypoint:is([data-waypoint="que"],[data-waypoint="hall"]) .scene-waypoint-label::before { width:12px; height:1px; left:auto; right:100%; top:50%; bottom:auto; }
+.scene-waypoint-suffix { font-size:10px; font-weight:400; opacity:.88; }
+.scene-waypoints .scene-waypoint:hover, .scene-waypoints .scene-waypoint:focus-visible { background:#e8b53f18; outline:2px solid #ffe39c; outline-offset:3px; }
+.scene-waypoint:hover .scene-waypoint-dot, .scene-waypoint:focus-visible .scene-waypoint-dot, .scene-waypoint[aria-pressed="true"] .scene-waypoint-dot { transform:scale(1.2); box-shadow:0 0 0 8px #e6b84145,0 2px 14px #30250c80; }
+.scene-waypoint[aria-pressed="true"] .scene-waypoint-label { background:#f2cd74; color:#3f3018; border-color:#fff0be; }
+.scene-waypoint[data-edge="true"] .scene-waypoint-dot { border-radius:4px; transform:rotate(45deg); width:13px; height:13px; }
+.scene-waypoint-announcement { position:absolute; width:1px; height:1px; padding:0; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; }
+.scene-navigation-hint { position:absolute; top:88px; left:22px; z-index:7; margin:0; display:flex; align-items:center; gap:8px; color:var(--text-2); background:var(--bg-1); border:1px solid var(--line); border-radius:20px; padding:7px 12px; font-size:11px; pointer-events:none; box-shadow:0 3px 12px #0001; }
+.scene-navigation-hint i { width:7px; height:7px; border-radius:50%; background:#d9a735; box-shadow:0 0 0 3px #d9a73525; }
+.stage-host .scene-stage-status { display:block; background:var(--bg-2,#20282e); color:var(--text,#dbe4ec); padding:7px 11px; border:1px solid var(--line,#ffffff25); border-radius:8px; font-size:12px; line-height:1.4; pointer-events:none; box-shadow:0 3px 12px #0001; }
+.scene-door-status { position:absolute; bottom:16px; left:50%; transform:translateX(-50%); z-index:10; display:flex; align-items:center; gap:8px; white-space:nowrap; }
+.stage-host .scene-loading-status { position:absolute; bottom:58px; left:50%; transform:translateX(-50%); z-index:10; white-space:nowrap; }
+.sc-name button.sc-x { border:0; padding:2px 4px; background:transparent; }
+:root[data-theme="light"] .scene-waypoint-label { background:#fffdf5f5; color:#57431c; border-color:#c19a45; box-shadow:0 3px 12px #38445220; }
+:root[data-theme="light"] .scene-waypoint[aria-pressed="true"] .scene-waypoint-label { background:#f4d483; color:#3d2d10; }
+@media (max-width:760px) { .scene-navigation-hint { display:none; } .scene-door-status { left:auto; right:12px; bottom:12px; transform:none; white-space:normal; max-width:55%; } .stage-host .scene-stage-status { font-size:10px; } .stage-host .scene-loading-status { left:12px; bottom:58px; transform:none; } }

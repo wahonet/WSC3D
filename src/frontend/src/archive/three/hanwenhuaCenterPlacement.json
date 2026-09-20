@@ -1,0 +1,616 @@
+{
+  "version": 1,
+  "status": "provisional",
+  "layer": {
+    "name": "hanwenhua_center",
+    "glb": "models/hanwenhua-center.glb",
+    "label": "汉文化保护传承中心",
+    "defaultVisible": false
+  },
+  "source": {
+    "model": "武氏祠汉文化保护传承中心 · 结构与展陈整合 V2（wushi_v2.glb）",
+    "crs": "2000国家大地坐标系（CGCS2000），高斯-克吕格投影 3°分带 第39带（L0 = 117°E）",
+    "worldOriginM": [
+      39440182.85563135,
+      3906316.520880636
+    ],
+    "worldRotationDeg": 358.030111714218,
+    "zeroAbsoluteHeightM": 38.7,
+    "sourceGlbSha256": "6e59ea4d29dcce63a6be6dd9f2df3bc3c78e5e2f88279a4431e366fc5ce370a8",
+    "localFrame": "同 site_geometry_v2.json：原点 = 主馆中轴 × SA 轴，X 沿建筑轴网向东，Y 沿建筑轴网向北，Z 相对 ±0.000。world = origin + R(rotation_deg)·local；origin/rotation 由 build.mjs 从 site_geometry_v2.json 读取。",
+    "gltfAxes": "glTF Y-up: x = local X, y = local Z, z = -local Y"
+  },
+  "target": {
+    "registration": "data/georeferencing/courtyard-registration.json",
+    "registrationSha256": "7b7ef3d68b53478916a16a2cd1ae47c72ea583334a8dab91f2a63f02866d0348",
+    "registrationStatus": "provisional",
+    "registrationRmsM": 4.615538633200767,
+    "registrationMaxM": 6.788177336818166,
+    "calculationEllipsoid": "WGS84"
+  },
+  "transform": {
+    "type": "rigid-horizontal",
+    "appliesTo": "glTF scene root of hanwenhua-center.glb",
+    "rotationYDeg": 0.42379325231873205,
+    "translation": [
+      -4.06820352380371,
+      0.51,
+      -114.33933378994323
+    ],
+    "scale": 1,
+    "fitSamples": 78,
+    "fitResidualRmsM": 0.0044335772369163235,
+    "fitResidualMaxM": 0.0069715194744549135
+  },
+  "vertical": {
+    "mode": "ground-aligned",
+    "plotSurfaceTopLocalZ": -0.51,
+    "plotSurfaceSceneY": 0.0,
+    "centreZeroSceneY": 0.51,
+    "note": "传承中心 ±0.000=38.700 m 与院落 RTK 输入高程 29.388 m 的基准不同，未换算；按室外地坪对齐院落地面。"
+  },
+  "keyNodes": [
+    {
+      "id": "origin",
+      "name": "模型坐标原点（主馆中轴 × SA轴）",
+      "group": "基准与出入口",
+      "local": [
+        0,
+        0,
+        0
+      ],
+      "sceneXYZ": [
+        -4.0682,
+        0.51,
+        -114.3393
+      ],
+      "designLatitudeDeg": 35.284157633162266,
+      "designLongitudeDeg": 116.34246736221398,
+      "sceneLatitudeDeg": 35.28415759754626,
+      "sceneLongitudeDeg": 116.34246736952022,
+      "chainDifferenceM": 0.004013406664036928,
+      "cadSurvey": null
+    },
+    {
+      "id": "main_entrance",
+      "name": "保护传承中心 北入口中心（中轴 × 北外墙）",
+      "group": "基准与出入口",
+      "local": [
+        -0.0004,
+        96.285,
+        0
+      ],
+      "sceneXYZ": [
+        -4.7808,
+        0.51,
+        -210.6217
+      ],
+      "designLatitudeDeg": 35.285025117085034,
+      "designLongitudeDeg": 116.34249672582081,
+      "sceneLatitudeDeg": 35.28502511569364,
+      "sceneLongitudeDeg": 116.34249673420307,
+      "chainDifferenceM": 0.0007772231747271038,
+      "cadSurvey": null
+    },
+    {
+      "id": "manager_entrance",
+      "name": "文物管理用房 南入口中心（中轴 × 南外墙）",
+      "group": "基准与出入口",
+      "local": [
+        -0.0001,
+        122.415,
+        0
+      ],
+      "sceneXYZ": [
+        -4.9737,
+        0.51,
+        -236.751
+      ],
+      "designLatitudeDeg": 35.28526053634039,
+      "designLongitudeDeg": 116.34250469914161,
+      "sceneLatitudeDeg": 35.28526054423548,
+      "sceneLongitudeDeg": 116.34250470784195,
+      "chainDifferenceM": 0.0011810449517577607,
+      "cadSurvey": null
+    },
+    {
+      "id": "vehicle_entrance",
+      "name": "西北主车行入口中心",
+      "group": "基准与出入口",
+      "local": [
+        -81.8,
+        249,
+        -0.45
+      ],
+      "sceneXYZ": [
+        -87.7077,
+        0.06,
+        -362.7275
+      ],
+      "designLatitudeDeg": 35.28642146383991,
+      "designLongitudeDeg": 116.34164448875225,
+      "sceneLatitudeDeg": 35.28642151768307,
+      "sceneLongitudeDeg": 116.34164446363233,
+      "chainDifferenceM": 0.006404327933833438,
+      "cadSurvey": null
+    },
+    {
+      "id": "garage_ramp",
+      "name": "地下车库出入口（坡道起点中心）",
+      "group": "基准与出入口",
+      "local": [
+        47.94,
+        143.25,
+        -0.45
+      ],
+      "sceneXYZ": [
+        42.8109,
+        0.06,
+        -257.94
+      ],
+      "designLatitudeDeg": 35.285436259272366,
+      "designLongitudeDeg": 116.34303781586905,
+      "sceneLatitudeDeg": 35.28543627407301,
+      "sceneLongitudeDeg": 116.34303784560078,
+      "chainDifferenceM": 0.003162994255498849,
+      "cadSurvey": null
+    },
+    {
+      "id": "gatehouse",
+      "name": "门卫 定位角点",
+      "group": "基准与出入口",
+      "local": [
+        -87.2403,
+        239.1076,
+        0
+      ],
+      "sceneXYZ": [
+        -93.0747,
+        0.51,
+        -352.7951
+      ],
+      "designLatitudeDeg": 35.286333698009614,
+      "designLongitudeDeg": 116.34158169412754,
+      "sceneLatitudeDeg": 35.286333748391556,
+      "sceneLongitudeDeg": 116.34158166649898,
+      "chainDifferenceM": 0.00613617423644544,
+      "cadSurvey": [
+        3906558.486,
+        39440103.886
+      ]
+    },
+    {
+      "id": "main_sw",
+      "name": "保护传承中心 西南角（西翼）",
+      "group": "保护传承中心 外围护角点",
+      "local": [
+        -54.8852,
+        38.115,
+        0
+      ],
+      "sceneXYZ": [
+        -59.2338,
+        0.51,
+        -152.0473
+      ],
+      "designLatitudeDeg": 35.28451475698756,
+      "designLongitudeDeg": 116.3418759206423,
+      "sceneLatitudeDeg": 35.284514735417105,
+      "sceneLongitudeDeg": 116.34187590452662,
+      "chainDifferenceM": 0.002809100357689704,
+      "cadSurvey": [
+        3906356.5,
+        39440129.313
+      ]
+    },
+    {
+      "id": "main_se",
+      "name": "保护传承中心 东南角（东翼）",
+      "group": "保护传承中心 外围护角点",
+      "local": [
+        54.8846,
+        38.1153,
+        0
+      ],
+      "sceneXYZ": [
+        50.533,
+        0.51,
+        -152.8595
+      ],
+      "designLatitudeDeg": 35.28448730665372,
+      "designLongitudeDeg": 116.3430820480183,
+      "sceneLatitudeDeg": 35.284487284092535,
+      "sceneLongitudeDeg": 116.34308207951372,
+      "chainDifferenceM": 0.0038049161624849424,
+      "cadSurvey": [
+        3906352.727,
+        39440239.018
+      ]
+    },
+    {
+      "id": "main_nw",
+      "name": "保护传承中心 西北角（西翼）",
+      "group": "保护传承中心 外围护角点",
+      "local": [
+        -54.885,
+        83.9851,
+        0
+      ],
+      "sceneXYZ": [
+        -59.5729,
+        0.51,
+        -197.9162
+      ],
+      "designLatitudeDeg": 35.284928025591476,
+      "designLongitudeDeg": 116.34188991069932,
+      "sceneLatitudeDeg": 35.284928020358436,
+      "sceneLongitudeDeg": 116.34188989510842,
+      "chainDifferenceM": 0.0015314487777740708,
+      "cadSurvey": [
+        3906402.343,
+        39440130.89
+      ]
+    },
+    {
+      "id": "main_ne",
+      "name": "保护传承中心 东北角（东翼）",
+      "group": "保护传承中心 外围护角点",
+      "local": [
+        54.8849,
+        83.9854,
+        0
+      ],
+      "sceneXYZ": [
+        50.194,
+        0.51,
+        -198.7284
+      ],
+      "designLatitudeDeg": 35.28490057516172,
+      "designLongitudeDeg": 116.3430960453031,
+      "sceneLatitudeDeg": 35.28490056887123,
+      "sceneLongitudeDeg": 116.34309607731859,
+      "chainDifferenceM": 0.0029920302318167773,
+      "cadSurvey": [
+        3906398.57,
+        39440240.595
+      ]
+    },
+    {
+      "id": "core_sw",
+      "name": "画像石核心展厅 西南角",
+      "group": "保护传承中心 外围护角点",
+      "local": [
+        -19.4846,
+        2.0195,
+        0
+      ],
+      "sceneXYZ": [
+        -23.5672,
+        0.51,
+        -116.2147
+      ],
+      "designLatitudeDeg": 35.28418070076481,
+      "designLongitudeDeg": 116.34225388637265,
+      "sceneLatitudeDeg": 35.28418066603339,
+      "sceneLongitudeDeg": 116.342253885245,
+      "chainDifferenceM": 0.0038611644332756097,
+      "cadSurvey": [
+        3906319.209,
+        39440163.452
+      ]
+    },
+    {
+      "id": "core_se",
+      "name": "画像石核心展厅 东南角",
+      "group": "保护传承中心 外围护角点",
+      "local": [
+        19.4854,
+        2.0201,
+        0
+      ],
+      "sceneXYZ": [
+        15.4017,
+        0.51,
+        -116.5035
+      ],
+      "designLatitudeDeg": 35.28417095993185,
+      "designLongitudeDeg": 116.34268207893945,
+      "sceneLatitudeDeg": 35.28417092486753,
+      "sceneLongitudeDeg": 116.34268209471581,
+      "chainDifferenceM": 0.004152138367579372,
+      "cadSurvey": [
+        3906317.87,
+        39440202.399
+      ]
+    },
+    {
+      "id": "mgr_sw",
+      "name": "文物管理用房 西南角",
+      "group": "文物管理用房 外围护角点",
+      "local": [
+        -42.5847,
+        122.4146,
+        0
+      ],
+      "sceneXYZ": [
+        -47.5572,
+        0.51,
+        -236.4356
+      ],
+      "designLatitudeDeg": 35.28527118213844,
+      "designLongitudeDeg": 116.34203678404886,
+      "sceneLatitudeDeg": 35.28527119046603,
+      "sceneLongitudeDeg": 116.34203677426758,
+      "chainDifferenceM": 0.0012831514309461557,
+      "cadSurvey": [
+        3906440.327,
+        39440144.504
+      ]
+    },
+    {
+      "id": "mgr_se",
+      "name": "文物管理用房 东南角",
+      "group": "文物管理用房 外围护角点",
+      "local": [
+        42.5846,
+        122.4153,
+        0
+      ],
+      "sceneXYZ": [
+        37.6098,
+        0.51,
+        -237.0663
+      ],
+      "designLatitudeDeg": 35.285249887804916,
+      "designLongitudeDeg": 116.34297261520939,
+      "sceneLatitudeDeg": 35.28524989526884,
+      "sceneLongitudeDeg": 116.34297264236216,
+      "chainDifferenceM": 0.002603033463197767,
+      "cadSurvey": [
+        3906437.4,
+        39440229.623
+      ]
+    },
+    {
+      "id": "mgr_nw",
+      "name": "文物管理用房 西北角",
+      "group": "文物管理用房 外围护角点",
+      "local": [
+        -42.5853,
+        156.5848,
+        0
+      ],
+      "sceneXYZ": [
+        -47.8105,
+        0.51,
+        -270.6049
+      ],
+      "designLatitudeDeg": 35.285579040144476,
+      "designLongitudeDeg": 116.34204719813853,
+      "sceneLatitudeDeg": 35.28557906063433,
+      "sceneLongitudeDeg": 116.34204718879077,
+      "chainDifferenceM": 0.002430366353215953,
+      "cadSurvey": [
+        3906474.477,
+        39440145.678
+      ]
+    },
+    {
+      "id": "mgr_ne",
+      "name": "文物管理用房 东北角",
+      "group": "文物管理用房 外围护角点",
+      "local": [
+        42.5851,
+        156.5845,
+        0
+      ],
+      "sceneXYZ": [
+        37.3576,
+        0.51,
+        -271.2345
+      ],
+      "designLatitudeDeg": 35.285557736485345,
+      "designLongitudeDeg": 116.34298304462327,
+      "sceneLatitudeDeg": 35.28555775607261,
+      "sceneLongitudeDeg": 116.34298307220725,
+      "chainDifferenceM": 0.0033197889173462534,
+      "cadSurvey": [
+        3906471.549,
+        39440230.798
+      ]
+    },
+    {
+      "id": "que_w",
+      "name": "西汉阙 中心",
+      "group": "北入口汉阙",
+      "local": [
+        -24.0,
+        208.8998,
+        -0.45
+      ],
+      "sceneXYZ": [
+        -29.6127,
+        0.06,
+        -323.0559
+      ],
+      "designLatitudeDeg": 35.28604572676593,
+      "designLongitudeDeg": 116.34226736767931,
+      "sceneLatitudeDeg": 35.28604576566394,
+      "sceneLongitudeDeg": 116.3422673671005,
+      "chainDifferenceM": 0.004323171151305968,
+      "cadSurvey": null
+    },
+    {
+      "id": "que_e",
+      "name": "东汉阙 中心",
+      "group": "北入口汉阙",
+      "local": [
+        24.0,
+        208.8998,
+        -0.45
+      ],
+      "sceneXYZ": [
+        18.386,
+        0.06,
+        -323.4109
+      ],
+      "designLatitudeDeg": 35.28603372202119,
+      "designLongitudeDeg": 116.34279479147938,
+      "sceneLatitudeDeg": 35.28603376037731,
+      "sceneLongitudeDeg": 116.34279481171185,
+      "chainDifferenceM": 0.0046421985784435614,
+      "cadSurvey": null
+    },
+    {
+      "id": "plot_nw",
+      "name": "用地红线 西北角",
+      "group": "用地红线拐点",
+      "local": [
+        -100.2395,
+        248.9846,
+        -0.45
+      ],
+      "sceneXYZ": [
+        -106.1466,
+        0.06,
+        -362.5757
+      ],
+      "designLatitudeDeg": 35.28642593512452,
+      "designLongitudeDeg": 116.34144186992124,
+      "sceneLatitudeDeg": 35.2864259891814,
+      "sceneLongitudeDeg": 116.34144183677994,
+      "chainDifferenceM": 0.0067200413333513495,
+      "cadSurvey": [
+        3906568.804,
+        39440091.234
+      ]
+    },
+    {
+      "id": "plot_ne",
+      "name": "用地红线 东北角",
+      "group": "用地红线拐点",
+      "local": [
+        63.8185,
+        227.2811,
+        -0.45
+      ],
+      "sceneXYZ": [
+        58.0675,
+        0.06,
+        -342.0863
+      ],
+      "designLatitudeDeg": 35.28618936876325,
+      "designLongitudeDeg": 116.34323792499227,
+      "sceneLatitudeDeg": 35.28618941318636,
+      "sceneLongitudeDeg": 116.34323796271536,
+      "chainDifferenceM": 0.006010202482826259,
+      "cadSurvey": [
+        3906541.474,
+        39440254.449
+      ]
+    },
+    {
+      "id": "plot_se",
+      "name": "用地红线 东南角",
+      "group": "用地红线拐点",
+      "local": [
+        72.3871,
+        -12.1588,
+        -0.45
+      ],
+      "sceneXYZ": [
+        68.4068,
+        0.06,
+        -102.7163
+      ],
+      "designLatitudeDeg": 35.28402998160309,
+      "designLongitudeDeg": 116.34325902321773,
+      "sceneLatitudeDeg": 35.284029941061405,
+      "sceneLongitudeDeg": 116.34325906175673,
+      "chainDifferenceM": 0.005706482841515973,
+      "cadSurvey": [
+        3906301.881,
+        39440254.782
+      ]
+    },
+    {
+      "id": "plot_s",
+      "name": "用地红线 最南点",
+      "group": "用地红线拐点",
+      "local": [
+        -55.2281,
+        -47.0751,
+        -0.45
+      ],
+      "sceneXYZ": [
+        -58.9466,
+        0.06,
+        -66.857
+      ],
+      "designLatitudeDeg": 35.283747318753605,
+      "designLongitudeDeg": 116.3418461749529,
+      "sceneLatitudeDeg": 35.28374726683899,
+      "sceneLongitudeDeg": 116.341846157804,
+      "chainDifferenceM": 0.005976171928960085,
+      "cadSurvey": [
+        3906271.372,
+        39440126.042
+      ]
+    },
+    {
+      "id": "plot_sw",
+      "name": "用地红线 西南角",
+      "group": "用地红线拐点",
+      "local": [
+        -111.1334,
+        -42.4711,
+        -0.45
+      ],
+      "sceneXYZ": [
+        -114.8844,
+        0.06,
+        -71.0474
+      ],
+      "designLatitudeDeg": 35.28380277570619,
+      "designLongitudeDeg": 116.34123330855674,
+      "sceneLatitudeDeg": 35.28380272588022,
+      "sceneLongitudeDeg": 116.34123326712515,
+      "chainDifferenceM": 0.0066959853357424,
+      "cadSurvey": [
+        3906277.895,
+        39440070.328
+      ]
+    }
+  ],
+  "chainConsistencyMaxM": 0.0067200413333513495,
+  "context": {
+    "courtyardRtkOriginInCentreLocal": [
+      27.227751533535876,
+      -109.7705458351229
+    ],
+    "courtyardSceneOriginInCentreLocal": [
+      3.2223790524961733,
+      -114.36629662921318
+    ]
+  },
+  "viewpoint": {
+    "key": "center",
+    "p": [
+      145.55,
+      126.51,
+      48.66
+    ],
+    "t": [
+      -4.45,
+      6.51,
+      -166.34
+    ],
+    "note": "从东南上空看传承中心，院落位于前景右侧"
+  },
+  "notes": [
+    "水平位置由传承中心 CAD 的 CGCS2000 坐标经院落 RTK 配准框架换算，精度受院落配准 RMS 约 4.6 m 限制，不是实测共同控制点。",
+    "传承中心几何保持自身米制，不改变顶点；图层可随时关闭。",
+    "glTF 图层仅作显示：不参与石刻拾取、漫游碰撞和阴影。",
+    "范围外的示意农田、村道和 1400 m 底板已在导入时剔除，避免与院落地面重叠。"
+  ]
+}

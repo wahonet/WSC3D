@@ -1,0 +1,6 @@
+{
+  "name": "wsc-unified",
+  "layout_version": 3,
+  "port": 8030,
+  "viewer_port": 8040
+}

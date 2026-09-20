@@ -1,0 +1,62 @@
+{
+  "version": 1,
+  "models": {
+    "mobilesam": {
+      "task": "point-segmentation",
+      "directory": "mobilesam",
+      "weight": "mobilesam/mobile_sam.pt",
+      "runtime": "python"
+    },
+    "sam3": {
+      "task": "text-segmentation",
+      "directory": "sam3",
+      "weight": "sam3/sam3.pt",
+      "runtime": "python"
+    },
+    "sam3.1": {
+      "task": "text-segmentation",
+      "directory": "sam3.1",
+      "weight": "sam3.1/sam3.1_multiplex_fp16.safetensors",
+      "runtime": "python"
+    },
+    "mineru": {
+      "task": "document-ocr",
+      "directory": "mineru",
+      "runtime": "mineru",
+      "backends": [
+        "pipeline",
+        "hybrid",
+        "vlm"
+      ]
+    },
+    "ndl": {
+      "task": "classical-ocr",
+      "directory": "ndl",
+      "runtime": "ndl"
+    },
+    "bge": {
+      "task": "embedding",
+      "directory": "bge-m3",
+      "runtime": "python",
+      "repo": "BAAI/bge-m3",
+      "revision": "5617a9f61b028005a4858fdac845db406aefb181"
+    },
+    "ollama": {
+      "task": "chat",
+      "directory": "ollama",
+      "runtime": "ollama"
+    },
+    "rapidocr": {
+      "task": "page-ocr",
+      "directory": "rapidocr",
+      "runtime": "python"
+    },
+    "reranker": {
+      "task": "reranking",
+      "directory": "bge-reranker-v2-m3",
+      "runtime": "python",
+      "repo": "BAAI/bge-reranker-v2-m3",
+      "revision": "953dc6f6f85a1b2dbfca4c34a2796e7dde08d41e"
+    }
+  }
+}

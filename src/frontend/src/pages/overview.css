@@ -1,0 +1,59 @@
+.overview-theme { --museum-paper:var(--bg-0);--museum-ink:var(--text);--museum-muted:var(--text-2);--museum-rule:var(--line);--museum-red:var(--accent); }
+.museum-overview { flex:1;min-height:0;overflow:auto;background:var(--museum-paper);color:var(--museum-ink); }
+.museum-content { width:100%;max-width:1600px;margin:0 auto;padding:0 clamp(24px,4.5vw,80px) 26px; }
+.museum-hero { display:grid;grid-template-columns:1.12fr 1.25fr;gap:0;align-items:center;min-height:480px;padding:24px 0 12px; }
+.museum-intro { position:relative;z-index:1;padding:22px 0; }
+.museum-eyebrow { display:flex;align-items:center;gap:9px;margin:0 0 24px;color:var(--museum-red);font-size:12px;letter-spacing:1.6px; }
+.museum-eyebrow-line { height:1px;width:22px;background:var(--museum-red);opacity:.45; }
+
+.museum-intro h1 { display:flex;gap:28px;white-space:nowrap;margin:0;font:500 clamp(34px,3.8vw,58px)/1.4 'Noto Serif SC','Source Han Serif SC','SimSun',serif;letter-spacing:3px;color:var(--museum-ink); }
+
+.museum-lead { color:var(--museum-muted);font-size:14px;line-height:2;margin:22px 0 26px;letter-spacing:.4px; }
+.museum-actions { display:flex;gap:22px;flex-wrap:wrap;align-items:center; }
+.museum-actions button { display:flex;align-items:center;gap:14px;padding:12px 18px;border-radius:3px;font-size:13px;min-height:44px; }
+.museum-primary { background:var(--museum-red);color:#fff8ed;border:1px solid var(--museum-red);font-weight:500; }
+.museum-primary:hover { filter:brightness(1.1); }
+.museum-secondary { border:0;background:transparent;color:var(--museum-ink);padding-inline:0!important; }
+.museum-secondary:hover { color:var(--museum-red); }
+.museum-hero-note { display:flex;align-items:center;gap:13px;margin-top:28px;font-size:11px;letter-spacing:2px;color:var(--museum-muted); }
+.museum-hero-note i { height:1px;width:18px;background:var(--museum-rule); }
+.museum-hero-art { min-width:0;margin:0 0 0 16px;position:relative;align-self:center; }
+.museum-hero-art>img { display:block;width:100%;height:auto;object-fit:contain;mix-blend-mode:multiply;mask-image:linear-gradient(to right,transparent,#000 4%,#000 96%,transparent); }
+.museum-hero-art figcaption { display:flex;align-items:center;justify-content:center;gap:14px;margin:8px 0 0;color:var(--museum-muted);font-size:10px;letter-spacing:1px; }
+
+
+
+
+.museum-paths { display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:22px;padding:28px 0 34px;border-top:1px solid var(--museum-rule); }
+.museum-paths>button { position:relative;display:flex;align-items:center;gap:13px;text-align:left;padding:18px 12px 16px 0;background:none;border:0;border-bottom:1px solid var(--museum-rule);border-radius:0;color:var(--museum-ink);transition:border-color .2s; }
+.museum-paths>button:hover { border-bottom-color:var(--museum-red); }.museum-paths>button>svg { margin-left:auto;color:var(--museum-muted);flex-shrink:0; }
+.museum-path-number { position:absolute;top:0;left:0;color:var(--museum-muted);font:9px Georgia,serif; }
+.museum-path-icon { display:flex;color:var(--museum-red);flex-shrink:0; }
+.museum-paths strong,.museum-paths small { display:block; }.museum-paths strong { font-size:15px;font-weight:500; }.museum-paths small { color:var(--museum-muted);font-size:11px;margin-top:6px;line-height:1.6; }
+.museum-section-heading { display:flex;align-items:center;justify-content:space-between;gap:15px;margin:10px 0 22px; }
+.museum-section-heading .museum-eyebrow { font:10px Georgia,serif;letter-spacing:2px;margin-bottom:10px; }
+.museum-section-heading h2 { font:500 26px/1.4 'SimSun',serif;margin:0; }.museum-section-heading h2 span { font:12px/1.5 'Microsoft YaHei',sans-serif;color:var(--museum-muted);margin-left:18px; }
+.museum-section-heading>button { display:flex;align-items:center;gap:9px;background:transparent;border:0;color:var(--museum-muted);font-size:12px; }
+.museum-grid { display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:24px 22px; }
+.museum-card { min-width:0;display:flex;flex-direction:column;text-align:left;padding:0;border:0;border-radius:0;overflow:hidden;background:none;transition:transform .2s; }
+.museum-card:hover { transform:translateY(-3px); }.museum-card:hover strong { color:var(--museum-red); }
+.museum-card-image { height:190px;width:100%;position:relative;display:flex;align-items:center;justify-content:center;overflow:hidden;background:var(--bg-1);color:var(--text-2);padding:14px; }
+.museum-card-image>img { width:100%;height:100%;object-fit:contain;mix-blend-mode:multiply; }
+.museum-card-number { position:absolute;left:10px;top:10px;font:italic 13px Georgia,serif;color:#55584f;background:var(--bg-2);padding:4px 7px; }
+.museum-card-body { display:flex;flex-direction:column;gap:7px;width:100%;padding:14px 0 16px;border-bottom:1px solid var(--museum-rule); }
+.museum-card-code { display:flex;align-items:center;justify-content:space-between;font-size:10px;color:var(--museum-muted);letter-spacing:1px; }
+.museum-card-body strong { color:var(--museum-ink);font-weight:500;font-size:15px;line-height:1.5; }.museum-card-body small { font-size:11px;color:var(--museum-muted); }
+.museum-loading { color:var(--museum-muted);padding:24px 0; }
+.museum-colophon { margin:34px 0 0;padding-top:20px;border-top:1px solid var(--museum-rule);color:var(--museum-muted);font-size:11px;display:flex;justify-content:space-between;gap:12px; }
+.unified-brand-logo { width:44px;height:44px;flex-shrink:0;object-fit:contain;background:#fff;border-radius:3px;padding:2px; }
+.unified-brand-home { display:flex;align-items:center;gap:12px;text-align:left;background:transparent;border:0;padding:0;color:var(--text); }
+.unified-search input { min-height:30px; }.unified-search button { display:flex;align-items:center;justify-content:center;padding:7px;min-width:34px;min-height:32px; }.unified-search button:disabled { opacity:.4;cursor:default; }
+.museum-overview button:focus-visible { outline:2px solid var(--museum-red);outline-offset:4px; }.unified-brand-home:focus-visible { outline:2px solid var(--accent);outline-offset:4px; }
+:root:not([data-theme="light"]) .museum-primary { color:#211e18; }
+:root:not([data-theme="light"]) .museum-hero-art>img { mix-blend-mode:normal;border-radius:3px; }
+:root:not([data-theme="light"]) .museum-hero-art { margin-left:4px;margin-right:0; }
+@media(min-width:1800px) { .museum-hero { min-height:570px; }.museum-card-image { height:220px; } }
+@media(max-width:1150px) { .museum-content { padding-inline:30px; }.museum-hero { grid-template-columns:1.12fr 1.25fr;min-height:470px; }.museum-intro h1 { font-size:50px; }.museum-lead { font-size:13px; }.museum-actions { gap:15px; }.museum-paths { gap:16px; }.museum-paths small { font-size:10px; }.museum-paths>button>svg { display:none; }.museum-grid { gap:18px 16px; }.museum-card-image { height:155px; } }
+@media(max-width:1000px) { .museum-hero { grid-template-columns:1fr;gap:0;padding-top:10px; }.museum-intro { padding:22px 0 0; }.museum-intro h1 { font-size:46px; }.museum-eyebrow { margin-bottom:18px; }.museum-hero-note { display:none; }.museum-hero-art { max-width:700px;width:100%;margin:0 auto!important; }.museum-hero-art>img { height:auto; }.museum-hero-art figcaption { margin-block:0 12px; }.museum-lead { margin:14px 0 18px; }.museum-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }.museum-card-image { height:190px; }.museum-paths { gap:12px; }.museum-paths small { display:none; }.museum-paths strong { font-size:13px; } }
+@media(max-width:520px) { .museum-content { padding:0 20px 22px; }.museum-intro h1 { font-size:35px;letter-spacing:2px;gap:18px; }.museum-eyebrow { font-size:11px; }.museum-lead { font-size:13px; }.museum-actions button { font-size:12px; }.museum-hero-art { margin-top:18px!important; }.museum-hero-art figcaption { justify-content:center;gap:8px;letter-spacing:0; }.museum-paths { grid-template-columns:repeat(2,1fr);padding:24px 0; }.museum-paths small { display:block;font-size:9px; }.museum-paths>button { gap:10px;padding-right:0; }.museum-section-heading h2 { font-size:23px; }.museum-section-heading h2 span { display:block;margin:6px 0 0;font-size:11px; }.museum-section-heading>button { white-space:nowrap; }.museum-card-image { height:155px; }.museum-card-body strong { font-size:13px; }.museum-colophon { flex-direction:column; }.unified-brand-logo { width:38px;height:38px; }.unified-brand-home { gap:9px; }.unified-brand strong { font-size:18px;letter-spacing:1px; } }
+@media(prefers-reduced-motion:reduce) { .museum-card,.museum-paths>button { transition:none; } }

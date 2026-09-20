@@ -1,0 +1,141 @@
+{
+  "version": 1,
+  "recipes": [
+    {
+      "file": "apply_stone_textures_blender.py",
+      "engine": "blender"
+    },
+    {
+      "file": "assemble_unified_site_blender.py",
+      "engine": "blender"
+    },
+    {
+      "file": "bake_lion_photo_models.py",
+      "engine": "blender"
+    },
+    {
+      "file": "blender_context_vegetation.py",
+      "engine": "blender"
+    },
+    {
+      "file": "build_blender_scene.py",
+      "engine": "blender"
+    },
+    {
+      "file": "build_fine_renders.py",
+      "engine": "blender"
+    },
+    {
+      "file": "build_que_photo_models.py",
+      "engine": "blender"
+    },
+    {
+      "file": "build_rear_exhibition.py",
+      "engine": "blender"
+    },
+    {
+      "file": "build_render_contact_sheet.py",
+      "engine": "blender"
+    },
+    {
+      "file": "build_site_context_blender.py",
+      "engine": "blender"
+    },
+    {
+      "file": "build_xcl_photo_models.py",
+      "engine": "python"
+    },
+    {
+      "file": "calibrate_lion_photos.py",
+      "engine": "python"
+    },
+    {
+      "file": "pad_que_texture_edges.py",
+      "engine": "python"
+    },
+    {
+      "file": "prepare_architecture_materials.py",
+      "engine": "python"
+    },
+    {
+      "file": "prepare_corrected_faces.py",
+      "engine": "python"
+    },
+    {
+      "file": "prepare_courtyard_rebuild.py",
+      "engine": "python"
+    },
+    {
+      "file": "prepare_five_hall_textures.py",
+      "engine": "python"
+    },
+    {
+      "file": "prepare_interactive_doors.py",
+      "engine": "python"
+    },
+    {
+      "file": "prepare_photo_stone_textures.py",
+      "engine": "python"
+    },
+    {
+      "file": "prepare_placeholder_textures.py",
+      "engine": "python"
+    },
+    {
+      "file": "prepare_rear_exhibition.py",
+      "engine": "python"
+    },
+    {
+      "file": "prepare_site_context.py",
+      "engine": "python"
+    },
+    {
+      "file": "prepare_stone_textures.py",
+      "engine": "python"
+    },
+    {
+      "file": "prepare_texture_levels.py",
+      "engine": "python"
+    },
+    {
+      "file": "prepare_xcl_textures.py",
+      "engine": "python"
+    },
+    {
+      "file": "rebuild_courtyard_blender.py",
+      "engine": "blender"
+    },
+    {
+      "file": "render_blender_views.py",
+      "engine": "blender"
+    },
+    {
+      "file": "render_courtyard_rebuild.py",
+      "engine": "blender"
+    },
+    {
+      "file": "render_rear_exhibition.py",
+      "engine": "blender"
+    },
+    {
+      "file": "render_rebuilt_models.py",
+      "engine": "blender"
+    },
+    {
+      "file": "package_fine_renders.py",
+      "engine": "python"
+    },
+    {
+      "file": "check_courtyard_clearances.py",
+      "engine": "python"
+    },
+    {
+      "file": "register_rebuilt_models.py",
+      "engine": "python"
+    },
+    {
+      "file": "sync_xcl_placement_tool.py",
+      "engine": "python"
+    }
+  ]
+}

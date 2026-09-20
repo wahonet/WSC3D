@@ -1,7 +1,8 @@
 # Normalize line endings: LF in the repository and in the working tree,
-# except PowerShell scripts which keep CRLF (+ UTF-8 BOM) for Windows PowerShell 5.1.
+# except Windows launchers (CRLF); PowerShell also uses a BOM for Windows PowerShell 5.1.
 * text=auto eol=lf
 *.ps1 text eol=crlf
+*.bat text eol=crlf
 
 # Binary formats (never diff / never re-encode)
 *.png binary

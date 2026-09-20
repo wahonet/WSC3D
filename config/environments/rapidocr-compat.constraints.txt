@@ -1,0 +1,2 @@
+# Installed versions. Do not upgrade during migration. Offline restoration uses the verified runtime archive.
+opencv-python==5.0.0.93

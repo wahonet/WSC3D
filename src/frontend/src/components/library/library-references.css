@@ -1,0 +1,21 @@
+.pwb-reference-column { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.pwb-reference-column > .pwb-list { flex: 1; }
+.pwb-reference-target { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; padding: 8px 10px; background: var(--bg-1); border-left: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.pwb-reference-target label { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: var(--text-2); white-space: nowrap; }
+.pwb-reference-target .select { flex: 1; width: auto; min-width: 140px; }
+.pwb-reference-target > .hint { flex-basis: 100%; }
+.pwb-reference-action { display: flex; align-items: center; justify-content: flex-end; gap: 6px; margin-top: 5px; }
+.pwb-reference-action .btn { white-space: nowrap; }
+.page-annotations { flex-shrink: 0; padding: 10px; border-bottom: 1px solid var(--line); background: var(--bg-1); }
+.page-annotations > summary { font-weight: 600; cursor: pointer; margin-bottom: 8px; }
+.page-annotations > summary span { margin-left: 5px; color: var(--text-3); }
+.page-annotation-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(135px, 1fr)); gap: 8px; max-height: 180px; overflow-y: auto; }
+.page-annotation-card { min-width: 0; border: 1px solid var(--line); border-radius: 5px; background: var(--bg-2); text-align: left; color: var(--text); overflow: hidden; padding: 0; }
+.page-annotation-card:hover { border-color: var(--accent); }
+.page-annotation-card > span { display: flex; flex-direction: column; padding: 6px; gap: 3px; }
+.page-annotation-card b, .page-annotation-card small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.page-annotation-card small { font-size: 10px; color: var(--text-3); }
+.page-annotation-crop { display: block; width: 100%; height: 105px; background: var(--bg-0); }
+.page-annotations-error { padding: 10px; }
+.pwb-list .figc.on { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.pwb-list [data-seg], .pwb-list [data-fig] { scroll-margin-block: 10px; }

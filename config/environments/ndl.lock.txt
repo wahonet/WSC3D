@@ -1,0 +1,13 @@
+# Installed versions. Do not upgrade during migration. Offline restoration uses the verified runtime archive.
+colorama==0.4.6
+flatbuffers==25.12.19
+lxml==6.1.3
+networkx==3.6.1
+numpy==2.5.2
+onnxruntime==1.29.0
+packaging==26.3
+pillow==12.3.0
+protobuf==7.36.1
+pypdfium2==5.13.0
+PyYAML==6.0.3
+tqdm==4.70.0

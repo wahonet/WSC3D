@@ -1,0 +1,20 @@
+{
+  "catalogue-refine-20260910": "catalogue-preparation",
+  "courtyard-rebuild-20260910": "courtyard",
+  "entrance-fix-20260910-224451": "courtyard-entrance",
+  "fine-renders-20260911": "photography",
+  "five-hall-textures-20260910": "hall-textures",
+  "import-20260910": "source-import",
+  "model-rebuild-20260910": "stone-reconstruction",
+  "rear-exhibition-20260910": "rear-hall",
+  "site-context-20260911": "site-context",
+  "wushici-20260905": "scene-base",
+  "wushici-bl-textures-20260907": "north-gallery-textures",
+  "wushici-center-20260907": "heritage-center",
+  "wushici-compass-20260906": "compass",
+  "wushici-georef-20260906": "georeferencing",
+  "wushici-media-fix-20260906": "image-corrections",
+  "wushici-outdoor-textures-20260907": "outdoor-textures",
+  "wushici-render-look-20260906": "render-style",
+  "wushici-textures-20260906": "scene-textures"
+}

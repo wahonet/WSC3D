@@ -1,0 +1,2276 @@
+{
+  "version": 1,
+  "description": "西长廊40件石刻：用户提供实物照片，覆盖完整正面；圆首碑按照片轮廓贴面",
+  "entries": [
+    {
+      "id": "XCL-N",
+      "faceKey": "front",
+      "faceLabel": "完整雕刻正面",
+      "file": "xcl-067.webp",
+      "crop": [
+        0,
+        0,
+        787,
+        2048
+      ],
+      "imageSize": [
+        787,
+        2048
+      ],
+      "normal": [
+        0,
+        0,
+        1
+      ],
+      "up": [
+        0,
+        1,
+        0
+      ],
+      "fit": "face",
+      "primaryFace": true,
+      "sourceKind": "supplied-photograph",
+      "sourcePath": "data/stones/XCL-N/media/previews/2cb2f20ede6b643eba69.jpg",
+      "sourceSha256": "747631ce00c933accba99b546b85ed1d2daf7759059cb8a99e0447cde17658ac",
+      "originalPath": "media/originals/20260907/西长廊/XCL-N/隋开皇三年造像碑-A-01.jpg",
+      "originalSha256": "1e0a5457db671bee983acfe59651f8cda64071dc774cea7726d2464ed3ac4618",
+      "sourceQuadNormalized": [
+        [
+          0.012,
+          0.027
+        ],
+        [
+          0.988,
+          0.027
+        ],
+        [
+          0.959,
+          0.966
+        ],
+        [
+          0.063,
+          0.966
+        ]
+      ],
+      "profile": [
+        [
+          0.02,
+          1
+        ],
+        [
+          0.97,
+          1
+        ],
+        [
+          0.99,
+          0.3
+        ],
+        [
+          1,
+          0.23
+        ],
+        [
+          0.96,
+          0.13
+        ],
+        [
+          0.91,
+          0.075
+        ],
+        [
+          0.83,
+          0.04
+        ],
+        [
+          0.69,
+          0.015
+        ],
+        [
+          0.5,
+          0
+        ],
+        [
+          0.3,
+          0.013
+        ],
+        [
+          0.18,
+          0.045
+        ],
+        [
+          0.1,
+          0.09
+        ],
+        [
+          0.055,
+          0.16
+        ],
+        [
+          0.015,
+          0.27
+        ]
+      ],
+      "mappingEvidence": "武067 隋开皇三年造像碑；按目录名称及照片内容逐件核对",
+      "imageTreatment": "Geometric perimeter rectification only; no generated or retouched imagery"
+    },
+    {
+      "id": "XCL-01",
+      "faceKey": "front",
+      "faceLabel": "完整雕刻正面",
+      "file": "xcl-068.webp",
+      "crop": [
+        0,
+        0,
+        2048,
+        730
+      ],
+      "imageSize": [
+        2048,
+        730
+      ],
+      "normal": [
+        0,
+        0,
+        -1
+      ],
+      "up": [
+        0,
+        1,
+        0
+      ],
+      "fit": "face",
+      "primaryFace": true,
+      "sourceKind": "supplied-photograph",
+      "sourcePath": "data/stones/XCL-01/media/previews/37b7326ffe72ec66972c.jpg",
+      "sourceSha256": "95434924f08943ec103da6a223e2e31fdeba9507ea388a58f240df5a77f767d3",
+      "originalPath": "media/originals/20260907/西长廊/XCL-01/徐村画像第五石-A-01.jpg",
+      "originalSha256": "13fb23999e14a3483085ca3ef62daf187908e24f842dc7c351c55d842c6b2f05",
+      "sourceQuadNormalized": [
+        [
+          0.006,
+          0.014
+        ],
+        [
+          0.994,
+          0.014
+        ],
+        [
+          0.994,
+          0.986
+        ],
+        [
+          0.006,
+          0.986
+        ]
+      ],
+      "profile": null,
+      "mappingEvidence": "武068 徐村画像第五石；按目录名称及照片内容逐件核对",
+      "imageTreatment": "Geometric perimeter rectification only; no generated or retouched imagery"
+    },
+    {
+      "id": "XCL-02",
+      "faceKey": "front",
+      "faceLabel": "完整雕刻正面",
+      "file": "xcl-069.webp",
+      "crop": [
+        0,
+        0,
+        2048,
+        402
+      ],
+      "imageSize": [
+        2048,
+        402
+      ],
+      "normal": [
+        0,
+        0,
+        -1
+      ],
+      "up": [
+        0,
+        1,
+        0
+      ],
+      "fit": "face",
+      "primaryFace": true,
+      "sourceKind": "supplied-photograph",
+      "sourcePath": "data/stones/XCL-02/media/previews/4e12eeff528ae298e900.jpg",
+      "sourceSha256": "7c38b967dd09c23b4d3d421ec2a3a61b16eecbb93d10b556ce796c16e72be2ea",
+      "originalPath": "media/originals/20260907/西长廊/XCL-02/齐山画像第三石-A-01.jpg",
+      "originalSha256": "56ec7c9bb2aeb7342291ffff05f0563e11f7d5f0f4741499a77e8470f01b824b",
+      "sourceQuadNormalized": [
+        [
+          0.006,
+          0.014
+        ],
+        [
+          0.994,
+          0.014
+        ],
+        [
+          0.994,
+          0.986
+        ],
+        [
+          0.006,
+          0.986
+        ]
+      ],
+      "profile": null,
+      "mappingEvidence": "武069 齐山画像第三石；按目录名称及照片内容逐件核对",
+      "imageTreatment": "Geometric perimeter rectification only; no generated or retouched imagery"
+    },
+    {
+      "id": "XCL-03",
+      "faceKey": "front",
+      "faceLabel": "完整雕刻正面",
+      "file": "xcl-070.webp",
+      "crop": [
+        0,
+        0,
+        2048,
+        967
+      ],
+      "imageSize": [
+        2048,
+        967
+      ],
+      "normal": [
+        0,
+        0,
+        -1
+      ],
+      "up": [
+        0,
+        1,
+        0
+      ],
+      "fit": "face",
+      "primaryFace": true,
+      "sourceKind": "supplied-photograph",
+      "sourcePath": "data/stones/XCL-03/media/previews/4f3eacff83834d5fc76b.jpg",
+      "sourceSha256": "f486b681c245038a8f6cbd99fbf83a37c216bdf52b5484b87aedcef135b9fe47",
+      "originalPath": "media/originals/20260907/西长廊/XCL-03/南武山画像第一石-A-01.jpg",
+      "originalSha256": "36b2141d0537257e5933e5d158f15b2021f85db77eff675104cf47624a20c1e1",
+      "sourceQuadNormalized": [
+        [
+          0.006,
+          0.014
+        ],
+        [
+          0.994,
+          0.014
+        ],
+        [
+          0.994,
+          0.986
+        ],
+        [
+          0.006,
+          0.986
+        ]
+      ],
+      "profile": null,
+      "mappingEvidence": "武070 南武山画像第一石；按目录名称及照片内容逐件核对",
+      "imageTreatment": "Geometric perimeter rectification only; no generated or retouched imagery"
+    },
+    {
+      "id": "XCL-04",
+      "faceKey": "front",
+      "faceLabel": "完整雕刻正面",
+      "file": "xcl-071.webp",
+      "crop": [
+        0,
+        0,
+        1290,
+        2048
+      ],
+      "imageSize": [
+        1290,
+        2048
+      ],
+      "normal": [
+        0,
+        0,
+        -1
+      ],
+      "up": [
+        0,
+        1,
+        0
+      ],
+      "fit": "face",
+      "primaryFace": true,
+      "sourceKind": "supplied-photograph",
+      "sourcePath": "data/stones/XCL-04/media/previews/ed58ec6db1aeed7d5279.jpg",
+      "sourceSha256": "e9445523ae04fbae243ee56b113d37044269e96a75c9e580b9b6252b84cf44d5",
+      "originalPath": "media/originals/20260907/西长廊/XCL-04/建鼓、泗河捞鼎图-A-01（2010年）.TIF",
+      "originalSha256": "ecf3a24460577fa43d271ca1dd490657e072a4626cfa0b98561431c8702b1763",
+      "sourceQuadNormalized": [
+        [
+          0.032,
+          0.085
+        ],
+        [
+          0.968,
+          0.085
+        ],
+        [
+          0.963,
+          0.985
+        ],
+        [
+          0.05,
+          0.985
+        ]
+      ],
+      "profile": null,
+      "mappingEvidence": "武071 建鼓、泗河捞鼎图；按目录名称及照片内容逐件核对",
+      "imageTreatment": "Geometric perimeter rectification only; no generated or retouched imagery"
+    },
+    {
+      "id": "XCL-05",
+      "faceKey": "front",
+      "faceLabel": "完整雕刻正面",
+      "file": "xcl-072.webp",
+      "crop": [
+        0,
+        0,
+        830,
+        2048
+      ],
+      "imageSize": [
+        830,
+        2048
+      ],
+      "normal": [
+        0,
+        0,
+        -1
+      ],
+      "up": [
+        0,
+        1,
+        0
+      ],
+      "fit": "face",
+      "primaryFace": true,
+      "sourceKind": "supplied-photograph",
+      "sourcePath": "data/stones/XCL-05/media/previews/bd91ea29ed3ca1e6e464.jpg",
+      "sourceSha256": "ac45d522cc0ecef4bdc178b9790d75d02c32545aa036476fcf7bde52c4ef4cc9",
+      "originalPath": "media/originals/20260907/西长廊/XCL-05/纸坊镇敬老院画像第一石-A-01.jpg",
+      "originalSha256": "ce44f8ba23f14e387ed3ba5b6e5a3e998b0d7be40997f1c73772b09c0c066b19",
+      "sourceQuadNormalized": [
+        [
+          0.006,
+          0.014
+        ],
+        [
+          0.994,
+          0.014
+        ],
+        [
+          0.994,
+          0.986
+        ],
+        [
+          0.006,
+          0.986
+        ]
+      ],
+      "profile": null,
+      "mappingEvidence": "武072 纸坊镇敬老院画像第一石；按目录名称及照片内容逐件核对",
+      "imageTreatment": "Geometric perimeter rectification only; no generated or retouched imagery"
+    },
+    {
+      "id": "XCL-06",
+      "faceKey": "front",
+      "faceLabel": "完整雕刻正面",
+      "file": "xcl-073.webp",
+      "crop": [
+        0,
+        0,
+        923,
+        2048
+      ],
+      "imageSize": [
+        923,
+        2048
+      ],
+      "normal": [
+        0,
+        0,
+        -1
+      ],
+      "up": [
+        0,
+        1,
+        0
+      ],
+      "fit": "face",
+      "primaryFace": true,
+      "sourceKind": "supplied-photograph",
+      "sourcePath": "data/stones/XCL-06/media/previews/adfa824ee66db1bbf45c.jpg",
+      "sourceSha256": "d464dcf02095b1396cdb50c2c5e6710e75142f622a9f8558f60113bf3c661dae",
+      "originalPath": "media/originals/20260907/西长廊/XCL-06/纸坊镇敬老院画像第二石-A-01.jpg",
+      "originalSha256": "fc2425fac035ee53530f91425373c0890fa3138fd1dd6fede51aa0f2afb36e04",
+      "sourceQuadNormalized": [
+        [
+          0.006,
+          0.014
+        ],
+        [
+          0.994,
+          0.014
+        ],
+        [
+          0.994,
+          0.986
+        ],
+        [
+          0.006,
+          0.986
+        ]
+      ],
+      "profile": null,
+      "mappingEvidence": "武073 纸坊镇敬老院画像第二石；按目录名称及照片内容逐件核对",
+      "imageTreatment": "Geometric perimeter rectification only; no generated or retouched imagery"
+    },
+    {
+      "id": "XCL-07",
+      "faceKey": "front",
+      "faceLabel": "完整雕刻正面",
+      "file": "xcl-074.webp",
+      "crop": [
+        0,
+        0,
+        766,
+        2048
+      ],
+      "imageSize": [
+        766,
+        2048
+      ],
+      "normal": [
+        0,
+        0,
+        -1
+      ],
+      "up": [
+        0,
+        1,
+        0
+      ],
+      "fit": "face",
+      "primaryFace": true,
+      "sourceKind": "supplied-photograph",
+      "sourcePath": "data/stones/XCL-07/media/previews/9353a14a62aba3070087.jpg",
+      "sourceSha256": "7eff79c14d454b4c5824c5a7189e193df4ae9e63d8753dccc64b4781ae85da48",
+      "originalPath": "media/originals/20260907/西长廊/XCL-07/齐山画像第二石-A-01.jpg",
+      "originalSha256": "622b2dcafb5bac2b87d0743ca9bfbb9f9d909f82e83a06bbf135fbc57e9c9509",
+      "sourceQuadNormalized": [
+        [
+          0.006,
+          0.014
+        ],
+        [
+          0.994,
+          0.014
+        ],
+        [
+          0.994,
+          0.986
+        ],
+        [
+          0.006,
+          0.986
+        ]
+      ],
+      "profile": null,
+      "mappingEvidence": "武074 齐山画像第二石；按目录名称及照片内容逐件核对",
+      "imageTreatment": "Geometric perimeter rectification only; no generated or retouched imagery"
+    },
+    {
+      "id": "XCL-08",
+      "faceKey": "front",
+      "faceLabel": "完整雕刻正面",
+      "file": "xcl-075.webp",
+      "crop": [
+        0,
+        0,
+        772,
+        2048
+      ],
+      "imageSize": [
+        772,
+        2048
+      ],
+      "normal": [
+        0,
+        0,
+        -1
+      ],
+      "up": [
+        0,
+        1,
+        0
+      ],
+      "fit": "face",
+      "primaryFace": true,
+      "sourceKind": "supplied-photograph",
+      "sourcePath": "data/stones/XCL-08/media/previews/2ae959931e75436fefc4.jpg",
+      "sourceSha256": "61371cc2c23cb6002b28c7329691c11b69d689dba38405c09653efa51d0e262a",
+      "originalPath": "media/originals/20260907/西长廊/XCL-08/齐山画像第一石-A-01.jpg",
+      "originalSha256": "310a9c7417378cf0beb0bd5560b5f11dbcd055c6703ff539a139ed1c9bf06013",
+      "sourceQuadNormalized": [
+        [
+          0.006,
+          0.014
+        ],
+        [
+          0.994,
+          0.014
+        ],
+        [
+          0.994,
+          0.986
+        ],
+        [
+          0.006,
+          0.986
+        ]
+      ],
+      "profile": null,
+      "mappingEvidence": "武075 齐山画像第一石；按目录名称及照片内容逐件核对",
+      "imageTreatment": "Geometric perimeter rectification only; no generated or retouched imagery"
+    },
+    {
+      "id": "XCL-09",
+      "faceKey": "front",
+      "faceLabel": "完整雕刻正面",
+      "file": "xcl-076.webp",
+      "crop": [
+        0,
+        0,
+        2048,
+        319
+      ],
+      "imageSize": [
+        2048,
+        319
+      ],
+      "normal": [
+        0,
+        0,
+        -1
+      ],
+      "up": [
+        0,
+        1,
+        0
+      ],
+      "fit": "face",
+      "primaryFace": true,
+      "sourceKind": "supplied-photograph",
+      "sourcePath": "data/stones/XCL-09/media/previews/c207fb5c62857f7050f1.jpg",
+      "sourceSha256": "f305c47eb66205f759e75bd5915751f07fd3eadb8e13b3a6151a24ae975dd5db",
+      "originalPath": "media/originals/20260907/西长廊/XCL-09/纸坊镇敬老院画像第五石-A-01.jpg",
+      "originalSha256": "8e7815a9f7dc25baf55a5fca0ba1cecc91bd9218ce7299ffe13877ed87237b1a",
+      "sourceQuadNormalized": [
+        [
+          0.006,
+          0.014
+        ],
+        [
+          0.994,
+          0.014
+        ],
+        [
+          0.994,
+          0.986
+        ],
+        [
+          0.006,
+          0.986
+        ]
+      ],
+      "profile": null,
+      "mappingEvidence": "武076 纸坊镇敬老院画像第五石；按目录名称及照片内容逐件核对",
+      "imageTreatment": "Geometric perimeter rectification only; no generated or retouched imagery"
+    },
+    {
+      "id": "XCL-10",
+      "faceKey": "front",
+      "faceLabel": "完整雕刻正面",
+      "file": "xcl-077.webp",
+      "crop": [
+        0,
+        0,
+        1661,
+        2048
+      ],
+      "imageSize": [
+        1661,
+        2048
+      ],
+      "normal": [
+        0,
+        0,
+        -1
+      ],
+      "up": [
+        0,
+        1,
+        0
+      ],
+      "fit": "face",
+      "primaryFace": true,
+      "sourceKind": "supplied-photograph",
+      "sourcePath": "data/stones/XCL-10/media/previews/ff3c0e25b8827263e396.jpg",
+      "sourceSha256": "1bba775632f5a1d3675610a456de74f8fbc7c79b7270155cf0c169199f3bd729",
+      "originalPath": "media/originals/20260907/西长廊/XCL-10/十里铺画像第一石-A-01.jpg",
+      "originalSha256": "b63dc1670b0fdadf544597956b6091df207aaea7221b1faddb9f14b2fbae4d0b",
+      "sourceQuadNormalized": [
+        [
+          0.006,
+          0.014
+        ],
+        [
+          0.994,
+          0.014
+        ],
+        [
+          0.994,
+          0.986
+        ],
+        [
+          0.006,
+          0.986
+        ]
+      ],
+      "profile": null,
+      "mappingEvidence": "武077 十里铺画像第一石；按目录名称及照片内容逐件核对",
+      "imageTreatment": "Geometric perimeter rectification only; no generated or retouched imagery"
+    },
+    {
+      "id": "XCL-11",
+      "faceKey": "front",
+      "faceLabel": "完整雕刻正面",
+      "file": "xcl-078.webp",
+      "crop": [
+        0,
+        0,
+        1555,
+        338
+      ],
+      "imageSize": [
+        1555,
+        338
+      ],
+      "normal": [
+        0,
+        0,
+        -1
+      ],
+      "up": [
+        0,
+        1,
+        0
+      ],
+      "fit": "face",
+      "primaryFace": true,
+      "sourceKind": "supplied-photograph",
+      "sourcePath": "data/stones/XCL-11/media/previews/722faabdd5c7bbd7aa74.jpg",
+      "sourceSha256": "290a50307e50e1776bb88e671f1b37eb586d40e86e00c59ced2c4047de89eb50",
+      "originalPath": "media/originals/20260907/西长廊/XCL-11/纸坊镇敬老院第六石-A-01.png",
+      "originalSha256": "0099b91d447f9e1c4d3af7d72648b5dc9999e6945678a43a1be9eabc92ebf254",
+      "sourceQuadNormalized": [
+        [
+          0.006,
+          0.014
+        ],
+        [
+          0.994,
+          0.014
+        ],
+        [
+          0.994,
+          0.986
+        ],
+        [
+          0.006,
+          0.986
+        ]
+      ],
+      "profile": null,
+      "mappingEvidence": "武078 纸坊镇敬老院第六石；按目录名称及照片内容逐件核对",
+      "imageTreatment": "Geometric perimeter rectification only; no generated or retouched imagery"
+    },
+    {
+      "id": "XCL-12",
+      "faceKey": "front",
+      "faceLabel": "完整雕刻正面",
+      "file": "xcl-079.webp",
+      "crop": [
+        0,
+        0,
+        1748,
+        2048
+      ],
+      "imageSize": [
+        1748,
+        2048
+      ],
+      "normal": [
+        0,
+        0,
+        -1
+      ],
+      "up": [
+        0,
+        1,
+        0
+      ],
+      "fit": "face",
+      "primaryFace": true,
+      "sourceKind": "supplied-photograph",
+      "sourcePath": "data/stones/XCL-12/media/previews/a9f3073bc3f9085fcd20.jpg",
+      "sourceSha256": "c2ad6f6d2367c8bf84c2dd018d242e2fa008b45b1541b87efaaf5549120a95f9",
+      "originalPath": "media/originals/20260907/西长廊/XCL-12/嘉祥村画像第一石-A-01.jpg",
+      "originalSha256": "a8091486c4e861522557107557dac3187ac3ee9a40ff15a05718afe4bc73e289",
+      "sourceQuadNormalized": [
+        [
+          0.006,
+          0.014
+        ],
+        [
+          0.994,
+          0.014
+        ],
+        [
+          0.994,
+          0.986
+        ],
+        [
+          0.006,
+          0.986
+        ]
+      ],
+      "profile": null,
+      "mappingEvidence": "武079 嘉祥村画像第一石；按目录名称及照片内容逐件核对",
+      "imageTreatment": "Geometric perimeter rectification only; no generated or retouched imagery"
+    },
+    {
+      "id": "XCL-13",
+      "faceKey": "front",
+      "faceLabel": "完整雕刻正面",
+      "file": "xcl-080.webp",
+      "crop": [
+        0,
+        0,
+        1719,
+        2048
+      ],
+      "imageSize": [
+        1719,
+        2048
+      ],
+      "normal": [
+        0,
+        0,
+        -1
+      ],
+      "up": [
+        0,
+        1,
+        0
+      ],
+      "fit": "face",
+      "primaryFace": true,
+      "sourceKind": "supplied-photograph",
+      "sourcePath": "data/stones/XCL-13/media/previews/a385aa6797358827038b.jpg",
+      "sourceSha256": "bbef07ede63d19a814c2091fcff48deedf0799f0cca39a4668a59f63204696d3",
+      "originalPath": "media/originals/20260907/西长廊/XCL-13/纸坊镇敬老院画像第七石-A-01.jpg",
+      "originalSha256": "857582d3a5a9bdee61a69212a49e17e1a18ad0376d5300e17077b1f5cc011111",
+      "sourceQuadNormalized": [
+        [
+          0.006,
+          0.014
+        ],
+        [
+          0.994,
+          0.014
+        ],
+        [
+          0.994,
+          0.986
+        ],
+        [
+          0.006,
+          0.986
+        ]
+      ],
+      "profile": null,
+      "mappingEvidence": "武080 纸坊镇敬老院画像第七石；按目录名称及照片内容逐件核对",
+      "imageTreatment": "Geometric perimeter rectification only; no generated or retouched imagery"
+    },
+    {
+      "id": "XCL-14",
+      "faceKey": "front",
+      "faceLabel": "完整雕刻正面",
+      "file": "xcl-081.webp",
+      "crop": [
+        0,
+        0,
+        1436,
+        2048
+      ],
+      "imageSize": [
+        1436,
+        2048
+      ],
+      "normal": [
+        0,
+        0,
+        -1
+      ],
+      "up": [
+        0,
+        1,
+        0
+      ],
+      "fit": "face",
+      "primaryFace": true,
+      "sourceKind": "supplied-photograph",
+      "sourcePath": "data/stones/XCL-14/media/previews/ff3bcbfb58b505391751.jpg",
+      "sourceSha256": "da9c0eda4b43e822d0a0a7535d2914c6698cedf793b212c41122c9878ea5cc81",
+      "originalPath": "media/originals/20260907/西长廊/XCL-14/纸坊镇敬老院画像第八石-A-01.jpg",
+      "originalSha256": "5778ba5252a7b646aa2bd5e936f15f73ee25ca8278fd53f62c49b1b3854c96c3",
+      "sourceQuadNormalized": [
+        [
+          0.006,
+          0.014
+        ],
+        [
+          0.994,
+          0.014
+        ],
+        [
+          0.994,
+          0.986
+        ],
+        [
+          0.006,
+          0.986
+        ]
+      ],
+      "profile": null,
+      "mappingEvidence": "武081 纸坊镇敬老院画像第八石；按目录名称及照片内容逐件核对",
+      "imageTreatment": "Geometric perimeter rectification only; no generated or retouched imagery"
+    },
+    {
+      "id": "XCL-15",
+      "faceKey": "front",
+      "faceLabel": "完整雕刻正面",
+      "file": "xcl-082.webp",
+      "crop": [
+        0,
+        0,
+        2048,
+        780
+      ],
+      "imageSize": [
+        2048,
+        780
+      ],
+      "normal": [
+        0,
+        0,
+        -1
+      ],
+      "up": [
+        0,
+        1,
+        0
+      ],
+      "fit": "face",
+      "primaryFace": true,
+      "sourceKind": "supplied-photograph",
+      "sourcePath": "data/stones/XCL-15/media/previews/f61febc57e7d81e4a067.jpg",
+      "sourceSha256": "e366ab14c89dfff9ced2c5414c32c0f4df29c188264c82dd970ec6aea000dac4",
+      "originalPath": "media/originals/20260907/西长廊/XCL-15/狼山屯画像第七石-A-01.jpg",
+      "originalSha256": "3937f736e1e171b45e9ae7e5e41ccd151397ff1326f0bc4be67860b162d34aaf",
+      "sourceQuadNormalized": [
+        [
+          0.006,
+          0.014
+        ],
+        [
+          0.994,
+          0.014
+        ],
+        [
+          0.994,
+          0.986
+        ],
+        [
+          0.006,
+          0.986
+        ]
+      ],
+      "profile": null,
+      "mappingEvidence": "武082 狼山屯画像第七石；按目录名称及照片内容逐件核对",
+      "imageTreatment": "Geometric perimeter rectification only; no generated or retouched imagery"
+    },
+    {
+      "id": "XCL-16",
+      "faceKey": "front",
+      "faceLabel": "完整雕刻正面",
+      "file": "xcl-083.webp",
+      "crop": [
+        0,
+        0,
+        1599,
+        2048
+      ],
+      "imageSize": [
+        1599,
+        2048
+      ],
+      "normal": [
+        0,
+        0,
+        -1
+      ],
+      "up": [
+        0,
+        1,
+        0
+      ],
+      "fit": "face",
+      "primaryFace": true,
+      "sourceKind": "supplied-photograph",
+      "sourcePath": "data/stones/XCL-16/media/previews/083c43165707ab54bf87.jpg",
+      "sourceSha256": "e18c5dad182f947f7bae3da94fcc51a22d96944048ae6bafbd9f65f79d15389e",
+      "originalPath": "media/originals/20260907/西长廊/XCL-16/十里铺画像第三石-A-01.jpg",
+      "originalSha256": "7ed8108355e71740df6436f619e866b2aca4d12dbfc8133307635d276f3fdb01",
+      "sourceQuadNormalized": [
+        [
+          0.006,
+          0.014
+        ],
+        [
+          0.994,
+          0.014
+        ],
+        [
+          0.994,
+          0.986
+        ],
+        [
+          0.006,
+          0.986
+        ]
+      ],
+      "profile": null,
+      "mappingEvidence": "武083 十里铺画像第三石；按目录名称及照片内容逐件核对",
+      "imageTreatment": "Geometric perimeter rectification only; no generated or retouched imagery"
+    },
+    {
+      "id": "XCL-17",
+      "faceKey": "front",
+      "faceLabel": "完整雕刻正面",
+      "file": "xcl-084.webp",
+      "crop": [
+        0,
+        0,
+        2048,
+        696
+      ],
+      "imageSize": [
+        2048,
+        696
+      ],
+      "normal": [
+        0,
+        0,
+        -1
+      ],
+      "up": [
+        0,
+        1,
+        0
+      ],
+      "fit": "face",
+      "primaryFace": true,
+      "sourceKind": "supplied-photograph",
+      "sourcePath": "data/stones/XCL-17/media/previews/a4a371005a43a97df76c.jpg",
+      "sourceSha256": "1db810ba03f6827f00d3ab227de7f2f59fe6a7f9409a2e8e31a7abd82d162f4d",
+      "originalPath": "media/originals/20260907/西长廊/XCL-17/徐村画像第七石-A-01.jpg",
+      "originalSha256": "5483b6a6ed6722706b5a863996c1c3286dc9dbc3bdda788d57b429da271f31cd",
+      "sourceQuadNormalized": [
+        [
+          0.006,
+          0.014
+        ],
+        [
+          0.994,
+          0.014
+        ],
+        [
+          0.994,
+          0.986
+        ],
+        [
+          0.006,
+          0.986
+        ]
+      ],
+      "profile": null,
+      "mappingEvidence": "武084 徐村画像第七石；按目录名称及照片内容逐件核对",
+      "imageTreatment": "Geometric perimeter rectification only; no generated or retouched imagery"
+    },
+    {
+      "id": "XCL-18",
+      "faceKey": "front",
+      "faceLabel": "完整雕刻正面",
+      "file": "xcl-085.webp",
+      "crop": [
+        0,
+        0,
+        1530,
+        2048
+      ],
+      "imageSize": [
+        1530,
+        2048
+      ],
+      "normal": [
+        0,
+        0,
+        -1
+      ],
+      "up": [
+        0,
+        1,
+        0
+      ],
+      "fit": "face",
+      "primaryFace": true,
+      "sourceKind": "supplied-photograph",
+      "sourcePath": "data/stones/XCL-18/media/previews/82554ae0bc9885258134.jpg",
+      "sourceSha256": "e0d4d91b134582e0afe8e58ff68a1a0c13fb6cc37e8a3cae3cd10476c2397757",
+      "originalPath": "media/originals/20260907/西长廊/XCL-18/纸坊镇敬老院画像第九石-A-01.jpg",
+      "originalSha256": "3508fd48b01d0402f77b94c109b335b01926fcb2222a9e688744af942d67b26f",
+      "sourceQuadNormalized": [
+        [
+          0.006,
+          0.014
+        ],
+        [
+          0.994,
+          0.014
+        ],
+        [
+          0.994,
+          0.986
+        ],
+        [
+          0.006,
+          0.986
+        ]
+      ],
+      "profile": null,
+      "mappingEvidence": "武085 纸坊镇敬老院画像第九石；按目录名称及照片内容逐件核对",
+      "imageTreatment": "Geometric perimeter rectification only; no generated or retouched imagery"
+    },
+    {
+      "id": "XCL-19",
+      "faceKey": "front",
+      "faceLabel": "完整雕刻正面",
+      "file": "xcl-086.webp",
+      "crop": [
+        0,
+        0,
+        1885,
+        2048
+      ],
+      "imageSize": [
+        1885,
+        2048
+      ],
+      "normal": [
+        0,
+        0,
+        -1
+      ],
+      "up": [
+        0,
+        1,
+        0
+      ],
+      "fit": "face",
+      "primaryFace": true,
+      "sourceKind": "supplied-photograph",
+      "sourcePath": "data/stones/XCL-19/media/previews/6672c50cf348663eeb4b.jpg",
+      "sourceSha256": "4b21cb3d915919491aa7b6ad99388f07c101f9aa7c843ae5f1b863929a4f0dd7",
+      "originalPath": "media/originals/20260907/西长廊/XCL-19/纸坊镇敬老院画像第十石-A-01.jpg",
+      "originalSha256": "6cc1cd1e919cbb4a881bef8da426c69b67c6a21310fa435a3eb37acd4970da7b",
+      "sourceQuadNormalized": [
+        [
+          0.006,
+          0.014
+        ],
+        [
+          0.994,
+          0.014
+        ],
+        [
+          0.994,
+          0.986
+        ],
+        [
+          0.006,
+          0.986
+        ]
+      ],
+      "profile": null,
+      "mappingEvidence": "武086 纸坊镇敬老院画像第十石；按目录名称及照片内容逐件核对",
+      "imageTreatment": "Geometric perimeter rectification only; no generated or retouched imagery"
+    },
+    {
+      "id": "XCL-20",
+      "faceKey": "front",
+      "faceLabel": "完整雕刻正面",
+      "file": "xcl-087.webp",
+      "crop": [
+        0,
+        0,
+        2048,
+        836
+      ],
+      "imageSize": [
+        2048,
+        836
+      ],
+      "normal": [
+        0,
+        0,
+        -1
+      ],
+      "up": [
+        0,
+        1,
+        0
+      ],
+      "fit": "face",
+      "primaryFace": true,
+      "sourceKind": "supplied-photograph",
+      "sourcePath": "data/stones/XCL-20/media/previews/5b60d457ebe3eb215b33.jpg",
+      "sourceSha256": "7361e6221427b2bdd41d35a1ef2fce19d23c0f755676a085bfe701a24c509e28",
+      "originalPath": "media/originals/20260907/西长廊/XCL-20/徐村画像第六石-A-01.jpg",
+      "originalSha256": "c55d45829b3738c110eefddb55c013895670b9138449956a1d7393c1897e14e2",
+      "sourceQuadNormalized": [
+        [
+          0.006,
+          0.014
+        ],
+        [
+          0.994,
+          0.014
+        ],
+        [
+          0.994,
+          0.986
+        ],
+        [
+          0.006,
+          0.986
+        ]
+      ],
+      "profile": null,
+      "mappingEvidence": "武087 徐村画像第六石；按目录名称及照片内容逐件核对",
+      "imageTreatment": "Geometric perimeter rectification only; no generated or retouched imagery"
+    },
+    {
+      "id": "XCL-21",
+      "faceKey": "front",
+      "faceLabel": "完整雕刻正面",
+      "file": "xcl-088.webp",
+      "crop": [
+        0,
+        0,
+        2018,
+        2048
+      ],
+      "imageSize": [
+        2018,
+        2048
+      ],
+      "normal": [
+        0,
+        0,
+        -1
+      ],
+      "up": [
+        0,
+        1,
+        0
+      ],
+      "fit": "face",
+      "primaryFace": true,
+      "sourceKind": "supplied-photograph",
+      "sourcePath": "data/stones/XCL-21/media/previews/83c53d857b7849d214d7.jpg",
+      "sourceSha256": "8be52b9d82710b50451d07fa6f26f71c1df06d43cfcfefe33466aa1e61b1cda8",
+      "originalPath": "media/originals/20260907/西长廊/XCL-21/南武山画像第三石-A-01.jpg",
+      "originalSha256": "d0001fe2bd987cfabe002bad7b722e984f667a18b64f903267b3f5e6cc3e1701",
+      "sourceQuadNormalized": [
+        [
+          0.006,
+          0.014
+        ],
+        [
+          0.994,
+          0.014
+        ],
+        [
+          0.994,
+          0.986
+        ],
+        [
+          0.006,
+          0.986
+        ]
+      ],
+      "profile": null,
+      "mappingEvidence": "武088 南武山画像第三石；按目录名称及照片内容逐件核对",
+      "imageTreatment": "Geometric perimeter rectification only; no generated or retouched imagery"
+    },
+    {
+      "id": "XCL-22",
+      "faceKey": "front",
+      "faceLabel": "完整雕刻正面",
+      "file": "xcl-089.webp",
+      "crop": [
+        0,
+        0,
+        1920,
+        2048
+      ],
+      "imageSize": [
+        1920,
+        2048
+      ],
+      "normal": [
+        0,
+        0,
+        -1
+      ],
+      "up": [
+        0,
+        1,
+        0
+      ],
+      "fit": "face",
+      "primaryFace": true,
+      "sourceKind": "supplied-photograph",
+      "sourcePath": "data/stones/XCL-22/media/previews/e5c17bcc9af22cc1a4f0.jpg",
+      "sourceSha256": "b3b8eddc64607d4fb583bc8788fff98598fc794e899275f27d8b1e86340cac77",
+      "originalPath": "media/originals/20260907/西长廊/XCL-22/纸坊镇敬老院画像第十一石-A-01.jpg",
+      "originalSha256": "41a86d4b7e065262010081c3b7641768beb986f5edf3177d3414245ccebb01e1",
+      "sourceQuadNormalized": [
+        [
+          0.006,
+          0.014
+        ],
+        [
+          0.994,
+          0.014
+        ],
+        [
+          0.994,
+          0.986
+        ],
+        [
+          0.006,
+          0.986
+        ]
+      ],
+      "profile": null,
+      "mappingEvidence": "武089 纸坊镇敬老院画像第十一石；按目录名称及照片内容逐件核对",
+      "imageTreatment": "Geometric perimeter rectification only; no generated or retouched imagery"
+    },
+    {
+      "id": "XCL-23",
+      "faceKey": "front",
+      "faceLabel": "完整雕刻正面",
+      "file": "xcl-090.webp",
+      "crop": [
+        0,
+        0,
+        2048,
+        677
+      ],
+      "imageSize": [
+        2048,
+        677
+      ],
+      "normal": [
+        0,
+        0,
+        -1
+      ],
+      "up": [
+        0,
+        1,
+        0
+      ],
+      "fit": "face",
+      "primaryFace": true,
+      "sourceKind": "supplied-photograph",
+      "sourcePath": "data/stones/XCL-23/media/previews/c3145900789d3e195f04.jpg",
+      "sourceSha256": "4a0899296bcd006e7855b87070bbaa74f6d92b15d0ad777d677b8f80292bfb66",
+      "originalPath": "media/originals/20260907/西长廊/XCL-23/徐村画像第二石-A-01.jpg",
+      "originalSha256": "5056f687d77a4497c9333b16c04111d156fc0079f11240f1fc1ce73de1f40b91",
+      "sourceQuadNormalized": [
+        [
+          0.006,
+          0.014
+        ],
+        [
+          0.994,
+          0.014
+        ],
+        [
+          0.994,
+          0.986
+        ],
+        [
+          0.006,
+          0.986
+        ]
+      ],
+      "profile": null,
+      "mappingEvidence": "武090 徐村画像第二石；按目录名称及照片内容逐件核对",
+      "imageTreatment": "Geometric perimeter rectification only; no generated or retouched imagery"
+    },
+    {
+      "id": "XCL-24",
+      "faceKey": "front",
+      "faceLabel": "完整雕刻正面",
+      "file": "xcl-091.webp",
+      "crop": [
+        0,
+        0,
+        2018,
+        2048
+      ],
+      "imageSize": [
+        2018,
+        2048
+      ],
+      "normal": [
+        0,
+        0,
+        -1
+      ],
+      "up": [
+        0,
+        1,
+        0
+      ],
+      "fit": "face",
+      "primaryFace": true,
+      "sourceKind": "supplied-photograph",
+      "sourcePath": "data/stones/XCL-24/media/previews/8787a5f2fddf531c3cc8.jpg",
+      "sourceSha256": "378d2ad19314f5eee37ce515c3e77eff15f3fd5f3495761982327535242d6f8e",
+      "originalPath": "media/originals/20260907/西长廊/XCL-24/南武山画像第二石-A-01.jpg",
+      "originalSha256": "d00847c34a612da50e43846d9d616aded58c8f3fbfb08d64bb747243baa161e7",
+      "sourceQuadNormalized": [
+        [
+          0.006,
+          0.014
+        ],
+        [
+          0.994,
+          0.014
+        ],
+        [
+          0.994,
+          0.986
+        ],
+        [
+          0.006,
+          0.986
+        ]
+      ],
+      "profile": null,
+      "mappingEvidence": "武091 南武山画像第二石；按目录名称及照片内容逐件核对",
+      "imageTreatment": "Geometric perimeter rectification only; no generated or retouched imagery"
+    },
+    {
+      "id": "XCL-25",
+      "faceKey": "front",
+      "faceLabel": "完整雕刻正面",
+      "file": "xcl-092.webp",
+      "crop": [
+        0,
+        0,
+        2048,
+        723
+      ],
+      "imageSize": [
+        2048,
+        723
+      ],
+      "normal": [
+        0,
+        0,
+        -1
+      ],
+      "up": [
+        0,
+        1,
+        0
+      ],
+      "fit": "face",
+      "primaryFace": true,
+      "sourceKind": "supplied-photograph",
+      "sourcePath": "data/stones/XCL-25/media/previews/0971a6bcefb850cf2026.jpg",
+      "sourceSha256": "e5b8cb89ab9710398fd27c37acfbc25e79f3104600984fd4a34c28ed4a46bb52",
+      "originalPath": "media/originals/20260907/西长廊/XCL-25/五老洼画像第十六石-A-01.jpg",
+      "originalSha256": "ad3c57c7e748e3a5488e035ac1d19818a35b1d169acbe0977fb4cfea9b5b4359",
+      "sourceQuadNormalized": [
+        [
+          0.006,
+          0.014
+        ],
+        [
+          0.994,
+          0.014
+        ],
+        [
+          0.994,
+          0.986
+        ],
+        [
+          0.006,
+          0.986
+        ]
+      ],
+      "profile": null,
+      "mappingEvidence": "武092 五老洼画像第十六石；按目录名称及照片内容逐件核对",
+      "imageTreatment": "Geometric perimeter rectification only; no generated or retouched imagery"
+    },
+    {
+      "id": "XCL-26",
+      "faceKey": "front",
+      "faceLabel": "完整雕刻正面",
+      "file": "xcl-093.webp",
+      "crop": [
+        0,
+        0,
+        2048,
+        336
+      ],
+      "imageSize": [
+        2048,
+        336
+      ],
+      "normal": [
+        0,
+        0,
+        -1
+      ],
+      "up": [
+        0,
+        1,
+        0
+      ],
+      "fit": "face",
+      "primaryFace": true,
+      "sourceKind": "supplied-photograph",
+      "sourcePath": "data/stones/XCL-26/media/previews/32ed40cf7d3872cd10ce.jpg",
+      "sourceSha256": "ecd290e4577c1bb6428f4c77cb0a7b86d958603644c36747abfad8812b770199",
+      "originalPath": "media/originals/20260907/西长廊/XCL-26/狼山屯画像第一石-A-01.jpg",
+      "originalSha256": "c9e8b0e3de71965184706f4e569ac4bb2cd425dc8a3306d5a0f2a7a17ce63f8c",
+      "sourceQuadNormalized": [
+        [
+          0.006,
+          0.014
+        ],
+        [
+          0.994,
+          0.014
+        ],
+        [
+          0.994,
+          0.986
+        ],
+        [
+          0.006,
+          0.986
+        ]
+      ],
+      "profile": null,
+      "mappingEvidence": "武093 狼山屯画像第一石；按目录名称及照片内容逐件核对",
+      "imageTreatment": "Geometric perimeter rectification only; no generated or retouched imagery"
+    },
+    {
+      "id": "XCL-27",
+      "faceKey": "front",
+      "faceLabel": "完整雕刻正面",
+      "file": "xcl-094.webp",
+      "crop": [
+        0,
+        0,
+        2048,
+        663
+      ],
+      "imageSize": [
+        2048,
+        663
+      ],
+      "normal": [
+        0,
+        0,
+        -1
+      ],
+      "up": [
+        0,
+        1,
+        0
+      ],
+      "fit": "face",
+      "primaryFace": true,
+      "sourceKind": "supplied-photograph",
+      "sourcePath": "data/stones/XCL-27/media/previews/9802c1e8aa00b6a98889.jpg",
+      "sourceSha256": "3a4c9fedd275440161ee973e35f9d005b8d8923068797fc4393f91e464d48255",
+      "originalPath": "media/originals/20260907/西长廊/XCL-27/狼山屯画像第八石-A-01.jpg",
+      "originalSha256": "333a0dc2536f289bd4d4a8db94a022f704346357afa157e565114962fbe1f73a",
+      "sourceQuadNormalized": [
+        [
+          0.006,
+          0.014
+        ],
+        [
+          0.994,
+          0.014
+        ],
+        [
+          0.994,
+          0.986
+        ],
+        [
+          0.006,
+          0.986
+        ]
+      ],
+      "profile": null,
+      "mappingEvidence": "武094 狼山屯画像第八石；按目录名称及照片内容逐件核对",
+      "imageTreatment": "Geometric perimeter rectification only; no generated or retouched imagery"
+    },
+    {
+      "id": "XCL-28",
+      "faceKey": "front",
+      "faceLabel": "完整雕刻正面",
+      "file": "xcl-095.webp",
+      "crop": [
+        0,
+        0,
+        2048,
+        646
+      ],
+      "imageSize": [
+        2048,
+        646
+      ],
+      "normal": [
+        0,
+        0,
+        -1
+      ],
+      "up": [
+        0,
+        1,
+        0
+      ],
+      "fit": "face",
+      "primaryFace": true,
+      "sourceKind": "supplied-photograph",
+      "sourcePath": "data/stones/XCL-28/media/previews/257a2c7aaa9c920f75c8.jpg",
+      "sourceSha256": "b887b6458d5e9e30be9f5d85ad9cb08e95a3fc18218e6f408149ad2bea8b773b",
+      "originalPath": "media/originals/20260907/西长廊/XCL-28/徐村画像第一石-A-01.jpg",
+      "originalSha256": "c9291aaa6bcc664a4737d21c2103e4f5b30c0218e1b358d3f4cf583fffd2b1e7",
+      "sourceQuadNormalized": [
+        [
+          0.006,
+          0.014
+        ],
+        [
+          0.994,
+          0.014
+        ],
+        [
+          0.994,
+          0.986
+        ],
+        [
+          0.006,
+          0.986
+        ]
+      ],
+      "profile": null,
+      "mappingEvidence": "武095 徐村画像第一石；按目录名称及照片内容逐件核对",
+      "imageTreatment": "Geometric perimeter rectification only; no generated or retouched imagery"
+    },
+    {
+      "id": "XCL-29",
+      "faceKey": "front",
+      "faceLabel": "完整雕刻正面",
+      "file": "xcl-096.webp",
+      "crop": [
+        0,
+        0,
+        2048,
+        713
+      ],
+      "imageSize": [
+        2048,
+        713
+      ],
+      "normal": [
+        0,
+        0,
+        -1
+      ],
+      "up": [
+        0,
+        1,
+        0
+      ],
+      "fit": "face",
+      "primaryFace": true,
+      "sourceKind": "supplied-photograph",
+      "sourcePath": "data/stones/XCL-29/media/previews/4d2b18775eaa1609d7ac.jpg",
+      "sourceSha256": "1cb659b76edcc27630eb92ab169068fb218d2dda2298992ed2e380c72b7b720c",
+      "originalPath": "media/originals/20260907/西长廊/XCL-29/狼山屯画像第六石-A-01.jpg",
+      "originalSha256": "9315de5fab8a94dff48d97d581ceee57020f10846720886ca65cec4091377e23",
+      "sourceQuadNormalized": [
+        [
+          0.006,
+          0.014
+        ],
+        [
+          0.994,
+          0.014
+        ],
+        [
+          0.994,
+          0.986
+        ],
+        [
+          0.006,
+          0.986
+        ]
+      ],
+      "profile": null,
+      "mappingEvidence": "武096 狼山屯画像第六石；按目录名称及照片内容逐件核对",
+      "imageTreatment": "Geometric perimeter rectification only; no generated or retouched imagery"
+    },
+    {
+      "id": "XCL-30",
+      "faceKey": "front",
+      "faceLabel": "完整雕刻正面",
+      "file": "xcl-097.webp",
+      "crop": [
+        0,
+        0,
+        2048,
+        761
+      ],
+      "imageSize": [
+        2048,
+        761
+      ],
+      "normal": [
+        0,
+        0,
+        -1
+      ],
+      "up": [
+        0,
+        1,
+        0
+      ],
+      "fit": "face",
+      "primaryFace": true,
+      "sourceKind": "supplied-photograph",
+      "sourcePath": "data/stones/XCL-30/media/previews/9f53684caaf8e260ad54.jpg",
+      "sourceSha256": "08360afd29040feedd979cdb7ef1482b603c001f5e878b797d1b21c2f0e8fc1a",
+      "originalPath": "media/originals/20260907/西长廊/XCL-30/狼山屯画像第三石-A-01.jpg",
+      "originalSha256": "d01a49c6f7d810b38ba98537c58b02228231d6bbcafadc073678a47e884779d7",
+      "sourceQuadNormalized": [
+        [
+          0.006,
+          0.014
+        ],
+        [
+          0.994,
+          0.014
+        ],
+        [
+          0.994,
+          0.986
+        ],
+        [
+          0.006,
+          0.986
+        ]
+      ],
+      "profile": null,
+      "mappingEvidence": "武097 狼山屯画像第三石；按目录名称及照片内容逐件核对",
+      "imageTreatment": "Geometric perimeter rectification only; no generated or retouched imagery"
+    },
+    {
+      "id": "XCL-31",
+      "faceKey": "front",
+      "faceLabel": "完整雕刻正面",
+      "file": "xcl-098.webp",
+      "crop": [
+        0,
+        0,
+        2048,
+        720
+      ],
+      "imageSize": [
+        2048,
+        720
+      ],
+      "normal": [
+        0,
+        0,
+        -1
+      ],
+      "up": [
+        0,
+        1,
+        0
+      ],
+      "fit": "face",
+      "primaryFace": true,
+      "sourceKind": "supplied-photograph",
+      "sourcePath": "data/stones/XCL-31/media/previews/9a3e020e8ee678804849.jpg",
+      "sourceSha256": "2e2c6c75837e10b7ce1e0769beee1d8c2de61bd191b72583f0863b7b17cda08f",
+      "originalPath": "media/originals/20260907/西长廊/XCL-31/仲东村画像第二石-A-01.jpg",
+      "originalSha256": "5dc01a532d20d3a75e7f38fd7b996e4e73e306e049af284fefefefaa816ac204",
+      "sourceQuadNormalized": [
+        [
+          0.006,
+          0.014
+        ],
+        [
+          0.994,
+          0.014
+        ],
+        [
+          0.994,
+          0.986
+        ],
+        [
+          0.006,
+          0.986
+        ]
+      ],
+      "profile": null,
+      "mappingEvidence": "武098 仲东村画像第二石；按目录名称及照片内容逐件核对",
+      "imageTreatment": "Geometric perimeter rectification only; no generated or retouched imagery"
+    },
+    {
+      "id": "XCL-32",
+      "faceKey": "front",
+      "faceLabel": "完整雕刻正面",
+      "file": "xcl-099.webp",
+      "crop": [
+        0,
+        0,
+        2048,
+        1056
+      ],
+      "imageSize": [
+        2048,
+        1056
+      ],
+      "normal": [
+        0,
+        0,
+        -1
+      ],
+      "up": [
+        0,
+        1,
+        0
+      ],
+      "fit": "face",
+      "primaryFace": true,
+      "sourceKind": "supplied-photograph",
+      "sourcePath": "data/stones/XCL-32/media/previews/d3664b9422a564b7f211.jpg",
+      "sourceSha256": "26ff80a73b2210adf7cb623dc9de38ba84e2e3d1aa330c962f83afcad252a4a2",
+      "originalPath": "media/originals/20260907/西长廊/XCL-32/疃里村画像石-A-01.jpg",
+      "originalSha256": "fbdcfc241478d8a32aaa41f4a48e650149e98b25c59c9825ea03c729f90a0752",
+      "sourceQuadNormalized": [
+        [
+          0.006,
+          0.014
+        ],
+        [
+          0.994,
+          0.014
+        ],
+        [
+          0.994,
+          0.986
+        ],
+        [
+          0.006,
+          0.986
+        ]
+      ],
+      "profile": null,
+      "mappingEvidence": "武099 疃里村画像石；按目录名称及照片内容逐件核对",
+      "imageTreatment": "Geometric perimeter rectification only; no generated or retouched imagery"
+    },
+    {
+      "id": "XCL-33",
+      "faceKey": "front",
+      "faceLabel": "完整雕刻正面",
+      "file": "xcl-100.webp",
+      "crop": [
+        0,
+        0,
+        2048,
+        2048
+      ],
+      "imageSize": [
+        2048,
+        2048
+      ],
+      "normal": [
+        0,
+        0,
+        -1
+      ],
+      "up": [
+        0,
+        1,
+        0
+      ],
+      "fit": "face",
+      "primaryFace": true,
+      "sourceKind": "supplied-photograph",
+      "sourcePath": "data/stones/XCL-33/media/previews/2f3d2e5e540e01dd27da.jpg",
+      "sourceSha256": "6db35afbd6eeba564c511c63b3b36d5dc53c97514d86b08d137bb46f6aa0e0bc",
+      "originalPath": "media/originals/20260907/西长廊/XCL-33/西焦城村画像石-A-01.jpg",
+      "originalSha256": "b9be4d858116ce6b539d69a2920d92b6017a97b5169b46478a1687d4f0516b5f",
+      "sourceQuadNormalized": [
+        [
+          0.006,
+          0.014
+        ],
+        [
+          0.994,
+          0.014
+        ],
+        [
+          0.994,
+          0.986
+        ],
+        [
+          0.006,
+          0.986
+        ]
+      ],
+      "profile": null,
+      "mappingEvidence": "武100 西焦城村画像石；按目录名称及照片内容逐件核对",
+      "imageTreatment": "Geometric perimeter rectification only; no generated or retouched imagery"
+    },
+    {
+      "id": "XCL-34",
+      "faceKey": "front",
+      "faceLabel": "完整雕刻正面",
+      "file": "xcl-101.webp",
+      "crop": [
+        0,
+        0,
+        2048,
+        1232
+      ],
+      "imageSize": [
+        2048,
+        1232
+      ],
+      "normal": [
+        0,
+        0,
+        -1
+      ],
+      "up": [
+        0,
+        1,
+        0
+      ],
+      "fit": "face",
+      "primaryFace": true,
+      "sourceKind": "supplied-photograph",
+      "sourcePath": "data/stones/XCL-34/media/previews/0f14fcd2498380d9afd1.jpg",
+      "sourceSha256": "aa6f793b6695e74fdea26d65cdd251a239007ecbf6f0d0deb641a84dd4971ffa",
+      "originalPath": "media/originals/20260907/西长廊/XCL-34/店子村画像石-A-01.jpg",
+      "originalSha256": "71c10928faa0bb6c8d4c5f11a551eb5c585e983b798e7d57e389f0759868e887",
+      "sourceQuadNormalized": [
+        [
+          0.006,
+          0.014
+        ],
+        [
+          0.994,
+          0.014
+        ],
+        [
+          0.994,
+          0.986
+        ],
+        [
+          0.006,
+          0.986
+        ]
+      ],
+      "profile": null,
+      "mappingEvidence": "武101 店子村画像石；按目录名称及照片内容逐件核对",
+      "imageTreatment": "Geometric perimeter rectification only; no generated or retouched imagery"
+    },
+    {
+      "id": "XCL-35",
+      "faceKey": "front",
+      "faceLabel": "完整雕刻正面",
+      "file": "xcl-102.webp",
+      "crop": [
+        0,
+        0,
+        2048,
+        1035
+      ],
+      "imageSize": [
+        2048,
+        1035
+      ],
+      "normal": [
+        0,
+        0,
+        -1
+      ],
+      "up": [
+        0,
+        1,
+        0
+      ],
+      "fit": "face",
+      "primaryFace": true,
+      "sourceKind": "supplied-photograph",
+      "sourcePath": "data/stones/XCL-35/media/previews/fb0e665bd9df2d21915f.jpg",
+      "sourceSha256": "fdad97112a636de03c6f310230c7e52062833608886ea225ce31de8828cdb4db",
+      "originalPath": "media/originals/20260907/西长廊/XCL-35/明刻北宋黄庭坚题《念奴娇·赤壁怀古》碑（一）-A-01.TIF",
+      "originalSha256": "d0be856cbe145cd63907fe3f02ee640ce74634bbca4c3430a6a983af8a441e70",
+      "sourceQuadNormalized": [
+        [
+          0.027,
+          0.153
+        ],
+        [
+          0.985,
+          0.162
+        ],
+        [
+          0.984,
+          0.981
+        ],
+        [
+          0.023,
+          0.981
+        ]
+      ],
+      "profile": null,
+      "mappingEvidence": "武102 明刻北宋黄庭坚题《念奴娇·赤壁怀古》碑（一）；按目录名称及照片内容逐件核对",
+      "imageTreatment": "Geometric perimeter rectification only; no generated or retouched imagery"
+    },
+    {
+      "id": "XCL-36",
+      "faceKey": "front",
+      "faceLabel": "完整雕刻正面",
+      "file": "xcl-103.webp",
+      "crop": [
+        0,
+        0,
+        2048,
+        1035
+      ],
+      "imageSize": [
+        2048,
+        1035
+      ],
+      "normal": [
+        0,
+        0,
+        -1
+      ],
+      "up": [
+        0,
+        1,
+        0
+      ],
+      "fit": "face",
+      "primaryFace": true,
+      "sourceKind": "supplied-photograph",
+      "sourcePath": "data/stones/XCL-36/media/previews/574dac96b2d6fac2a7b8.jpg",
+      "sourceSha256": "4a99a98772a9b7a4c4a679dbc4e717868ce7ccbc6e3ce211f348d3bd4a9a8b12",
+      "originalPath": "media/originals/20260907/西长廊/XCL-36/明刻北宋黄庭坚题《念奴娇·赤壁怀古》碑（二）-A-01.TIF",
+      "originalSha256": "e21b3de95155fe0cc080cfffd05c293a51c19d8d96c0322331c2aaea8226cb2e",
+      "sourceQuadNormalized": [
+        [
+          0.011,
+          0.14
+        ],
+        [
+          0.986,
+          0.14
+        ],
+        [
+          0.985,
+          0.986
+        ],
+        [
+          0.011,
+          0.986
+        ]
+      ],
+      "profile": null,
+      "mappingEvidence": "武103 明刻北宋黄庭坚题《念奴娇·赤壁怀古》碑（二）；按目录名称及照片内容逐件核对",
+      "imageTreatment": "Geometric perimeter rectification only; no generated or retouched imagery"
+    },
+    {
+      "id": "XCL-37",
+      "faceKey": "front",
+      "faceLabel": "完整雕刻正面",
+      "file": "xcl-104.webp",
+      "crop": [
+        0,
+        0,
+        2048,
+        1035
+      ],
+      "imageSize": [
+        2048,
+        1035
+      ],
+      "normal": [
+        0,
+        0,
+        -1
+      ],
+      "up": [
+        0,
+        1,
+        0
+      ],
+      "fit": "face",
+      "primaryFace": true,
+      "sourceKind": "supplied-photograph",
+      "sourcePath": "data/stones/XCL-37/media/previews/61819458260afc768735.jpg",
+      "sourceSha256": "6668d2902f471c6dacc740243eaf8e71374e6c79374a1a2f02a0ace0d6b367b2",
+      "originalPath": "media/originals/20260907/西长廊/XCL-37/明刻北宋黄庭坚题《念奴娇·赤壁怀古》碑（三）-A-01.TIF",
+      "originalSha256": "29dd57dc07a88d38551ed3cccfbc1904548f19cdb18f8af45d30ae80c9a851df",
+      "sourceQuadNormalized": [
+        [
+          0.018,
+          0.149
+        ],
+        [
+          0.985,
+          0.149
+        ],
+        [
+          0.984,
+          0.984
+        ],
+        [
+          0.011,
+          0.984
+        ]
+      ],
+      "profile": null,
+      "mappingEvidence": "武104 明刻北宋黄庭坚题《念奴娇·赤壁怀古》碑（三）；按目录名称及照片内容逐件核对",
+      "imageTreatment": "Geometric perimeter rectification only; no generated or retouched imagery"
+    },
+    {
+      "id": "XCL-38",
+      "faceKey": "front",
+      "faceLabel": "完整雕刻正面",
+      "file": "xcl-105.webp",
+      "crop": [
+        0,
+        0,
+        2048,
+        1035
+      ],
+      "imageSize": [
+        2048,
+        1035
+      ],
+      "normal": [
+        0,
+        0,
+        -1
+      ],
+      "up": [
+        0,
+        1,
+        0
+      ],
+      "fit": "face",
+      "primaryFace": true,
+      "sourceKind": "supplied-photograph",
+      "sourcePath": "data/stones/XCL-38/media/previews/7ab7cf446805a654081f.jpg",
+      "sourceSha256": "f0643249e87f5364d3e02297ad958e840b995e7cf92a09e1cf82d9667ae3b6e8",
+      "originalPath": "media/originals/20260907/西长廊/XCL-38/明刻北宋黄庭坚题《念奴娇·赤壁怀古》碑（四）-A-01.TIF",
+      "originalSha256": "566d07183549dbbd1c2e698ae1e89decd7da0f498af382f91fbaa0b23348c23a",
+      "sourceQuadNormalized": [
+        [
+          0.016,
+          0.117
+        ],
+        [
+          0.985,
+          0.117
+        ],
+        [
+          0.984,
+          0.984
+        ],
+        [
+          0.011,
+          0.984
+        ]
+      ],
+      "profile": null,
+      "mappingEvidence": "武105 明刻北宋黄庭坚题《念奴娇·赤壁怀古》碑（四）；按目录名称及照片内容逐件核对",
+      "imageTreatment": "Geometric perimeter rectification only; no generated or retouched imagery"
+    },
+    {
+      "id": "XCL-S",
+      "faceKey": "front",
+      "faceLabel": "完整雕刻正面",
+      "file": "xcl-106.webp",
+      "crop": [
+        0,
+        0,
+        974,
+        2048
+      ],
+      "imageSize": [
+        974,
+        2048
+      ],
+      "normal": [
+        0,
+        0,
+        1
+      ],
+      "up": [
+        0,
+        1,
+        0
+      ],
+      "fit": "face",
+      "primaryFace": true,
+      "sourceKind": "supplied-photograph",
+      "sourcePath": "data/stones/XCL-S/media/previews/e08675352a6ff3d771d0.jpg",
+      "sourceSha256": "a1abf2f83fe68676decdff577e604212b32cca89b1dc2719dce688fd2df2d44c",
+      "originalPath": "media/originals/20260907/西长廊/XCL-S/“获麟处”碑-A-03.TIF",
+      "originalSha256": "7044310db1ce96a3cfc5d2399f4c309a07382cfa0fed82f36b80431c3f24bac6",
+      "sourceQuadNormalized": [
+        [
+          0.118,
+          0.027
+        ],
+        [
+          0.942,
+          0.027
+        ],
+        [
+          0.953,
+          0.971
+        ],
+        [
+          0.112,
+          0.967
+        ]
+      ],
+      "profile": [
+        [
+          0.02,
+          1
+        ],
+        [
+          0.98,
+          1
+        ],
+        [
+          1,
+          0.94
+        ],
+        [
+          0.99,
+          0.055
+        ],
+        [
+          0.94,
+          0.006
+        ],
+        [
+          0.8,
+          0.011
+        ],
+        [
+          0.71,
+          0
+        ],
+        [
+          0.54,
+          0.012
+        ],
+        [
+          0.4,
+          0.002
+        ],
+        [
+          0.25,
+          0.013
+        ],
+        [
+          0.09,
+          0.009
+        ],
+        [
+          0.015,
+          0.06
+        ],
+        [
+          0,
+          0.93
+        ]
+      ],
+      "mappingEvidence": "武106 “获麟处”碑；按目录名称及照片内容逐件核对",
+      "imageTreatment": "Geometric perimeter rectification only; no generated or retouched imagery"
+    }
+  ]
+}

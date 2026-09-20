@@ -1,0 +1,2 @@
+# Installed versions. Do not upgrade during migration. Offline restoration uses the verified runtime archive.
+onnxruntime-directml==1.24.4

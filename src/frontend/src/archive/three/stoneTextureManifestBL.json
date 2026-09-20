@@ -1,0 +1,1862 @@
+{
+  "version": 1,
+  "description": "北长廊 20 块画像石: 2026-08 盘点现场照片经单应透视矫正的雕刻主面正射贴图",
+  "imageTreatment": "homography re-sampling of the annotated face only (2x supersample, area filter), WebP q85; no retouching, inpainting or generation; crop is the full rectified image",
+  "faceFrame": "normal/up are in the stone geometry-local axes (see modelFace.worldNormal for the world direction)",
+  "entries": [
+    {
+      "id": "BL-R1-01",
+      "file": "bl-r1-01.webp",
+      "crop": [
+        0,
+        0,
+        2632,
+        750
+      ],
+      "imageSize": [
+        2632,
+        750
+      ],
+      "normal": [
+        0,
+        0,
+        1
+      ],
+      "up": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "fit": "face",
+      "sourceKind": "site-photo-rectified",
+      "sourcePath": "data/stones/BL-R1-01/photos/2026-08盘点/BL-R1-01_180307702.jpg",
+      "sourceSha256": "6ed523f4389eafbcea06f4e71eecf1f7e17e19b4b00da1c7de316cecf838e6d0",
+      "sourceImageSize": [
+        4096,
+        3072
+      ],
+      "sourceQuad": [
+        [
+          358,
+          1120
+        ],
+        [
+          3510,
+          1175
+        ],
+        [
+          3500,
+          2045
+        ],
+        [
+          380,
+          2035
+        ]
+      ],
+      "focalLength35mm": 23.0,
+      "mappingEvidence": "2026-08盘点现场照片, 文件名前缀与 data/stones/BL-R1-01/photos 目录编号一致",
+      "rectification": {
+        "method": "homography",
+        "pixelsPerMetre": 1000,
+        "aspectSource": "photo-metric",
+        "camera": "pinhole, EXIF 35mm-equivalent focal length, principal point at image centre",
+        "photoMetricAspect": 3.5092,
+        "photoPixelAspect": 3.5134,
+        "orthogonalityResidual": 0.0176,
+        "viewAngleDeg": 3.2,
+        "aspectSensitivity3px": 0.0035
+      },
+      "textureAspect": 3.5092,
+      "metaSizeCm": [
+        245,
+        75,
+        13
+      ],
+      "metaFaceAspect": 3.2667,
+      "modelFace": {
+        "kind": "upright",
+        "aspect": 3.5069,
+        "size": [
+          2.539,
+          0.724
+        ],
+        "worldNormal": [
+          -0.126,
+          0,
+          0.992
+        ]
+      }
+    },
+    {
+      "id": "BL-R1-02",
+      "file": "bl-r1-02.webp",
+      "crop": [
+        0,
+        0,
+        928,
+        730
+      ],
+      "imageSize": [
+        928,
+        730
+      ],
+      "normal": [
+        0,
+        0,
+        1
+      ],
+      "up": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "fit": "face",
+      "sourceKind": "site-photo-rectified",
+      "sourcePath": "data/stones/BL-R1-02/photos/2026-08盘点/BL-R1-02_180430327.jpg",
+      "sourceSha256": "29f7d65ec2786aaee6ff921ce590c8aa20d5c9ddcbdce9a7930a4275085515a8",
+      "sourceImageSize": [
+        4096,
+        3072
+      ],
+      "sourceQuad": [
+        [
+          300,
+          245
+        ],
+        [
+          3660,
+          240
+        ],
+        [
+          3505,
+          2725
+        ],
+        [
+          452,
+          2775
+        ]
+      ],
+      "focalLength35mm": 23.0,
+      "mappingEvidence": "2026-08盘点现场照片, 文件名前缀与 data/stones/BL-R1-02/photos 目录编号一致",
+      "rectification": {
+        "method": "homography",
+        "pixelsPerMetre": 1000,
+        "aspectSource": "photo-metric",
+        "camera": "pinhole, EXIF 35mm-equivalent focal length, principal point at image centre",
+        "photoMetricAspect": 1.2707,
+        "photoPixelAspect": 1.2765,
+        "orthogonalityResidual": -0.0112,
+        "viewAngleDeg": 6.4,
+        "aspectSensitivity3px": 0.0015
+      },
+      "textureAspect": 1.2707,
+      "metaSizeCm": [
+        93,
+        73,
+        23
+      ],
+      "metaFaceAspect": 1.274,
+      "modelFace": {
+        "kind": "upright",
+        "aspect": 1.2709,
+        "size": [
+          0.929,
+          0.731
+        ],
+        "worldNormal": [
+          -0.126,
+          0,
+          0.992
+        ]
+      }
+    },
+    {
+      "id": "BL-R1-03",
+      "file": "bl-r1-03.webp",
+      "crop": [
+        0,
+        0,
+        394,
+        1030
+      ],
+      "imageSize": [
+        394,
+        1030
+      ],
+      "normal": [
+        0,
+        0,
+        1
+      ],
+      "up": [
+        1.0,
+        0.0,
+        0.0
+      ],
+      "fit": "face",
+      "sourceKind": "site-photo-rectified",
+      "sourcePath": "data/stones/BL-R1-03/photos/2026-08盘点/BL-R1-03_180547311.jpg",
+      "sourceSha256": "84f1ef948fd0be4738bf3666a02e6817a15450141a36a31de5ca101f54be6919",
+      "sourceImageSize": [
+        3072,
+        4096
+      ],
+      "sourceQuad": [
+        [
+          738,
+          115
+        ],
+        [
+          2100,
+          135
+        ],
+        [
+          2145,
+          3735
+        ],
+        [
+          748,
+          3722
+        ]
+      ],
+      "focalLength35mm": 23.0,
+      "mappingEvidence": "2026-08盘点现场照片, 文件名前缀与 data/stones/BL-R1-03/photos 目录编号一致",
+      "rectification": {
+        "method": "homography",
+        "pixelsPerMetre": 1000,
+        "aspectSource": "photo-metric",
+        "camera": "pinhole, EXIF 35mm-equivalent focal length, principal point at image centre",
+        "photoMetricAspect": 0.3823,
+        "photoPixelAspect": 0.3828,
+        "orthogonalityResidual": 0.0201,
+        "viewAngleDeg": 4.6,
+        "aspectSensitivity3px": 0.0023
+      },
+      "textureAspect": 0.3823,
+      "metaSizeCm": [
+        46,
+        103,
+        21
+      ],
+      "metaFaceAspect": 0.4466,
+      "modelFace": {
+        "kind": "upright-portrait",
+        "aspect": 0.3827,
+        "size": [
+          0.426,
+          1.113
+        ],
+        "worldNormal": [
+          -0.126,
+          0,
+          0.992
+        ]
+      }
+    },
+    {
+      "id": "BL-R1-04",
+      "file": "bl-r1-04.webp",
+      "crop": [
+        0,
+        0,
+        435,
+        1050
+      ],
+      "imageSize": [
+        435,
+        1050
+      ],
+      "normal": [
+        0,
+        0,
+        1
+      ],
+      "up": [
+        1.0,
+        0.0,
+        0.0
+      ],
+      "fit": "face",
+      "sourceKind": "site-photo-rectified",
+      "sourcePath": "data/stones/BL-R1-04/photos/2026-08盘点/BL-R1-04_12025066.jpg",
+      "sourceSha256": "b57146ed27e7f2e555133d68f212ae9046bfa0ddcc097e959bb981813fe36980",
+      "sourceImageSize": [
+        3072,
+        4096
+      ],
+      "sourceQuad": [
+        [
+          765,
+          350
+        ],
+        [
+          2235,
+          345
+        ],
+        [
+          2040,
+          3212
+        ],
+        [
+          1005,
+          3215
+        ]
+      ],
+      "focalLength35mm": 23.0,
+      "mappingEvidence": "2026-08盘点现场照片, 文件名前缀与 data/stones/BL-R1-04/photos 目录编号一致",
+      "rectification": {
+        "method": "homography",
+        "pixelsPerMetre": 1000,
+        "aspectSource": "photo-metric",
+        "camera": "pinhole, EXIF 35mm-equivalent focal length, principal point at image centre",
+        "photoMetricAspect": 0.4146,
+        "photoPixelAspect": 0.4358,
+        "orthogonalityResidual": 0.0017,
+        "viewAngleDeg": 18.4,
+        "aspectSensitivity3px": 0.0034
+      },
+      "textureAspect": 0.4146,
+      "metaSizeCm": [
+        46,
+        105,
+        18
+      ],
+      "metaFaceAspect": 0.4381,
+      "modelFace": {
+        "kind": "upright-portrait",
+        "aspect": 0.4143,
+        "size": [
+          0.447,
+          1.079
+        ],
+        "worldNormal": [
+          -0.126,
+          0,
+          0.992
+        ]
+      }
+    },
+    {
+      "id": "BL-R1-05",
+      "file": "bl-r1-05.webp",
+      "crop": [
+        0,
+        0,
+        1609,
+        520
+      ],
+      "imageSize": [
+        1609,
+        520
+      ],
+      "normal": [
+        0,
+        0,
+        1
+      ],
+      "up": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "fit": "face",
+      "sourceKind": "site-photo-rectified",
+      "sourcePath": "data/stones/BL-R1-05/photos/2026-08盘点/BL-R1-05_120402807.jpg",
+      "sourceSha256": "7b6d46d93991c93babee6d47b720eca68f1e5627abce8a026e3f9360ca20ec1f",
+      "sourceImageSize": [
+        4096,
+        3072
+      ],
+      "sourceQuad": [
+        [
+          205,
+          1010
+        ],
+        [
+          3830,
+          965
+        ],
+        [
+          3775,
+          2125
+        ],
+        [
+          312,
+          2125
+        ]
+      ],
+      "focalLength35mm": 23.0,
+      "mappingEvidence": "2026-08盘点现场照片, 文件名前缀与 data/stones/BL-R1-05/photos 目录编号一致",
+      "rectification": {
+        "method": "homography",
+        "pixelsPerMetre": 1000,
+        "aspectSource": "photo-metric",
+        "camera": "pinhole, EXIF 35mm-equivalent focal length, principal point at image centre",
+        "photoMetricAspect": 3.0951,
+        "photoPixelAspect": 3.107,
+        "orthogonalityResidual": 0.0137,
+        "viewAngleDeg": 7.5,
+        "aspectSensitivity3px": 0.0028
+      },
+      "textureAspect": 3.0951,
+      "metaSizeCm": [
+        122,
+        52,
+        24
+      ],
+      "metaFaceAspect": 2.3462,
+      "modelFace": {
+        "kind": "upright",
+        "aspect": 3.0927,
+        "size": [
+          1.401,
+          0.453
+        ],
+        "worldNormal": [
+          -0.126,
+          0,
+          0.992
+        ]
+      }
+    },
+    {
+      "id": "BL-R1-06",
+      "file": "bl-r1-06.webp",
+      "crop": [
+        0,
+        0,
+        1631,
+        520
+      ],
+      "imageSize": [
+        1631,
+        520
+      ],
+      "normal": [
+        0,
+        0,
+        1
+      ],
+      "up": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "fit": "face",
+      "sourceKind": "site-photo-rectified",
+      "sourcePath": "data/stones/BL-R1-06/photos/2026-08盘点/BL-R1-06_120522781.jpg",
+      "sourceSha256": "2fd974767e7b934c828d7e6fb24ed2d440dada7057ad5059526c2dcb562026e7",
+      "sourceImageSize": [
+        4096,
+        3072
+      ],
+      "sourceQuad": [
+        [
+          150,
+          1040
+        ],
+        [
+          3840,
+          965
+        ],
+        [
+          3760,
+          2100
+        ],
+        [
+          230,
+          2190
+        ]
+      ],
+      "focalLength35mm": 23.0,
+      "mappingEvidence": "2026-08盘点现场照片, 文件名前缀与 data/stones/BL-R1-06/photos 目录编号一致",
+      "rectification": {
+        "method": "homography",
+        "pixelsPerMetre": 1000,
+        "aspectSource": "photo-metric",
+        "camera": "pinhole, EXIF 35mm-equivalent focal length, principal point at image centre",
+        "photoMetricAspect": 3.1366,
+        "photoPixelAspect": 3.1529,
+        "orthogonalityResidual": -0.0239,
+        "viewAngleDeg": 7.1,
+        "aspectSensitivity3px": 0.0028
+      },
+      "textureAspect": 3.1366,
+      "metaSizeCm": [
+        142,
+        52,
+        27
+      ],
+      "metaFaceAspect": 2.7308,
+      "modelFace": {
+        "kind": "upright",
+        "aspect": 3.1381,
+        "size": [
+          1.522,
+          0.485
+        ],
+        "worldNormal": [
+          -0.126,
+          0,
+          0.992
+        ]
+      }
+    },
+    {
+      "id": "BL-R1-07",
+      "file": "bl-r1-07.webp",
+      "crop": [
+        0,
+        0,
+        3072,
+        134
+      ],
+      "imageSize": [
+        3072,
+        134
+      ],
+      "normal": [
+        0,
+        0,
+        1
+      ],
+      "up": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "fit": "face",
+      "sourceKind": "site-photo-rectified",
+      "sourcePath": "data/stones/BL-R1-07/photos/2026-08盘点/BL-R1-07_120642909.jpg",
+      "sourceSha256": "d9c4073df79a2366372e24a4e51c3029273da38afec8481de4c425c4d7fad80d",
+      "sourceImageSize": [
+        4096,
+        3072
+      ],
+      "sourceQuad": [
+        [
+          315,
+          1500
+        ],
+        [
+          3722,
+          1452
+        ],
+        [
+          3715,
+          1612
+        ],
+        [
+          322,
+          1640
+        ]
+      ],
+      "focalLength35mm": 23.0,
+      "mappingEvidence": "2026-08盘点现场照片, 文件名前缀与 data/stones/BL-R1-07/photos 目录编号一致",
+      "rectification": {
+        "method": "homography",
+        "pixelsPerMetre": 1000,
+        "aspectSource": "photo-metric",
+        "camera": "pinhole, EXIF 35mm-equivalent focal length, principal point at image centre",
+        "photoMetricAspect": 22.8481,
+        "photoPixelAspect": 22.6434,
+        "orthogonalityResidual": -0.0172,
+        "viewAngleDeg": 10.1,
+        "aspectSensitivity3px": 0.0215
+      },
+      "textureAspect": 22.8481,
+      "metaSizeCm": [
+        248,
+        20,
+        15
+      ],
+      "metaFaceAspect": 12.4,
+      "modelFace": {
+        "kind": "upright",
+        "aspect": 22.5455,
+        "size": [
+          2.48,
+          0.11
+        ],
+        "worldNormal": [
+          -0.126,
+          0,
+          0.992
+        ]
+      }
+    },
+    {
+      "id": "BL-R1-08",
+      "file": "bl-r1-08.webp",
+      "crop": [
+        0,
+        0,
+        640,
+        1100
+      ],
+      "imageSize": [
+        640,
+        1100
+      ],
+      "normal": [
+        0,
+        0,
+        1
+      ],
+      "up": [
+        1.0,
+        0.0,
+        0.0
+      ],
+      "fit": "face",
+      "sourceKind": "site-photo-rectified",
+      "sourcePath": "data/stones/BL-R1-08/photos/2026-08盘点/BL-R1-08_121523255.jpg",
+      "sourceSha256": "54b89b879a42a5ff41709e10cda07becd43d6f6e17252c2d5fd4deec79fc33f9",
+      "sourceImageSize": [
+        3072,
+        4096
+      ],
+      "sourceQuad": [
+        [
+          540,
+          250
+        ],
+        [
+          2475,
+          320
+        ],
+        [
+          2410,
+          3445
+        ],
+        [
+          655,
+          3465
+        ]
+      ],
+      "focalLength35mm": 23.0,
+      "mappingEvidence": "2026-08盘点现场照片, 文件名前缀与 data/stones/BL-R1-08/photos 目录编号一致",
+      "rectification": {
+        "method": "homography",
+        "pixelsPerMetre": 1000,
+        "aspectSource": "photo-metric",
+        "camera": "pinhole, EXIF 35mm-equivalent focal length, principal point at image centre",
+        "photoMetricAspect": 0.5823,
+        "photoPixelAspect": 0.582,
+        "orthogonalityResidual": 0.0201,
+        "viewAngleDeg": 3.5,
+        "aspectSensitivity3px": 0.0019
+      },
+      "textureAspect": 0.5823,
+      "metaSizeCm": [
+        64,
+        110,
+        24
+      ],
+      "metaFaceAspect": 0.5818,
+      "modelFace": {
+        "kind": "upright-portrait",
+        "aspect": 0.5818,
+        "size": [
+          0.64,
+          1.1
+        ],
+        "worldNormal": [
+          -0.126,
+          0,
+          0.992
+        ]
+      }
+    },
+    {
+      "id": "BL-R1-09",
+      "file": "bl-r1-09.webp",
+      "crop": [
+        0,
+        0,
+        694,
+        1020
+      ],
+      "imageSize": [
+        694,
+        1020
+      ],
+      "normal": [
+        0,
+        0,
+        1
+      ],
+      "up": [
+        1.0,
+        0.0,
+        0.0
+      ],
+      "fit": "face",
+      "sourceKind": "site-photo-rectified",
+      "sourcePath": "data/stones/BL-R1-09/photos/2026-08盘点/BL-R1-09_120829311.jpg",
+      "sourceSha256": "be19ab1a1068d99f453ee79d0705f02bd1af66a96cd38bfe8f83e99b4c7850c1",
+      "sourceImageSize": [
+        3072,
+        4096
+      ],
+      "sourceQuad": [
+        [
+          585,
+          468
+        ],
+        [
+          2600,
+          520
+        ],
+        [
+          2460,
+          3218
+        ],
+        [
+          762,
+          3180
+        ]
+      ],
+      "focalLength35mm": 23.0,
+      "mappingEvidence": "2026-08盘点现场照片, 文件名前缀与 data/stones/BL-R1-09/photos 目录编号一致",
+      "rectification": {
+        "method": "homography",
+        "pixelsPerMetre": 1000,
+        "aspectSource": "photo-metric",
+        "camera": "pinhole, EXIF 35mm-equivalent focal length, principal point at image centre",
+        "photoMetricAspect": 0.6801,
+        "photoPixelAspect": 0.6853,
+        "orthogonalityResidual": 0.035,
+        "viewAngleDeg": 8.2,
+        "aspectSensitivity3px": 0.0021
+      },
+      "textureAspect": 0.6801,
+      "metaSizeCm": [
+        68,
+        102,
+        24
+      ],
+      "metaFaceAspect": 0.6667,
+      "modelFace": {
+        "kind": "upright-portrait",
+        "aspect": 0.6802,
+        "size": [
+          0.687,
+          1.01
+        ],
+        "worldNormal": [
+          -0.126,
+          0,
+          0.992
+        ]
+      }
+    },
+    {
+      "id": "BL-R1-10",
+      "file": "bl-r1-10.webp",
+      "crop": [
+        0,
+        0,
+        1358,
+        800
+      ],
+      "imageSize": [
+        1358,
+        800
+      ],
+      "normal": [
+        0,
+        0,
+        1
+      ],
+      "up": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "fit": "face",
+      "sourceKind": "site-photo-rectified",
+      "sourcePath": "data/stones/BL-R1-10/photos/2026-08盘点/BL-R1-10_121629870.jpg",
+      "sourceSha256": "3e66f62f90faca091d995eac66ac73c2336371b0f6cc2b1b275567844ed06b1a",
+      "sourceImageSize": [
+        4096,
+        3072
+      ],
+      "sourceQuad": [
+        [
+          395,
+          725
+        ],
+        [
+          3480,
+          560
+        ],
+        [
+          3630,
+          2640
+        ],
+        [
+          590,
+          2368
+        ]
+      ],
+      "focalLength35mm": 23.0,
+      "mappingEvidence": "2026-08盘点现场照片, 文件名前缀与 data/stones/BL-R1-10/photos 目录编号一致",
+      "rectification": {
+        "method": "homography",
+        "pixelsPerMetre": 1000,
+        "aspectSource": "photo-metric",
+        "camera": "pinhole, EXIF 35mm-equivalent focal length, principal point at image centre",
+        "photoMetricAspect": 1.6974,
+        "photoPixelAspect": 1.6422,
+        "orthogonalityResidual": 0.0992,
+        "viewAngleDeg": 16.7,
+        "aspectSensitivity3px": 0.0022
+      },
+      "textureAspect": 1.6974,
+      "metaSizeCm": [
+        140,
+        80,
+        13
+      ],
+      "metaFaceAspect": 1.75,
+      "modelFace": {
+        "kind": "upright",
+        "aspect": 1.6983,
+        "size": [
+          1.379,
+          0.812
+        ],
+        "worldNormal": [
+          -0.126,
+          0,
+          0.992
+        ]
+      }
+    },
+    {
+      "id": "BL-R1-11",
+      "file": "bl-r1-11.webp",
+      "crop": [
+        0,
+        0,
+        858,
+        950
+      ],
+      "imageSize": [
+        858,
+        950
+      ],
+      "normal": [
+        0,
+        0,
+        1
+      ],
+      "up": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "fit": "face",
+      "sourceKind": "site-photo-rectified",
+      "sourcePath": "data/stones/BL-R1-11/photos/2026-08盘点/BL-R1-11_121737828.jpg",
+      "sourceSha256": "d9672ae9b7f76c3e3777acaabe4a3d6d324ba1dd1f4c8b73387322c941969ac0",
+      "sourceImageSize": [
+        3072,
+        4096
+      ],
+      "sourceQuad": [
+        [
+          305,
+          870
+        ],
+        [
+          2745,
+          855
+        ],
+        [
+          2562,
+          3240
+        ],
+        [
+          612,
+          3145
+        ]
+      ],
+      "focalLength35mm": 23.0,
+      "mappingEvidence": "2026-08盘点现场照片, 文件名前缀与 data/stones/BL-R1-11/photos 目录编号一致",
+      "rectification": {
+        "method": "homography",
+        "pixelsPerMetre": 1000,
+        "aspectSource": "photo-metric",
+        "camera": "pinhole, EXIF 35mm-equivalent focal length, principal point at image centre",
+        "photoMetricAspect": 0.9032,
+        "photoPixelAspect": 0.937,
+        "orthogonalityResidual": 0.0349,
+        "viewAngleDeg": 17.6,
+        "aspectSensitivity3px": 0.0022
+      },
+      "textureAspect": 0.9032,
+      "metaSizeCm": [
+        84,
+        95,
+        19
+      ],
+      "metaFaceAspect": 0.8842,
+      "modelFace": {
+        "kind": "upright",
+        "aspect": 0.9032,
+        "size": [
+          0.849,
+          0.94
+        ],
+        "worldNormal": [
+          -0.126,
+          0,
+          0.992
+        ]
+      }
+    },
+    {
+      "id": "BL-R1-12",
+      "file": "bl-r1-12.webp",
+      "crop": [
+        0,
+        0,
+        1307,
+        290
+      ],
+      "imageSize": [
+        1307,
+        290
+      ],
+      "normal": [
+        0,
+        0,
+        1
+      ],
+      "up": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "fit": "face",
+      "sourceKind": "site-photo-rectified",
+      "sourcePath": "data/stones/BL-R1-12/photos/2026-08盘点/BL-R1-12_121919405.jpg",
+      "sourceSha256": "074e6650f5095be14021c58730a9b0623a0acac26a94c0bc82b6b2119b2321de",
+      "sourceImageSize": [
+        4096,
+        3072
+      ],
+      "sourceQuad": [
+        [
+          240,
+          1295
+        ],
+        [
+          3640,
+          1240
+        ],
+        [
+          3545,
+          1950
+        ],
+        [
+          478,
+          1900
+        ]
+      ],
+      "focalLength35mm": 23.0,
+      "mappingEvidence": "2026-08盘点现场照片, 文件名前缀与 data/stones/BL-R1-12/photos 目录编号一致",
+      "rectification": {
+        "method": "homography",
+        "pixelsPerMetre": 1000,
+        "aspectSource": "photo-metric",
+        "camera": "pinhole, EXIF 35mm-equivalent focal length, principal point at image centre",
+        "photoMetricAspect": 4.5053,
+        "photoPixelAspect": 4.7333,
+        "orthogonalityResidual": 0.0497,
+        "viewAngleDeg": 28.3,
+        "aspectSensitivity3px": 0.0053
+      },
+      "textureAspect": 4.5053,
+      "metaSizeCm": [
+        121,
+        29,
+        26
+      ],
+      "metaFaceAspect": 4.1724,
+      "modelFace": {
+        "kind": "upright",
+        "aspect": 4.5054,
+        "size": [
+          1.257,
+          0.279
+        ],
+        "worldNormal": [
+          -0.126,
+          0,
+          0.992
+        ]
+      }
+    },
+    {
+      "id": "BL-R1-13",
+      "file": "bl-r1-13.webp",
+      "crop": [
+        0,
+        0,
+        1001,
+        880
+      ],
+      "imageSize": [
+        1001,
+        880
+      ],
+      "normal": [
+        0,
+        0,
+        1
+      ],
+      "up": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "fit": "face",
+      "sourceKind": "site-photo-rectified",
+      "sourcePath": "data/stones/BL-R1-13/photos/2026-08盘点/BL-R1-13_121004422.jpg",
+      "sourceSha256": "eee4c77b5f679e11888fb5f62c6ed98b9ebc119f3e8b53db62cea4697faf3a4f",
+      "sourceImageSize": [
+        4096,
+        3072
+      ],
+      "sourceQuad": [
+        [
+          515,
+          445
+        ],
+        [
+          3550,
+          320
+        ],
+        [
+          3375,
+          2650
+        ],
+        [
+          988,
+          2628
+        ]
+      ],
+      "focalLength35mm": 23.0,
+      "mappingEvidence": "2026-08盘点现场照片, 文件名前缀与 data/stones/BL-R1-13/photos 目录编号一致",
+      "rectification": {
+        "method": "homography",
+        "pixelsPerMetre": 1000,
+        "aspectSource": "photo-metric",
+        "camera": "pinhole, EXIF 35mm-equivalent focal length, principal point at image centre",
+        "photoMetricAspect": 1.138,
+        "photoPixelAspect": 1.187,
+        "orthogonalityResidual": 0.0417,
+        "viewAngleDeg": 19.1,
+        "aspectSensitivity3px": 0.002
+      },
+      "textureAspect": 1.138,
+      "metaSizeCm": [
+        98,
+        88,
+        24
+      ],
+      "metaFaceAspect": 1.1136,
+      "modelFace": {
+        "kind": "upright",
+        "aspect": 1.1378,
+        "size": [
+          0.991,
+          0.871
+        ],
+        "worldNormal": [
+          -0.126,
+          0,
+          0.992
+        ]
+      }
+    },
+    {
+      "id": "BL-R2-01",
+      "file": "bl-r2-01.webp",
+      "crop": [
+        0,
+        0,
+        3072,
+        382
+      ],
+      "imageSize": [
+        3072,
+        382
+      ],
+      "normal": [
+        0,
+        0,
+        -1
+      ],
+      "up": [
+        0.0,
+        -1.0,
+        0.0
+      ],
+      "fit": "face",
+      "sourceKind": "site-photo-rectified",
+      "sourcePath": [
+        "data/stones/BL-R2-01/photos/2026-08盘点/BL-R2-01_123225790.jpg",
+        "data/stones/BL-R2-01/photos/2026-08盘点/BL-R2-01_123232627.jpg",
+        "data/stones/BL-R2-01/photos/2026-08盘点/BL-R2-01_123237574.jpg"
+      ],
+      "sourceSha256": [
+        "ad26adc9dfdfdbadcd8793535716144a05f1d01107f9dec1e745bcb1f61044a7",
+        "0d723025e523e8db47ff14049aa92c4d596129908086251fb8e2eca9caba2bd0",
+        "599edd236bb65c93ec6fb6635aa4990d915189fe4f7690f7fb4b0e694b54d11c"
+      ],
+      "sourceImageSize": [
+        4096,
+        3072
+      ],
+      "sourceQuad": [
+        [
+          [
+            150,
+            1110
+          ],
+          [
+            3855,
+            985
+          ],
+          [
+            3880,
+            2135
+          ],
+          [
+            95,
+            2140
+          ]
+        ],
+        [
+          [
+            520,
+            1090
+          ],
+          [
+            3800,
+            990
+          ],
+          [
+            3975,
+            2050
+          ],
+          [
+            60,
+            2245
+          ]
+        ],
+        [
+          [
+            1215,
+            965
+          ],
+          [
+            3395,
+            968
+          ],
+          [
+            3745,
+            2165
+          ],
+          [
+            630,
+            2210
+          ]
+        ]
+      ],
+      "focalLength35mm": 23.0,
+      "mappingEvidence": "2026-08盘点现场照片, 文件名前缀与 data/stones/BL-R2-01/photos 目录编号一致",
+      "rectification": {
+        "method": "homography",
+        "pixelsPerMetre": 1000,
+        "aspectSource": "meta-size_cm",
+        "camera": "pinhole, EXIF 35mm-equivalent focal length, principal point at image centre",
+        "photoMetricAspect": 8.2064,
+        "lengthScale": 0.981,
+        "segments": [
+          {
+            "plane": [
+              [
+                0.0,
+                0
+              ],
+              [
+                3.4808,
+                0
+              ],
+              [
+                3.4318,
+                1
+              ],
+              [
+                0.0,
+                1
+              ]
+            ],
+            "residual": 0.0,
+            "viewAngleDeg": 9.0
+          },
+          {
+            "plane": [
+              [
+                3.4808,
+                0
+              ],
+              [
+                6.359,
+                0
+              ],
+              [
+                6.0605,
+                1
+              ],
+              [
+                3.4318,
+                1
+              ]
+            ],
+            "residual": 0.0,
+            "viewAngleDeg": 33.7
+          },
+          {
+            "plane": [
+              [
+                6.359,
+                0
+              ],
+              [
+                8.1847,
+                0
+              ],
+              [
+                8.2282,
+                1
+              ],
+              [
+                6.0605,
+                1
+              ]
+            ],
+            "residual": 0.0,
+            "viewAngleDeg": 23.4
+          }
+        ],
+        "segmentShare": [
+          0.4253,
+          0.3517,
+          0.2231
+        ]
+      },
+      "textureAspect": 8.0508,
+      "metaSizeCm": [
+        475,
+        59,
+        19
+      ],
+      "metaFaceAspect": 8.0508,
+      "modelFace": {
+        "kind": "lying",
+        "aspect": 8.0508,
+        "size": [
+          4.75,
+          0.59
+        ],
+        "worldNormal": [
+          0,
+          1,
+          0
+        ]
+      },
+      "note": "断为三段, 每段单独标注, 以两条裂缝为公共边拼接"
+    },
+    {
+      "id": "BL-R2-02",
+      "file": "bl-r2-02.webp",
+      "crop": [
+        0,
+        0,
+        1500,
+        560
+      ],
+      "imageSize": [
+        1500,
+        560
+      ],
+      "normal": [
+        0,
+        0,
+        1
+      ],
+      "up": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "fit": "face",
+      "sourceKind": "site-photo-rectified",
+      "sourcePath": "data/stones/BL-R2-02/photos/2026-08盘点/BL-R2-02_12233122.jpg",
+      "sourceSha256": "bd6a53f94a9757d683b9445fdb5fd834488c05b4fe4a6a03e90aef0da89e3e14",
+      "sourceImageSize": [
+        4096,
+        3072
+      ],
+      "sourceQuad": [
+        [
+          600,
+          832
+        ],
+        [
+          3590,
+          848
+        ],
+        [
+          3625,
+          1415
+        ],
+        [
+          405,
+          1465
+        ]
+      ],
+      "focalLength35mm": 23.0,
+      "mappingEvidence": "2026-08盘点现场照片, 文件名前缀与 data/stones/BL-R2-02/photos 目录编号一致",
+      "rectification": {
+        "method": "homography",
+        "pixelsPerMetre": 1000,
+        "aspectSource": "meta-size_cm",
+        "camera": "pinhole, EXIF 35mm-equivalent focal length, principal point at image centre",
+        "photoMetricAspect": 4.7213,
+        "photoPixelAspect": 5.0473,
+        "orthogonalityResidual": -0.1576,
+        "viewAngleDeg": 26.0,
+        "aspectSensitivity3px": 0.006
+      },
+      "textureAspect": 2.6786,
+      "metaSizeCm": [
+        150,
+        56,
+        28
+      ],
+      "metaFaceAspect": 2.6786,
+      "modelFace": {
+        "kind": "upright",
+        "aspect": 2.6786,
+        "size": [
+          1.5,
+          0.56
+        ],
+        "worldNormal": [
+          -0.126,
+          0,
+          0.992
+        ]
+      },
+      "note": "现场为厚石块平放, 标注的是朝上的 150×56 雕刻面(俯拍斜视, 宽高比取实测尺寸); 现模型按竖放建模, 该面贴到模型正面(+Z)"
+    },
+    {
+      "id": "BL-R2-03",
+      "file": "bl-r2-03.webp",
+      "crop": [
+        0,
+        0,
+        1744,
+        580
+      ],
+      "imageSize": [
+        1744,
+        580
+      ],
+      "normal": [
+        0,
+        0,
+        1
+      ],
+      "up": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "fit": "face",
+      "sourceKind": "site-photo-rectified",
+      "sourcePath": "data/stones/BL-R2-03/photos/2026-08盘点/BL-R2-03_122512405.jpg",
+      "sourceSha256": "fcfe0d48082218da469298795761e694ecdbf2ed6eaccc21b75669d90514e2b1",
+      "sourceImageSize": [
+        4096,
+        3072
+      ],
+      "sourceQuad": [
+        [
+          385,
+          715
+        ],
+        [
+          3870,
+          738
+        ],
+        [
+          3760,
+          1825
+        ],
+        [
+          545,
+          1855
+        ]
+      ],
+      "focalLength35mm": 23.0,
+      "mappingEvidence": "2026-08盘点现场照片, 文件名前缀与 data/stones/BL-R2-03/photos 目录编号一致",
+      "rectification": {
+        "method": "homography",
+        "pixelsPerMetre": 1000,
+        "aspectSource": "photo-metric",
+        "camera": "pinhole, EXIF 35mm-equivalent focal length, principal point at image centre",
+        "photoMetricAspect": 3.007,
+        "photoPixelAspect": 2.9862,
+        "orthogonalityResidual": 0.0289,
+        "viewAngleDeg": 8.1,
+        "aspectSensitivity3px": 0.0029
+      },
+      "textureAspect": 3.007,
+      "metaSizeCm": [
+        168,
+        58,
+        26
+      ],
+      "metaFaceAspect": 2.8966,
+      "modelFace": {
+        "kind": "upright",
+        "aspect": 3.0088,
+        "size": [
+          1.712,
+          0.569
+        ],
+        "worldNormal": [
+          -0.126,
+          0,
+          0.992
+        ]
+      }
+    },
+    {
+      "id": "BL-R2-04",
+      "file": "bl-r2-04.webp",
+      "crop": [
+        0,
+        0,
+        2020,
+        550
+      ],
+      "imageSize": [
+        2020,
+        550
+      ],
+      "normal": [
+        0,
+        0,
+        -1
+      ],
+      "up": [
+        0.0,
+        -1.0,
+        0.0
+      ],
+      "fit": "face",
+      "sourceKind": "site-photo-rectified",
+      "sourcePath": "data/stones/BL-R2-04/photos/2026-08盘点/BL-R2-04_122642803.jpg",
+      "sourceSha256": "739de0b720ddf7c7af4200d5b03bb8ccaf49d31e8fe5fdb82b6bd2ebd9308b46",
+      "sourceImageSize": [
+        4096,
+        3072
+      ],
+      "sourceQuad": [
+        [
+          280,
+          1180
+        ],
+        [
+          3870,
+          1125
+        ],
+        [
+          3900,
+          1455
+        ],
+        [
+          250,
+          1432
+        ]
+      ],
+      "focalLength35mm": 23.0,
+      "mappingEvidence": "2026-08盘点现场照片, 文件名前缀与 data/stones/BL-R2-04/photos 目录编号一致",
+      "rectification": {
+        "method": "homography",
+        "pixelsPerMetre": 1000,
+        "aspectSource": "meta-size_cm",
+        "camera": "pinhole, EXIF 35mm-equivalent focal length, principal point at image centre",
+        "photoMetricAspect": 12.5713,
+        "photoPixelAspect": 12.3739,
+        "orthogonalityResidual": 0.0284,
+        "viewAngleDeg": 21.0,
+        "aspectSensitivity3px": 0.0127
+      },
+      "textureAspect": 3.6727,
+      "metaSizeCm": [
+        202,
+        55,
+        32
+      ],
+      "metaFaceAspect": 3.6727,
+      "modelFace": {
+        "kind": "lying",
+        "aspect": 3.6727,
+        "size": [
+          2.02,
+          0.55
+        ],
+        "worldNormal": [
+          0,
+          1,
+          0
+        ]
+      },
+      "note": "平放石块的顶面, 照片视角很低, 顶面纵向仅约 300 像素, 矫正后纵向分辨率有限"
+    },
+    {
+      "id": "BL-R2-05",
+      "file": "bl-r2-05.webp",
+      "crop": [
+        0,
+        0,
+        3072,
+        514
+      ],
+      "imageSize": [
+        3072,
+        514
+      ],
+      "normal": [
+        0,
+        0,
+        -1
+      ],
+      "up": [
+        0.0,
+        -1.0,
+        0.0
+      ],
+      "fit": "face",
+      "sourceKind": "site-photo-rectified",
+      "sourcePath": [
+        "data/stones/BL-R2-05/photos/2026-08盘点/BL-R2-05_123317159.jpg",
+        "data/stones/BL-R2-05/photos/2026-08盘点/BL-R2-05_123323608.jpg"
+      ],
+      "sourceSha256": [
+        "bc27b16acf50831fae92035bbc22ebae89909d30b881624be2e9669e475c8a48",
+        "6bd05af21e48ac8b620c06f05b0fc3f74ca7547d3cb9b77cb3bc829fa5fe5d45"
+      ],
+      "sourceImageSize": [
+        4096,
+        3072
+      ],
+      "sourceQuad": [
+        [
+          [
+            185,
+            1148
+          ],
+          [
+            3798,
+            1105
+          ],
+          [
+            3885,
+            2090
+          ],
+          [
+            45,
+            2062
+          ]
+        ],
+        [
+          [
+            490,
+            1080
+          ],
+          [
+            3845,
+            1045
+          ],
+          [
+            3985,
+            2205
+          ],
+          [
+            70,
+            2210
+          ]
+        ]
+      ],
+      "focalLength35mm": 23.0,
+      "mappingEvidence": "2026-08盘点现场照片, 文件名前缀与 data/stones/BL-R2-05/photos 目录编号一致",
+      "rectification": {
+        "method": "homography",
+        "pixelsPerMetre": 1000,
+        "aspectSource": "meta-size_cm",
+        "camera": "pinhole, EXIF 35mm-equivalent focal length, principal point at image centre",
+        "photoMetricAspect": 6.7312,
+        "lengthScale": 0.8887,
+        "segments": [
+          {
+            "plane": [
+              [
+                0.0,
+                0
+              ],
+              [
+                3.8942,
+                0
+              ],
+              [
+                3.857,
+                1
+              ],
+              [
+                0.0,
+                1
+              ]
+            ],
+            "residual": 0.0,
+            "viewAngleDeg": 12.2
+          },
+          {
+            "plane": [
+              [
+                3.8942,
+                0
+              ],
+              [
+                6.8298,
+                0
+              ],
+              [
+                6.6326,
+                1
+              ],
+              [
+                3.857,
+                1
+              ]
+            ],
+            "residual": 0.0,
+            "viewAngleDeg": 26.4
+          }
+        ],
+        "segmentShare": [
+          0.5702,
+          0.4298
+        ]
+      },
+      "textureAspect": 5.9821,
+      "metaSizeCm": [
+        335,
+        56,
+        23
+      ],
+      "metaFaceAspect": 5.9821,
+      "modelFace": {
+        "kind": "lying",
+        "aspect": 5.9821,
+        "size": [
+          3.35,
+          0.56
+        ],
+        "worldNormal": [
+          0,
+          1,
+          0
+        ]
+      },
+      "note": "断为两段, 以裂缝为公共边拼接"
+    },
+    {
+      "id": "BL-R2-06",
+      "file": "bl-r2-06.webp",
+      "crop": [
+        0,
+        0,
+        2283,
+        480
+      ],
+      "imageSize": [
+        2283,
+        480
+      ],
+      "normal": [
+        0,
+        0,
+        1
+      ],
+      "up": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "fit": "face",
+      "sourceKind": "site-photo-rectified",
+      "sourcePath": "data/stones/BL-R2-06/photos/2026-08盘点/BL-R2-06_123011862.jpg",
+      "sourceSha256": "2925792e10647d3fa4a17d04576305ab590497cc92f07d2db7a6fa64f784606a",
+      "sourceImageSize": [
+        4096,
+        3072
+      ],
+      "sourceQuad": [
+        [
+          90,
+          1078
+        ],
+        [
+          3795,
+          1130
+        ],
+        [
+          3785,
+          1888
+        ],
+        [
+          80,
+          1878
+        ]
+      ],
+      "focalLength35mm": 23.0,
+      "mappingEvidence": "2026-08盘点现场照片, 文件名前缀与 data/stones/BL-R2-06/photos 目录编号一致",
+      "rectification": {
+        "method": "homography",
+        "pixelsPerMetre": 1000,
+        "aspectSource": "photo-metric",
+        "camera": "pinhole, EXIF 35mm-equivalent focal length, principal point at image centre",
+        "photoMetricAspect": 4.7554,
+        "photoPixelAspect": 4.7559,
+        "orthogonalityResidual": -0.0051,
+        "viewAngleDeg": 1.3,
+        "aspectSensitivity3px": 0.0039
+      },
+      "textureAspect": 4.7554,
+      "metaSizeCm": [
+        217,
+        34,
+        48
+      ],
+      "metaFaceAspect": 4.5208,
+      "modelFace": {
+        "kind": "upright",
+        "aspect": 4.7564,
+        "size": [
+          2.226,
+          0.468
+        ],
+        "worldNormal": [
+          -0.126,
+          0,
+          0.992
+        ]
+      },
+      "note": "meta size_cm 为 217×34×48, 竖放可见的雕刻面为 217×48, 34 为厚度"
+    },
+    {
+      "id": "BL-R2-07",
+      "file": "bl-r2-07.webp",
+      "crop": [
+        0,
+        0,
+        1160,
+        1000
+      ],
+      "imageSize": [
+        1160,
+        1000
+      ],
+      "normal": [
+        0,
+        0,
+        -1
+      ],
+      "up": [
+        0.0,
+        -1.0,
+        0.0
+      ],
+      "fit": "face",
+      "sourceKind": "site-photo-rectified",
+      "sourcePath": "data/stones/BL-R2-07/photos/2026-08盘点/BL-R2-07_123116876.jpg",
+      "sourceSha256": "b700faa753764ecb5cf674b49cca10755ce5b37e3f17750f6c40e42d6d0854fb",
+      "sourceImageSize": [
+        4096,
+        3072
+      ],
+      "sourceQuad": [
+        [
+          698,
+          486
+        ],
+        [
+          3265,
+          432
+        ],
+        [
+          3555,
+          2695
+        ],
+        [
+          355,
+          2758
+        ]
+      ],
+      "focalLength35mm": 23.0,
+      "mappingEvidence": "2026-08盘点现场照片, 文件名前缀与 data/stones/BL-R2-07/photos 目录编号一致",
+      "rectification": {
+        "method": "homography",
+        "pixelsPerMetre": 1000,
+        "aspectSource": "meta-size_cm",
+        "camera": "pinhole, EXIF 35mm-equivalent focal length, principal point at image centre",
+        "photoMetricAspect": 1.2214,
+        "photoPixelAspect": 1.2596,
+        "orthogonalityResidual": -0.0233,
+        "viewAngleDeg": 16.4,
+        "aspectSensitivity3px": 0.0019
+      },
+      "textureAspect": 1.16,
+      "metaSizeCm": [
+        116,
+        100,
+        19
+      ],
+      "metaFaceAspect": 1.16,
+      "modelFace": {
+        "kind": "lying",
+        "aspect": 1.16,
+        "size": [
+          1.16,
+          1
+        ],
+        "worldNormal": [
+          0,
+          1,
+          0
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+# Direct main-runtime consumers. Exact versions: main.constraints.txt.
+# The full main.lock.txt also records transitives and retained authoring packages.
+fastapi
+uvicorn
+SQLAlchemy
+pydantic
+pillow
+python-multipart
+requests
+httpx
+psutil
+pypdfium2
+numpy
+sentence-transformers
+torch
+torchvision
+transformers
+sam3
+mobile_sam
+safetensors
+opencv-python
+rapidocr-onnxruntime
+onnxruntime
+shapely
+ezdxf
+matplotlib
