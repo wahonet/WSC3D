@@ -8,7 +8,8 @@ import pypdfium2 as pdfium
 sys.stdout.reconfigure(encoding='utf-8')
 import sys
 sys.path.insert(0,str(Path(__file__).resolve().parent))
-from project import stone_dir, stone_file, source_path, node_binary
+from project import stone_dir, stone_file, source_path, source_files, node_binary
+from app.resource_paths import iter_resource_files, resource_metadata
 ROOT=Path(__file__).resolve().parents[2]
 OUT=ROOT / 'resources/authoring/courtyard'
 SOURCE=ROOT / 'resources/sources/site-survey'
@@ -21,11 +22,14 @@ def digest(p):return hashlib.sha256(p.read_bytes()).hexdigest()
 # preferred-model pointers, layouts and image mappings are also hashed.
 inventory=[]
 for folder in ['resources/stones','data/layouts']:
- for p in (source_path(folder)).rglob('*'):
-  if p.is_file():
+ for p in iter_resource_files(source_path(folder)):
+  packed=resource_metadata(p)
+  if packed:
+   item=dict(path=p.relative_to(ROOT).as_posix(),bytes=packed['bytes'],mtime_ns=packed['mtime_ns'],sha256=packed['sha256'])
+  else:
    st=p.stat();item=dict(path=p.relative_to(ROOT).as_posix(),bytes=st.st_size,mtime_ns=st.st_mtime_ns)
    if p.suffix.lower() in ['.json','.md','.txt']:item['sha256']=digest(p)
-   inventory.append(item)
+  inventory.append(item)
 protected=OUT/'before/archive-inventory.json'
 if not protected.exists():write(protected,inventory)
 code=['src/frontend/src/archive/three/buildSite.ts','src/frontend/src/archive/three/SiteStage.tsx','src/frontend/src/archive/three/interactions.ts',
@@ -43,9 +47,8 @@ write(OUT/'scene/stone-texture-manifest.json',{'entries':entries})
 
 sources=[]
 for folder in ['CAD图纸','现场参考照片']:
- for p in (SOURCE/folder).rglob('*'):
-  if not p.is_file():continue
-  item=dict(path=p.relative_to(SOURCE).as_posix(),bytes=p.stat().st_size,sha256=digest(p))
+ for logical,p in source_files(SOURCE/folder):
+  item=dict(path=logical.relative_to(SOURCE).as_posix(),bytes=p.stat().st_size,sha256=digest(p))
   if p.suffix.lower()=='.pdf':
    doc=pdfium.PdfDocument(str(p));item['pages']=len(doc)
    texts=[]
@@ -56,7 +59,7 @@ for folder in ['CAD图纸','现场参考照片']:
   if p.suffix.lower()=='.dwg':item['format_signature']=p.open('rb').read(6).decode('ascii')
   sources.append(item)
 write(OUT/'reference/source-manifest.json',sources)
-doc=ezdxf.readfile(SOURCE/'CAD图纸/武氏祠石刻布置图.dxf')
+doc=ezdxf.readfile(source_path(SOURCE/'CAD图纸/武氏祠石刻布置图.dxf'))
 model=doc.modelspace();texts=[]
 for entity in model:
  if entity.dxftype() in ['TEXT','MTEXT']:

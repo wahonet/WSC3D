@@ -1,6 +1,7 @@
 """Real SQLite/file round trips and protection against conflicting USB edits."""
 from contextlib import closing
 from pathlib import Path
+import hashlib
 import json
 import shutil
 import sqlite3
@@ -18,6 +19,9 @@ class HandoverTests(unittest.TestCase):
     def setUp(self):
         self.temp=tempfile.TemporaryDirectory(prefix='wsc-handover-test-')
         self.base=Path(self.temp.name); self.a=self.base/'A'; self.b=self.base/'B'
+        self.cache_env=patch.dict('os.environ',{'LOCALAPPDATA':str(self.base/'cache'),
+                                              'WSC_CACHE_ROOT':str(self.base/'cache/resources')})
+        self.cache_env.start()
         for name in ('config','data/layouts','data/library','resources/stones/示例__武001/images','src/backend','src/frontend'):
             (self.a/name).mkdir(parents=True,exist_ok=True)
         (self.a/'config/project.json').write_text('{"layout_version":3}')
@@ -25,12 +29,16 @@ class HandoverTests(unittest.TestCase):
         (self.a/'src/backend/source.py').write_text('version=3')
         (self.a/'data/layouts/xcl.json').write_text('{"position":0}')
         (self.a/'resources/stones/示例__武001/images/a.bin').write_bytes(b'unchanged original')
+        self.original='resources/stones/示例__武001/images/original.tif'
+        (self.a/self.original).write_bytes(b'original TIFF content')
         with closing(sqlite3.connect(self.a/transfer.DB)) as db:
             db.execute('CREATE TABLE annotations(id INTEGER PRIMARY KEY AUTOINCREMENT,label TEXT)')
             db.execute("INSERT INTO annotations(label) VALUES('original')"); db.commit()
         transfer.initialize(self.a); shutil.copytree(self.a,self.b)
 
-    def tearDown(self): self.temp.cleanup()
+    def tearDown(self):
+        self.cache_env.stop()
+        self.temp.cleanup()
 
     def edit(self,root,label):
         with closing(sqlite3.connect(root/transfer.DB)) as db:
@@ -38,6 +46,137 @@ class HandoverTests(unittest.TestCase):
 
     def export(self,root,name):
         package=self.base/name; transfer.export_package(root,package); return package
+
+    def pack(self,root,names):
+        """Create a tiny real pack, without invoking the production packer."""
+        folder=(root/transfer.MANIFEST_REL).parent
+        folder.mkdir(parents=True,exist_ok=True)
+        package=folder/'test-resources.zip'; entries={}
+        with zipfile.ZipFile(package,'w',compression=zipfile.ZIP_DEFLATED) as archive:
+            for name in names:
+                path=root/name; content=path.read_bytes(); stat=path.stat()
+                archive.writestr(name,content)
+                entries[name]={'pack':package.name,'member':name,
+                               'sha256':hashlib.sha256(content).hexdigest(),'bytes':len(content),
+                               'mtime_ns':stat.st_mtime_ns,'width':1,'height':1,'fmt':'TIFF'}
+        transfer.write_json(root/transfer.MANIFEST_REL,{
+            'format':'wsc-resource-packs-1','files':entries,
+            'packs':{package.name:{'sha256':transfer.digest(package),'bytes':package.stat().st_size}}})
+        for name in names: (root/name).unlink()
+        return package
+
+    def test_packing_preserves_logical_fingerprint_and_handover_baseline(self):
+        before=transfer.capture(self.a); state=(self.a/transfer.STATE).read_bytes()
+        self.pack(self.a,[self.original])
+        self.assertEqual(before,transfer.capture(self.a))
+        self.assertEqual(state,(self.a/transfer.STATE).read_bytes())
+        package=self.export(self.a,'packed-unchanged.zip')
+        with zipfile.ZipFile(package) as archive:
+            self.assertEqual(set(archive.namelist()),{'handover.json',transfer.DB})
+        self.assertTrue(transfer.import_package(self.b,package)['already_imported'])
+
+    def test_new_packed_original_exports_as_original_file(self):
+        name='resources/stones/示例__武001/images/new.tif'
+        content=b'new independently packed TIFF'
+        (self.a/name).write_bytes(content)
+        self.pack(self.a,[name])
+        package=self.export(self.a,'packed-new.zip')
+        with zipfile.ZipFile(package) as archive:
+            self.assertEqual(archive.read(name),content)
+            self.assertFalse(any(n.startswith('runtime/') for n in archive.namelist()))
+        self.assertTrue(transfer.import_package(self.b,package)['imported'])
+        self.assertEqual((self.b/name).read_bytes(),content)
+        self.assertFalse((self.a/name).exists())
+        self.assertEqual(transfer.capture(self.a),transfer.capture(self.b))
+
+    def test_loose_file_overrides_a_packed_original_when_exporting(self):
+        self.pack(self.a,[self.original])
+        (self.a/self.original).write_bytes(b'updated original')
+        package=self.export(self.a,'packed-override.zip')
+        with zipfile.ZipFile(package) as archive:
+            self.assertEqual(archive.read(self.original),b'updated original')
+        transfer.import_package(self.b,package)
+        self.assertEqual(transfer.capture(self.a),transfer.capture(self.b))
+        self.assertNotIn(self.original,transfer.archived_entries(self.a))
+        (self.a/self.original).unlink()
+        transfer.import_package(self.b,self.export(self.a,'delete-sender-override.zip'))
+        self.assertNotIn(self.original,transfer.capture(self.a)['files'])
+        self.assertEqual(transfer.capture(self.a),transfer.capture(self.b))
+
+    def test_packed_recipient_accepts_replacement_then_deletion(self):
+        self.pack(self.b,[self.original])
+        (self.a/self.original).write_bytes(b'replacement TIFF')
+        transfer.import_package(self.b,self.export(self.a,'packed-replacement.zip'))
+        self.assertEqual((self.b/self.original).read_bytes(),b'replacement TIFF')
+        self.assertNotIn(self.original,transfer.archived_entries(self.b))
+        (self.b/self.original).unlink()
+        transfer.import_package(self.a,self.export(self.b,'delete-replacement.zip'))
+        self.assertNotIn(self.original,transfer.capture(self.b)['files'])
+        self.assertEqual(transfer.capture(self.a),transfer.capture(self.b))
+
+    def test_deletion_on_packed_sender_and_recipient_does_not_resurrect(self):
+        self.pack(self.a,[self.original]); self.pack(self.b,[self.original])
+        transfer.forget_archived([self.original],self.a)
+        package=self.export(self.a,'packed-deletion.zip')
+        with zipfile.ZipFile(package) as archive:
+            self.assertIn(self.original,json.loads(archive.read('handover.json'))['removed'])
+        transfer.import_package(self.b,package)
+        self.assertNotIn(self.original,transfer.archived_entries(self.b))
+        self.assertNotIn(self.original,transfer.capture(self.b)['files'])
+        self.assertEqual(transfer.capture(self.a),transfer.capture(self.b))
+
+    def test_missing_pack_is_an_error_not_a_resource_deletion(self):
+        package=self.pack(self.a,[self.original]); package.unlink()
+        with self.assertRaises(FileNotFoundError): transfer.capture(self.a)
+
+    def test_handover_backup_retains_original_after_unused_pack_cleanup(self):
+        import compact_resources
+        for action in ('replace','delete'):
+            with self.subTest(action=action):
+                source=self.base/(action+'-backup-source'); target=self.base/(action+'-backup-target')
+                shutil.copytree(self.a,source); shutil.copytree(self.b,target)
+                old_pack=self.pack(target,[self.original])
+                if action=='replace': (source/self.original).write_bytes(b'replacement TIFF')
+                else: (source/self.original).unlink()
+                package=self.export(source,action+'-backup.zip')
+                result=transfer.import_package(target,package)
+                backup=Path(result['backup'])
+                receipt=json.loads((backup/'receipt.json').read_text(encoding='utf-8'))
+                self.assertIn(self.original,receipt['archived_files'])
+                # Cleanup is a subsequent maintenance operation under the same
+                # workspace lock; the saved original must not depend on its pack.
+                with workspace_lock(target/'data'):
+                    self.assertEqual(compact_resources.remove_unreferenced(target),1)
+                self.assertFalse(old_pack.exists())
+                self.assertEqual((backup/self.original).read_bytes(),b'original TIFF content')
+                self.assertEqual(transfer.capture(source),transfer.capture(target))
+
+    def test_failed_packed_import_restores_manifest_and_original_content(self):
+        # Exercise both physical replacement rollback and logical deletion rollback.
+        for action in ('replace','delete'):
+            with self.subTest(action=action):
+                source=self.base/(action+'-source'); target=self.base/(action+'-target')
+                shutil.copytree(self.a,source); shutil.copytree(self.b,target)
+                self.pack(target,[self.original])
+                before=transfer.capture(target)
+                old_manifest=(target/transfer.MANIFEST_REL).read_bytes()
+                if action=='replace': (source/self.original).write_bytes(b'new TIFF')
+                else: (source/self.original).unlink()
+                self.edit(source,'new annotation')
+                package=self.export(source,action+'-failure.zip')
+                replace=transfer.os.replace
+                def fail(src,dst):
+                    if str(src).endswith('.handover-tmp') and str(dst).endswith('stonelab.db'):
+                        raise OSError('simulated disk failure')
+                    return replace(src,dst)
+                with patch.object(transfer.os,'replace',side_effect=fail):
+                    with self.assertRaisesRegex(OSError,'disk failure'):
+                        transfer.import_package(target,package)
+                self.assertEqual(old_manifest,(target/transfer.MANIFEST_REL).read_bytes())
+                self.assertFalse((target/self.original).exists())
+                self.assertEqual(before,transfer.capture(target))
+                self.assertEqual(transfer.extract_resource(target/self.original,target).read_bytes(),
+                                 b'original TIFF content')
 
     def test_creative_results_and_video_jobs_transfer_without_credentials(self):
         files = {'data/creative.sqlite3': b'creative records',

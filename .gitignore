@@ -10,6 +10,7 @@ node_modules/
 # Build output, bundled binaries and model weights
 /build/
 /runtime/*.zip
+/runtime/resource-packs/
 /models/
 
 # Original resources and research data stay with the local dataset

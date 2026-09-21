@@ -15,6 +15,7 @@ sys.stdout.reconfigure(encoding='utf-8')
 import sys
 sys.path.insert(0,str(Path(__file__).resolve().parent))
 from project import stone_dir, stone_file, source_path, node_binary
+from app.resource_paths import logical_resource_path
 ROOT = Path(__file__).resolve().parents[2]
 OUT = ROOT / 'resources/authoring/hall-textures'
 DEST = ROOT / 'resources/scenes/textures/stones'
@@ -93,7 +94,7 @@ def main():
         entry = dict(id=spec['id'], faceKey=spec['face'], faceLabel=spec['label'],
             file=file, imageSize=list(rect.size), crop=[0,0,*rect.size], fit='face',
             normal=spec['normal'], up=spec['up'], primaryFace=spec['primary'], focusLift=spec.get('focusLift',.25),
-            sourceKind='supplied-photograph', sourcePath=path.relative_to(ROOT).as_posix(),
+            sourceKind='supplied-photograph', sourcePath=logical_resource_path(path).relative_to(ROOT).as_posix(),
             sourceSha256=hashlib.sha256(path.read_bytes()).hexdigest(), sourceVersion=item['version'],
             sourceOriginal=item['original'], sourceLandmarks=spec.get('quad',spec.get('polygon')),
             targetPerimeter=perimeter, imageRotationDeg=spec.get('rotate',0),

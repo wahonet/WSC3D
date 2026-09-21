@@ -57,7 +57,7 @@
     },
     {
       "path": "resources/sources/site-survey/定级材料/武氏墓群石刻博物馆定级报告.pdf",
-      "target": "resources/imports/20260907/武氏墓群石刻博物馆定级报告.pdf",
+      "target": "resources/reference/报告与说明/定级报告/武氏墓群石刻博物馆定级报告.pdf",
       "sha256": "a086f7404ad8b5a17a0689304795368db83cfdf1ea6b74b649cf60efad25694d",
       "bytes": 12683046
     },
@@ -5802,6 +5802,228 @@
       "target": "resources/stones/泗河捞鼎图__武126/versions/483/b700faa753764ecb5cf674b49cca10755ce5b37e3f17750f6c40e42d6d0854fb/BL-R2-07_123116876.jpg",
       "sha256": "b700faa753764ecb5cf674b49cca10755ce5b37e3f17750f6c40e42d6d0854fb",
       "bytes": 6940337
+    },
+    {
+      "path": "resources/sources/site-survey/CAD图纸/ABCDEFG.dwg",
+      "target": "resources/reference/测绘与CAD/院落测绘/ABCDEFG.dwg",
+      "sha256": "005ee63d0d6fa68007abeda942ce5adfac6d9732a93d8dbe326588fa705e6599",
+      "bytes": 39541676
+    },
+    {
+      "path": "resources/sources/site-survey/CAD图纸/武氏祠整体CAD.pdf",
+      "target": "resources/reference/测绘与CAD/院落测绘/武氏祠整体CAD.pdf",
+      "sha256": "3a6c844b51530676ac7d5cf795dccba14dc4e7afef91cef211e6cc18e929c1d5",
+      "bytes": 7615285
+    },
+    {
+      "path": "resources/sources/site-survey/CAD图纸/武氏祠石刻布置图.dxf",
+      "target": "resources/reference/测绘与CAD/院落测绘/武氏祠石刻布置图.dxf",
+      "sha256": "b2ec232b3df4ac1d1c53d68ff6e6229729485c951f898103bd25e6c98a0ab936",
+      "bytes": 2526671
+    },
+    {
+      "path": "resources/sources/site-survey/CAD图纸/院落环境CAD.pdf",
+      "target": "resources/reference/测绘与CAD/院落测绘/院落环境CAD.pdf",
+      "sha256": "3742b39ba2f5599a6a95910df0c02ea25a498f29f95acd4aa16d91c350dd2cf1",
+      "bytes": 65872393
+    },
+    {
+      "path": "resources/sources/site-survey/名录文档/画像石尺寸_武氏祠画像石一览表(新).doc",
+      "target": "resources/reference/报告与说明/名录与尺寸/画像石尺寸_武氏祠画像石一览表(新).doc",
+      "sha256": "48347ac193a229bff1a477d0cd2857d6d5145e2d3a34265eba94b45c2859e5f7",
+      "bytes": 162304
+    },
+    {
+      "path": "resources/sources/site-survey/现场参考照片/前展厅/370829-0308_T005_嘉祥武氏墓群石刻阙室、西长廊、陈列室平面示意图.jpeg",
+      "target": "resources/reference/测绘与CAD/展厅平面/370829-0308_T005_嘉祥武氏墓群石刻阙室、西长廊、陈列室平面示意图.jpeg",
+      "sha256": "e794922740436cdc3a30f54f4f2743e1afe42f8d0359c503db6ca74b4c01e516",
+      "bytes": 684631
+    },
+    {
+      "path": "resources/sources/site-survey/现场参考照片/前展厅/6、武氏墓群石刻博物馆阙室展厅子母阙.JPG",
+      "target": "resources/reference/现场参考照片/前展厅/6、武氏墓群石刻博物馆阙室展厅子母阙.JPG",
+      "sha256": "6fb5080d881ca93970c792eb3d6d3ef19a7838dc4b4ad3301789212e0e0598b1",
+      "bytes": 5932525
+    },
+    {
+      "path": "resources/sources/site-survey/现场参考照片/前展厅/武氏墓群石刻阙室展厅外景.JPG",
+      "target": "resources/reference/现场参考照片/前展厅/武氏墓群石刻阙室展厅外景.JPG",
+      "sha256": "9022c0b3da9c5b554d0ede856f226f30e6aaaf0e0b83e945ce94223b9c030f1f",
+      "bytes": 4770996
+    },
+    {
+      "path": "resources/sources/site-survey/现场参考照片/前展厅/武氏祠景区阙室.jpg",
+      "target": "resources/reference/现场参考照片/前展厅/武氏祠景区阙室.jpg",
+      "sha256": "496fe9c57abc9f7cd58b0d3770a48e365aa359f12522b69841fdbcf41e58d292",
+      "bytes": 3228260
+    },
+    {
+      "path": "resources/sources/site-survey/现场参考照片/前展厅/武氏祠阙室内景.jpg",
+      "target": "resources/reference/现场参考照片/前展厅/武氏祠阙室内景.jpg",
+      "sha256": "4b2cf39858cbf76e92b5cf5834aea11c7626796c2e80061d3ac80b7f8c0a9da0",
+      "bytes": 10113086
+    },
+    {
+      "path": "resources/sources/site-survey/现场参考照片/前展厅/阙室.png",
+      "target": "resources/reference/现场参考照片/前展厅/阙室.png",
+      "sha256": "e5706203aacfc5653de8f8f79573282f73860b45802cc17769737d2492595522",
+      "bytes": 1591069
+    },
+    {
+      "path": "resources/sources/site-survey/现场参考照片/后展厅/04后展厅方案图_t3.dwg",
+      "target": "resources/reference/测绘与CAD/后展厅/04后展厅方案图_t3.dwg",
+      "sha256": "104cfa9cee39ddd5f43899d694f2216ccf8468a6d9693eca24b1e9ccec013a51",
+      "bytes": 1122770
+    },
+    {
+      "path": "resources/sources/site-survey/现场参考照片/后展厅/博物馆陈列室展厅外景.JPG",
+      "target": "resources/reference/现场参考照片/后展厅/博物馆陈列室展厅外景.JPG",
+      "sha256": "012597e1b2506eed2a2c987f5a9ca110a2d563d74675816c5d19492fe9a1f33d",
+      "bytes": 7064121
+    },
+    {
+      "path": "resources/sources/site-survey/现场参考照片/后展厅墙外汉画像石/A面.jpg",
+      "target": "resources/reference/现场参考照片/后展厅墙外汉画像石/A面.jpg",
+      "sha256": "d7e31c4749551aca1c3605ec09b4e9d0277d11cf7e1da5070e248ae6058434fb",
+      "bytes": 6256737
+    },
+    {
+      "path": "resources/sources/site-survey/现场参考照片/后展厅墙外汉画像石/B面.jpg",
+      "target": "resources/reference/现场参考照片/后展厅墙外汉画像石/B面.jpg",
+      "sha256": "a629ebfeaaaffefc57881fec597f0f836e38726be82b7b860dc7a7d05a8ad0eb",
+      "bytes": 6780744
+    },
+    {
+      "path": "resources/sources/site-survey/现场参考照片/后展厅墙外汉画像石/C面.jpg",
+      "target": "resources/reference/现场参考照片/后展厅墙外汉画像石/C面.jpg",
+      "sha256": "3db710e458662c61297447ff4577918e684bed075720477f9e22823b6edfed5c",
+      "bytes": 6327610
+    },
+    {
+      "path": "resources/sources/site-survey/现场参考照片/外立面/参考外立面样式.jpg",
+      "target": "resources/reference/现场参考照片/外立面/参考外立面样式.jpg",
+      "sha256": "1d1f6178088fc361d548976d106f671224bf8760aa24f09f4d7f927e231070bc",
+      "bytes": 3132081
+    },
+    {
+      "path": "resources/sources/site-survey/现场参考照片/大门/J_010.TIF",
+      "target": "resources/reference/现场参考照片/大门/J_010.TIF",
+      "sha256": "d7048f8cfa391ba8044fab8b2e24719a5b4285ee44869d33211a0eaa88774aaa",
+      "bytes": 75530308
+    },
+    {
+      "path": "resources/sources/site-survey/现场参考照片/大门/J_012.TIF",
+      "target": "resources/reference/现场参考照片/大门/J_012.TIF",
+      "sha256": "20ef80fc01671178f4322ae96b65d7b318d80f77bf9c88ad3d23546df20517dc",
+      "bytes": 75530184
+    },
+    {
+      "path": "resources/sources/site-survey/现场参考照片/大门/J_014.TIF",
+      "target": "resources/reference/现场参考照片/大门/J_014.TIF",
+      "sha256": "78bfc1e22eb1ba23034f9a31ec91ca0d502a7f4129555b04e5f4e692a89f9ee9",
+      "bytes": 75529708
+    },
+    {
+      "path": "resources/sources/site-survey/现场参考照片/大门/J_015.TIF",
+      "target": "resources/reference/现场参考照片/大门/J_015.TIF",
+      "sha256": "b9d2cb288749a2e9338331e7dcaca8f6ea17920aa12ba8510cb1d47e0c57d826",
+      "bytes": 75530540
+    },
+    {
+      "path": "resources/sources/site-survey/现场参考照片/大门/J_016.TIF",
+      "target": "resources/reference/现场参考照片/大门/J_016.TIF",
+      "sha256": "fe3895773d146ec6c0b5a5af58a269a3f77994568e097b31f4267929f826d157",
+      "bytes": 75531176
+    },
+    {
+      "path": "resources/sources/site-survey/现场参考照片/生活区院内画像石/只绘制这五块.png",
+      "target": "resources/reference/现场参考照片/生活区院内画像石/只绘制这五块.png",
+      "sha256": "c7ae7d30549ebb05c16551b8067c8c553fd111d82aee020845f80e958bcd2292",
+      "bytes": 2593987
+    },
+    {
+      "path": "resources/sources/site-survey/现场参考照片/生活区院内画像石/生活区院内画像石.jpg",
+      "target": "resources/reference/现场参考照片/生活区院内画像石/生活区院内画像石.jpg",
+      "sha256": "c3f29dfb334e96cf2d1894aca3e02b64b93c0112804b7abf7afb83e2852bd466",
+      "bytes": 415666
+    },
+    {
+      "path": "resources/sources/site-survey/现场参考照片/西长廊山墙外汉画像石/442216e9e5fba850659f5fb370530938.jpg",
+      "target": "resources/reference/现场参考照片/西长廊山墙外汉画像石/442216e9e5fba850659f5fb370530938.jpg",
+      "sha256": "434f1026fb58e66fa42acbf8a531dd34b5f6733ed8890a6ea7e6a997bff07238",
+      "bytes": 9038571
+    },
+    {
+      "path": "resources/sources/site-survey/现场参考照片/西长廊山墙外汉画像石/6b91ffbd02926a3f1480a201a2d10a4f.jpg",
+      "target": "resources/reference/现场参考照片/西长廊山墙外汉画像石/6b91ffbd02926a3f1480a201a2d10a4f.jpg",
+      "sha256": "89e6fc57ec1fc9c70e9ca94c63c7d187e0b48d359640ef74f5b93d8f2b261e1c",
+      "bytes": 431070
+    },
+    {
+      "path": "resources/sources/site-survey/阙狮碑高清照片/西碑.tif",
+      "target": "resources/reference/现场参考照片/阙狮碑高清照片/西碑.tif",
+      "sha256": "323ea8aa044b27823897314bc11e59701c7a587df630493e000ecc69baff3be9",
+      "bytes": 177491320
+    },
+    {
+      "path": "resources/sources/site-context-20260911/0804总图坐标G_t3_t3.dwg",
+      "target": "resources/reference/测绘与CAD/周边环境/0804总图坐标G_t3_t3.dwg",
+      "sha256": "1bd5b2e3c2f66099e8dd3da2f663e5f8ed3abc6e76c953691efdeb79ab7239ac",
+      "bytes": 3724444
+    },
+    {
+      "path": "resources/sources/site-context-20260911/aerial-boundaries.png",
+      "target": "resources/reference/现场参考照片/周边环境/aerial-boundaries.png",
+      "sha256": "aaaf50254adace863d7383391074a5b90930a89cedc2f16e4f1f84d66a768aa9",
+      "bytes": 10418948
+    },
+    {
+      "path": "resources/sources/site-context-20260911/aerial-context-envelope.png",
+      "target": "resources/reference/现场参考照片/周边环境/aerial-context-envelope.png",
+      "sha256": "1a3d9da4845b5b7843102818eaf184bd9e64dcc025e7bdfca119346e730c5ee6",
+      "bytes": 10304317
+    },
+    {
+      "path": "resources/sources/site-context-20260911/grass-road-correction.png",
+      "target": "resources/reference/现场参考照片/周边环境/grass-road-correction.png",
+      "sha256": "0e27238fb79e5c0519ab8e91dab2a43812e3e0831dd214cd35f3253b0763aced",
+      "bytes": 5107313
+    },
+    {
+      "path": "resources/sources/site-context-20260911/tree-style-reference.png",
+      "target": "resources/reference/现场参考照片/周边环境/tree-style-reference.png",
+      "sha256": "df398a5e73b29180e99028bad05be593c5b813724aeedb30662414b85cb2fb04",
+      "bytes": 4813419
+    },
+    {
+      "path": "resources/imports/20260907/武氏墓群石刻博物馆定级报告.pdf",
+      "target": "resources/reference/报告与说明/定级报告/武氏墓群石刻博物馆定级报告.pdf",
+      "sha256": "a086f7404ad8b5a17a0689304795368db83cfdf1ea6b74b649cf60efad25694d",
+      "bytes": 12683046
+    },
+    {
+      "path": "resources/imports/20260907/附：广陵书社拓片/武氏墓群石刻画像石画面内容.doc",
+      "target": "resources/reference/报告与说明/广陵书社/武氏墓群石刻画像石画面内容.doc",
+      "sha256": "090e20207f0c9f8e507d90f7e514c089d8b1f698f811ef4b42c8ea7e758f0fd3",
+      "bytes": 193024
+    },
+    {
+      "path": "resources/imports/20260907/附：广陵书社拓片/附件：武氏祠精品16幅/东阙、西阙.pptx",
+      "target": "resources/reference/演示资料/广陵书社/东阙、西阙.pptx",
+      "sha256": "ce8f58a1973007153f29b95c00b44c0bb436de41af39f55d13b28769f6691d16",
+      "bytes": 529334942
+    },
+    {
+      "path": "resources/imports/20260907/附：广陵书社拓片/附件：武氏祠精品16幅/武梁祠、前石室、左石室、其他石.pptx",
+      "target": "resources/reference/演示资料/广陵书社/武梁祠、前石室、左石室、其他石.pptx",
+      "sha256": "f5d6378d27917e4aa81fb4f15f4105362cde39791041234d6f18a5973509eabf",
+      "bytes": 901258815
+    },
+    {
+      "path": "resources/imports/20260907/附：广陵书社拓片/附件：武氏祠精品16幅/武氏祠精品画像石.pptx",
+      "target": "resources/reference/演示资料/广陵书社/武氏祠精品画像石.pptx",
+      "sha256": "818bdcfa358e847277cc469262f9a41df65b4d7f15f3f6e841c88c6b1fcd786f",
+      "bytes": 368607606
     }
   ]
 }

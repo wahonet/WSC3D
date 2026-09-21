@@ -6,13 +6,14 @@ from PIL import Image,ImageDraw,ImageFilter,ImageOps
 sys.stdout.reconfigure(encoding='utf-8')
 import sys
 sys.path.insert(0,str(Path(__file__).resolve().parent))
-from project import stone_dir, stone_file, source_path, node_binary
+from project import stone_dir, stone_file, source_path, source_files, node_binary
 ROOT=Path(__file__).resolve().parents[2]
 OUT=ROOT / 'resources/authoring/courtyard'
 SRC=ROOT / 'resources/sources/site-survey/现场参考照片'
 TARGET=OUT/'blender/materials';TARGET.mkdir(parents=True,exist_ok=True)
 rng=np.random.default_rng(20260910)
-for f in (SRC/'大门').glob('*.TIF'):
+for logical,f in source_files(SRC/'大门'):
+ if logical.suffix.lower() not in ('.tif','.tiff'):continue
  im=ImageOps.exif_transpose(Image.open(f)).convert('RGB');im.thumbnail((1800,1800));im.save(OUT/'reference'/(f.stem+'.jpg'),quality=93)
 
 # Samples document the observed palette; masonry maps use metric courses instead
@@ -21,7 +22,7 @@ samples=[('front','前展厅/武氏墓群石刻阙室展厅外景.JPG',(1870,100
          ('rear','后展厅/博物馆陈列室展厅外景.JPG',(2270,1150,2370,1200))]
 palettes={}
 for name,rel,bounds in samples:
- im=Image.open(SRC/rel).convert('RGB').crop(bounds)
+ im=Image.open(source_path(SRC/rel)).convert('RGB').crop(bounds)
  im.save(OUT/'reference'/f'{name}-brick-sample.png')
  palettes[name]={'source':rel,'crop':bounds,'median_srgb':np.median(np.array(im).reshape(-1,3),axis=0).tolist()}
 

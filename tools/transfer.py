@@ -17,6 +17,8 @@ import zipfile
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT/'src/backend'))
 from app.workspace_lock import workspace_lock
+from app.resource_archives import (MANIFEST_REL, archive_entry, archived_entries,
+                                   extract_resource, forget_archived)
 
 FORMAT = 'wsc-handover-1'
 STATE = 'data/handover.json'
@@ -57,13 +59,15 @@ def contained(root, name):
     return path
 
 def file_list(root):
-    result=[]
+    # A packed original retains its research identity and handover path. The
+    # storage packs themselves are outside these research-resource directories.
+    result=[contained(root,name) for name in archived_entries(root)]
     for name in ('resources','data/layouts','data/library','data/creative','data/video_jobs','config/catalogue'):
         directory=root/name
         if directory.is_dir(): result.extend(p for p in directory.rglob('*') if p.is_file())
     for name in ('data/creative.sqlite3','data/library-quality.json','config/resource-aliases.json'):
         if (root/name).is_file(): result.append(root/name)
-    return sorted(result)
+    return sorted(set(result))
 
 def software_digest(root):
     h=hashlib.sha256()
@@ -83,6 +87,11 @@ def capture(root):
     for path in file_list(root):
         name=path.relative_to(root).as_posix()
         if not allowed(name): raise ValueError(f'不支持的资源路径：{name}')
+        if not path.is_file():
+            entry=archive_entry(path,root)
+            if entry is None: raise FileNotFoundError(f'归档资源不可用：{name}')
+            files[name]={'sha256':entry['sha256'],'bytes':entry['bytes']}
+            continue
         stat=path.stat(); old=previous.get(name,{})
         sha=old.get('sha256') if old.get('mtime_ns')==stat.st_mtime_ns and old.get('bytes')==stat.st_size else digest(path)
         files[name]={'sha256':sha,'bytes':stat.st_size}
@@ -125,7 +134,9 @@ def export_package(root, output):
                 archive.writestr('handover.json',encoded(manifest))
                 archive.write(database,DB)
                 for name in changes:
-                    if name!=DB: archive.write(contained(root,name),name)
+                    if name!=DB:
+                        path=contained(root,name)
+                        archive.write(path if path.is_file() else extract_resource(path,root),name)
             with zipfile.ZipFile(staging) as archive:
                 for name,item in manifest['files'].items():
                     with archive.open(name) as stream:
@@ -133,6 +144,12 @@ def export_package(root, output):
             os.replace(staging,output)
         finally:
             if staging.exists(): staging.unlink()
+    # A successfully handed-over loose replacement supersedes its old packed
+    # original on the sender as well as the recipient. Keep the immutable pack,
+    # but stop resolving a later deletion back to stale content.
+    packed=archived_entries(root)
+    replaced=[name for name in changes if name in packed and contained(root,name).is_file()]
+    if replaced: forget_archived(replaced,root)
     write_json(root/STATE,{'format':FORMAT,'dataset':state['dataset'],**current})
     return {'package':str(output),'bytes':output.stat().st_size,'changed_files':len(changes)-1,'removed_files':len(removed)}
 
@@ -165,13 +182,30 @@ def import_package(root, package):
             if hashlib.sha256(encoded([manifest['database'],expected])).hexdigest()!=manifest['result']: raise ValueError('交接包结果指纹不一致')
             backup=root/'data/backups'/('handover-'+datetime.now().strftime('%Y%m%d-%H%M%S')+'-'+uuid.uuid4().hex[:6])
             backup.mkdir(parents=True)
-            touched=[*files,*removed,STATE]; existing=[]
+            packed=archived_entries(root)
+            forgotten=[name for name in [*files,*removed] if name in packed]
+            touched=[*files,*removed,STATE]
+            if forgotten: touched.append(MANIFEST_REL)
+            existing=[]; archived_saved=[]
             for name in touched:
                 original=contained(root,name)
                 if original.is_file():
                     saved=backup/name; saved.parent.mkdir(parents=True,exist_ok=True); shutil.copy2(original,saved); existing.append(name)
-            write_json(backup/'receipt.json',{'files':existing,'touched':touched,'package':str(package)})
+                elif name in packed:
+                    # A recovery backup must remain complete after unused packs
+                    # are collected. Preserve the affected original's bytes, not
+                    # just a manifest pointing back into the live workspace.
+                    saved=backup/name; saved.parent.mkdir(parents=True,exist_ok=True)
+                    shutil.copy2(extract_resource(original,root),saved)
+                    if digest(saved)!=current['files'][name]['sha256']:
+                        raise RuntimeError(f'归档原件的交接备份校验失败：{name}')
+                    archived_saved.append(name)
+            write_json(backup/'receipt.json',{'files':existing,'archived_files':archived_saved,
+                                             'touched':touched,'package':str(package)})
             try:
+                # Both deletions and replacements retire the old packed entry.
+                # Otherwise deleting a later loose override would resurrect it.
+                if forgotten: forget_archived(forgotten,root)
                 for name in removed: contained(root,name).unlink(missing_ok=True)
                 # A stopped SQLite connection may leave empty WAL/SHM sidecars.
                 for suffix in ('-wal','-shm'): (root/(DB+suffix)).unlink(missing_ok=True)

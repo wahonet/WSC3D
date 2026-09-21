@@ -314,7 +314,8 @@ def selection(db: Session, ids):
         raise ValueError('所选标注的底图不可用')
     path = resources.asset_path(asset.relpath)
     source = snapshot(db, asset, stone, selected)
-    source['source_file'] = str(path.relative_to(settings.assets_root)).replace('\\', '/')
+    from ..resource_paths import logical_resource_path
+    source['source_file'] = logical_resource_path(path).relative_to(settings.assets_root).as_posix()
     source['source_stat'] = [path.stat().st_size, path.stat().st_mtime_ns]
     return asset, selected, path, source
 

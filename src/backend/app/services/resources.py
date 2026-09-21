@@ -10,7 +10,12 @@ def within(root: Path, relative: str) -> Path:
     path = (root / relative).resolve()
     if root not in path.parents:
         raise HTTPException(404, "资源文件不存在或路径不合法")
-    path = resolve_resource(path)
+    try:
+        path = resolve_resource(path)
+    except FileNotFoundError as error:
+        raise HTTPException(404, "资源压缩包缺失，请恢复完整项目副本") from error
+    except (OSError, ValueError) as error:
+        raise HTTPException(409, "资源压缩包校验失败，请恢复资源备份") from error
     if not path.is_file():
         raise HTTPException(404, "资源文件不存在或路径不合法")
     return path

@@ -19,7 +19,7 @@ import matplotlib.pyplot as plt
 
 import sys
 sys.path.insert(0,str(Path(__file__).resolve().parent))
-from project import stone_dir, stone_file, source_path, node_binary
+from project import stone_dir, stone_file, source_path, source_files, node_binary
 ROOT=Path(__file__).resolve().parents[2]
 OUT=ROOT / 'resources/authoring/site-context'
 DATA=ROOT / 'resources/georeferencing/site-context.json'
@@ -175,7 +175,8 @@ manifest=dict(version='20260911-context-v4',label='周边环境及传承中心',
         'rmsM':float(np.sqrt(np.mean(residual**2))),'maxM':float(residual.max())},
     cadRegistration=cad['fit'],
     accuracy='相对场景配准，沿用院落 RTK 匹配约 4.6 m RMS；CAD 轮廓同形不代表新增测绘精度。',
-    sources=[dict(file=str(p.relative_to(ROOT)).replace('\\','/'),sha256=hashlib.sha256(p.read_bytes()).hexdigest()) for p in [*(ROOT / 'resources/sources/site-context-20260911').iterdir(),vegetation_file]],
+    sources=[dict(file=logical.relative_to(ROOT).as_posix(),sha256=hashlib.sha256(p.read_bytes()).hexdigest())
+             for logical,p in [*source_files('resources/sources/site-context-20260911'),(vegetation_file,vegetation_file)]],
     limitations=['原有院落及传承中心设计模型位置与尺寸保持不变。','周边建筑平面依据 CAD；立面、树高和环境细部按航拍作示意复原。','交界处按用户确认保留连续绿地，未建的弯曲连接路及路缘已取消。'],
     stats={'envelopeAreaM2':round(envelope.area,1),'addedGroundAreaM2':round(outside.area,1),'buildings':len(buildings),'trees':len(trees),'surfaceMeshes':len(surfaces)},
     surfaces=surfaces,buildings=buildings,details=details,trees=trees)

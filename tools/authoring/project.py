@@ -6,7 +6,7 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'src/backend'))
-from app.resource_paths import resolve_resource
+from app.resource_paths import iter_resource_files, resolve_resource
 
 _stones = json.loads((ROOT/'config/catalogue/stones.json').read_text(encoding='utf-8'))
 _identities = json.loads((ROOT/'config/catalogue/identities.json').read_text(encoding='utf-8'))
@@ -71,6 +71,32 @@ def source_path(value):
     result=(ROOT/path).resolve()
     if not result.is_relative_to(ROOT): raise ValueError(f'External recipe input requires an explicit copy: {value}')
     return resolve_resource(result)
+
+def source_files(value):
+    """Yield (logical path, readable path) pairs beneath a recipe source directory.
+
+    Historical directory trees may now consist only of file aliases. Keep their
+    names for provenance while reading moved or packed files through the shared
+    resolver. A newly supplied loose file still takes precedence over its alias.
+    """
+    directory = source_path(value)
+    prefix = directory.relative_to(ROOT.resolve()).as_posix().casefold() + '/'
+    candidates = {str(path).casefold(): path for path in iter_resource_files(directory)}
+    manifest = ROOT / 'config/resource-aliases.json'
+    if manifest.is_file():
+        for entry in json.loads(manifest.read_text(encoding='utf-8'))['aliases']:
+            name = entry['path'].replace('\\', '/')
+            if not name.casefold().startswith(prefix):
+                continue
+            logical = (ROOT / name).resolve()
+            if not logical.is_relative_to(directory):
+                raise ValueError(f'Invalid recipe source alias: {name}')
+            candidates.setdefault(str(logical).casefold(), logical)
+    for logical in sorted(candidates.values(), key=lambda path: str(path).casefold()):
+        physical = source_path(logical)
+        if not physical.is_file():
+            raise FileNotFoundError(f'Recipe source is unavailable: {logical}')
+        yield logical, physical
 
 def node_binary():
     if os.environ.get('WSC_NODE_BINARY'): return os.environ['WSC_NODE_BINARY']

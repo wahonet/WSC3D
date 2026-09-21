@@ -7,6 +7,7 @@ import shutil
 from fastapi import HTTPException
 from sqlalchemy import text
 from ..config import settings
+from ..resource_paths import resource_exists
 
 def digest(path):
     with Path(path).open('rb') as stream:
@@ -24,7 +25,11 @@ def pin_asset(db, asset):
     for saved in row:
         data = json.loads(saved[0])
         if data.get('kind') == 'research-base' and data.get('sha256') == asset.sha256:
-            if snapshot_path(data).is_file():
+            try:
+                available = resource_exists(snapshot_path(data))
+            except (OSError, ValueError):
+                available = False
+            if available:
                 return data
             raise HTTPException(409, '研究底图快照缺失，请恢复资源备份后继续编辑')
     from .resources import live_asset_path

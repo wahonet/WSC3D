@@ -11,6 +11,7 @@ sys.stdout.reconfigure(encoding='utf-8')
 import sys
 sys.path.insert(0,str(Path(__file__).resolve().parent))
 from project import stone_dir, stone_file, source_path, node_binary
+from app.resource_paths import logical_resource_path
 ROOT = Path(__file__).resolve().parents[2]
 OUT = ROOT / 'resources/authoring/catalogue-preparation'
 PUBLIC = ROOT / 'src/frontend/public'
@@ -62,7 +63,7 @@ for row in rows:
     entries.append(dict(id=sid,faceKey='front',faceLabel='完整雕刻正面',file=file,
         crop=[0,0,*size],imageSize=list(size),normal=[0,0,-1 if d['wall']=='W' else 1],
         up=[0,1,0],fit='face',primaryFace=True,sourceKind='supplied-photograph',
-        sourcePath=path.relative_to(ROOT).as_posix(),sourceSha256=hashlib.sha256(path.read_bytes()).hexdigest(),
+        sourcePath=logical_resource_path(path).relative_to(ROOT).as_posix(),sourceSha256=hashlib.sha256(path.read_bytes()).hexdigest(),
         originalPath=item['original'],originalSha256=item['sha256'],sourceQuadNormalized=quad,
         profile=profiles.get(sid),mappingEvidence=f"{no} {row['name']}；按目录名称及照片内容逐件核对",
         imageTreatment='Geometric perimeter rectification only; no generated or retouched imagery'))

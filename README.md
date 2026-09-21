@@ -6,9 +6,9 @@
 
 ## GitHub 仓库与完整项目
 
-GitHub 仓库保存程序源码、回归测试、项目配置、运行包校验清单和本说明。原始文物与文献资料、研究数据库、模型权重、运行环境压缩包、前端构建产物、日志及本机 API 配置保留在完整本地项目中，不随源码提交。
+GitHub 仓库保存程序源码、回归测试、项目配置、运行包校验清单和本说明。原始文物与文献资料、原图资源压缩包、研究数据库、模型权重、运行环境压缩包、前端构建产物、日志及本机 API 配置保留在完整本地项目中，不随源码提交。
 
-下方的双击启动与整目录迁移步骤适用于完整项目。仅克隆 GitHub 仓库尚不能直接运行：需从完整项目副本补齐 `resources`、`data`、`models` 和与校验清单匹配的 `runtime/runtime.zip`、`runtime/development.zip`，再运行 `tools/构建前端.bat` 生成 `build/web`。在线服务配置在工作台重新填写。
+下方的双击启动与整目录迁移步骤适用于完整项目。仅克隆 GitHub 仓库尚不能直接运行：需从完整项目副本补齐 `resources`、`data`、`models`、`runtime/resource-packs`（如已收纳原图）和与校验清单匹配的 `runtime/runtime.zip`、`runtime/development.zip`，再运行 `tools/构建前端.bat` 生成 `build/web`。在线服务配置在工作台重新填写。
 
 ## 快速开始
 
@@ -77,7 +77,7 @@ GitHub 仓库保存程序源码、回归测试、项目配置、运行包校验�
 | `build/web` | 平台实际使用的前端构建产物 |
 | `resources` | 文物原件、文献、三维场景、文创素材和制作工程 |
 | `models` | 本地模型权重与配置 |
-| `runtime` | 运行包、开发工具包及校验清单 |
+| `runtime` | 运行包、开发工具包、原图资源压缩包及校验清单 |
 | `data` | 研究数据库、OCR 成果、保存的布局、索引和交接状态 |
 | `config` | 项目设置、稳定编号、资源映射与模型路由 |
 | `tools` | 启停、构建、交接、数据维护及制作工具 |
@@ -97,6 +97,44 @@ GitHub 仓库保存程序源码、回归测试、项目配置、运行包校验�
 - `data/index`：检索及逐石文献关联的派生索引。
 
 研究数据、原件及 `versions` 底图快照应随项目保留。素材的部分逻辑路径通过 `config/resource-aliases.json` 指向实体文件，移动或改名须同时维护映射和数据库登记。清理临时目录前，应先结束相关作业，并确认其中没有尚未保存的成果。
+
+### 集中存放的参照资料
+
+报告、原始测绘图和现场参照资料统一放在 `resources/reference`，按用途查找：
+
+| 位置 | 内容 |
+| --- | --- |
+| `resources/reference/报告与说明` | 定级报告、名录与尺寸说明、广陵书社画面说明 |
+| `resources/reference/测绘与CAD` | 院落、展厅和周边环境的原始 DWG、DXF、CAD 导出 PDF 与平面示意图 |
+| `resources/reference/现场参考照片` | 按展厅、院落部位和周边环境分组的原始参照照片 |
+| `resources/reference/演示资料` | 广陵书社提供的三个原始 PPTX，保留图片、文字和原始编排 |
+
+这些原件应随完整项目复制。旧导入路径与测绘来源路径已通过资源映射兼容，档案中的报告、演示资料链接和制作脚本仍能读取原件；无需手动修改历史来源记录。以后新增同类资料优先放入以上分类，改动已登记文件的位置时应同步维护资源映射。
+
+`resources/reference/viewers` 保留仍在使用的原版三维查看器。建模转换得到的 DXF、分析结果和制作中间文件继续保存在 `resources/authoring` 对应工程中；文物研究底图和文献中心原书分别保存在 `resources/stones` 与 `resources/documents`。
+
+### 原图无损收纳
+
+石刻目录 `images` 和 `versions` 下的 TIFF 可无损收纳到 `runtime/resource-packs`，按文物保存为标准 ZIP64 包。包中保留原文件的完整字节；清单记录逻辑路径、SHA-256、原始时间和图像尺寸。压缩工具逐个解压校验成功后才移除对应散文件，不转码、不降低像素或位深。模型贴图、预览图、文献、制作工程和研究数据库保持原存储方式。
+
+收纳后的项目可直接启动。平台、资源扫描、研究底图、素材来源和交接工具通过原逻辑路径访问资料；原图首次使用时自动校验并解压到本机缓存。默认缓存位于 `%LOCALAPPDATA%\WSC-Unified\cache`，无需随项目复制。首次读取大图可能稍慢，本机缓存会随使用增长。完整资源检查会校验压缩包指纹，不会把全部原图解压到项目内。
+
+原图资源包属于必须随项目保留的资料，不能当作临时安装包删除。资源文件夹中看不到已收纳的 TIFF 散文件属于正常情况；需要直接在其他软件中批量操作原文件时，可以恢复原始目录。新放入同一逻辑路径的散文件优先使用，仍须在工作台执行资源检查来确认是否替换已有底图。
+
+以下命令在项目根目录运行。查看计划可随时执行；实际收纳或恢复前先保存研究内容并运行 `tools/停止平台.bat`，完成后用原启动入口重新启动。
+
+```powershell
+# 查看尚可收纳的原图与已有压缩包
+powershell -NoProfile -ExecutionPolicy Bypass -File tools/run.ps1 tools/compact_resources.py
+
+# 校验后收纳；中断后可以再次执行
+powershell -NoProfile -ExecutionPolicy Bypass -File tools/run.ps1 tools/compact_resources.py --apply --workers 4
+
+# 恢复原始散文件，校验后移除不再使用的压缩包
+powershell -NoProfile -ExecutionPolicy Bypass -File tools/run.ps1 tools/compact_resources.py --restore
+```
+
+两端使用相同版本程序时，散文件与已收纳目录之间仍可顺序交接；收纳本身不改变研究文件指纹或交接基线。恢复原图需要为展开后的原始文件预留磁盘空间，已有不同内容的散文件不会被恢复命令覆盖。
 
 ## 增加资料与迁移
 
