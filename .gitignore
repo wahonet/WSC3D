@@ -18,6 +18,10 @@ node_modules/
 /data/
 /logs/
 /config/rag_config.json
+/config/rag_config.tmp
+/config/creative.json
+/config/creative.tmp
+/rag_config.json
 .env
 .env.*
 !.env.example
