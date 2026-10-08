@@ -1,11 +1,16 @@
 import { useEffect, useRef } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import { locLabel, useStore } from '../store';
 
 const CONTEXT_TITLE = '关闭时只显示武氏祠；开启后增加显示黄线范围内的周边环境和拟建传承中心。';
 
 /** 全景模块: 共享三维画布停靠主视区 + 视角工具条 + 选中信息卡 */
 export default function SceneView() {
-  const { ctrl, roofOn, toggleRoof, wallsXray, toggleWallsXray, wallTransparency, setWallTransparency, walkOn, setWalk, contextOn, contextStatus, toggleContext } = useStore();
+  const { ctrl, roofOn, toggleRoof, wallsXray, toggleWallsXray, wallTransparency, setWallTransparency, walkOn, setWalk, contextOn, contextStatus, toggleContext } = useStore(useShallow(s => ({
+    ctrl: s.ctrl, roofOn: s.roofOn, toggleRoof: s.toggleRoof, wallsXray: s.wallsXray, toggleWallsXray: s.toggleWallsXray,
+    wallTransparency: s.wallTransparency, setWallTransparency: s.setWallTransparency, walkOn: s.walkOn, setWalk: s.setWalk,
+    contextOn: s.contextOn, contextStatus: s.contextStatus, toggleContext: s.toggleContext,
+  })));
   const setStageSlot = useStore(s => s.setStageSlot);
   const slotRef = useRef<HTMLDivElement>(null);
 
@@ -62,7 +67,9 @@ export default function SceneView() {
 }
 
 function SceneCard() {
-  const { selectedId, stones, detail, select, ctrl, setModule } = useStore();
+  const { selectedId, stones, detail, select, ctrl, setModule } = useStore(useShallow(s => ({
+    selectedId: s.selectedId, stones: s.stones, detail: s.detail, select: s.select, ctrl: s.ctrl, setModule: s.setModule,
+  })));
   if (!selectedId) return null;
   const brief = stones.find(s => s.id === selectedId);
   const d = detail;

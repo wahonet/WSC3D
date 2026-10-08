@@ -71,15 +71,17 @@ export default function VideoPage() {
   }, [])
 
   const optionsKey = JSON.stringify({ annotation_ids: [...draft.annotation_ids].sort((a, b) => a - b), mode: draft.mode, duration: draft.duration, style: draft.style } satisfies VideoOptions)
+  useEffect(() => { setEditing(false); setEditedPrompt('') }, [optionsKey])
+  // 切回窗口也会刷新标注（sourceRevision）：沿用当前底图与手改的提示词，只在后台重新整理
   useEffect(() => {
     let current = true
-    setPrepared(null); setEditing(false); setEditedPrompt(''); setPrepareError('')
+    setPrepareError('')
     const options = JSON.parse(optionsKey) as VideoOptions
-    if (!sourcesLoaded || !options.annotation_ids.length) { setPreparing(false); return }
+    if (!sourcesLoaded || !options.annotation_ids.length) { setPrepared(null); setPreparing(false); return }
     setPreparing(true)
     const timer = window.setTimeout(() => {
       videoApi.prepare(options).then(value => { if (current) setPrepared({ key: optionsKey, value }) })
-        .catch(reason => { if (current) setPrepareError(reason.message) }).finally(() => { if (current) setPreparing(false) })
+        .catch(reason => { if (current) { setPrepared(null); setPrepareError(reason.message) } }).finally(() => { if (current) setPreparing(false) })
     }, 200)
     return () => { current = false; window.clearTimeout(timer) }
   }, [optionsKey, sourcesLoaded, sourceRevision])

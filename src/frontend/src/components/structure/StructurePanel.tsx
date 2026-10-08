@@ -56,7 +56,20 @@ export default function StructurePanel({ revealRequest, compact = false }: { rev
   const handledReveal = useRef<StructureRevealRequest | null>(null)
   const listRef = useRef<HTMLDivElement>(null)
 
-  const nodes = useMemo(() => stoneAnnos.filter(a => isStructural(a) && (!compact || hasGeometry(a))), [stoneAnnos, compact])
+  const nodes = useMemo(() => {
+    const structural = stoneAnnos.filter(isStructural)
+    if (!compact) return structural
+    const indexed = new Map(structural.map(a => [a.id, a]))
+    const visible = new Set<number>()
+    for (const node of structural) {
+      if (!hasGeometry(node)) continue
+      visible.add(node.id)
+      // Keep the stored hierarchy visible even when a contextual parent has
+      // no cutout. Its existing "无框" badge still distinguishes it from geometry.
+      for (const parent of ancestors(indexed, node)) visible.add(parent.id)
+    }
+    return structural.filter(a => visible.has(a.id))
+  }, [stoneAnnos, compact])
   const byId = useMemo(() => new Map(nodes.map(a => [a.id, a])), [nodes])
   const tree = useMemo(() => buildTree(nodes), [nodes])
   const prog = useMemo(() => progress(nodes), [nodes])
@@ -293,7 +306,7 @@ export default function StructurePanel({ revealRequest, compact = false }: { rev
           const on = selIds.has(a.id)
           const v = vis(a)
           const isCand = a.review_status === 'candidate'
-          const path = filtering ? ancestors(byId, a).map(x => x.label).join(' ? ') : ''
+          const path = filtering ? ancestors(byId, a).map(x => x.label).join(' › ') : ''
           const dropOk = overId === a.id && canDrop(a.id)
           return (
             <div key={a.id} data-annotation-id={a.id} tabIndex={-1}

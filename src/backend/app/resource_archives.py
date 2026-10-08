@@ -130,8 +130,9 @@ def _cache_base(root: Path, cache_root: Path | None = None) -> Path:
 
 
 def _cache_path(name: str, entry: dict, root: Path, cache_root: Path | None = None) -> Path:
-    identity = hashlib.sha256(name.casefold().encode('utf-8')).hexdigest()[:20]
-    return _cache_base(root, cache_root) / entry['sha256'][:24] / identity / PurePosixPath(name).name
+    member = entry.get('member', name)
+    identity = hashlib.sha256(member.casefold().encode('utf-8')).hexdigest()[:20]
+    return _cache_base(root, cache_root) / entry['sha256'][:24] / identity / PurePosixPath(member).name
 
 
 def _stamp(path: Path) -> dict:

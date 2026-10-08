@@ -1,8 +1,24 @@
 import type { AlignChain, AlignGeometry, Annotation, AssetBrief, OverlayTransform } from '../types'
+import { nativeMask, nativeMaskBounds } from './nativeMasks'
 
 export type Pt = [number, number]
 
 type Sim = { s: number; theta_deg: number; tx: number; ty: number }
+
+function toMatrix(t: Sim & { model?: string; homography?: number[][] }): number[][] {
+  if (t.model === 'homography' && t.homography) return t.homography
+  const radians = t.theta_deg * Math.PI / 180, a = t.s * Math.cos(radians), b = t.s * Math.sin(radians)
+  return [[a, -b, t.tx], [b, a, t.ty], [0, 0, 1]]
+}
+function inverseMatrix(h: number[][]): number[][] | null {
+  if (h.length !== 3 || h.some(row => row.length !== 3 || !row.every(Number.isFinite))) return null
+  const [[a, b, c], [d, e, f], [g, j, k]] = h
+  const co = [[e*k-f*j, c*j-b*k, b*f-c*e], [f*g-d*k, a*k-c*g, c*d-a*f], [d*j-e*g, b*g-a*j, a*e-b*d]]
+  const det = a*co[0][0]+b*co[1][0]+c*co[2][0]
+  if (!Number.isFinite(det) || !det) return null
+  const out = co.map(row => row.map(value => value/det))
+  return out.every(row => row.every(Number.isFinite)) ? out : null
+}
 
 /** 先 b 后 a：compose(a, b)(p) = a(b(p))（与后端 transforms.compose 一致） */
 export function composeSim(a: Sim, b: Sim): Sim {
@@ -24,7 +40,13 @@ export function invertSim(t: Sim): Sim {
 export function overlayFromChains(base: AssetBrief, other: AssetBrief): OverlayTransform | null {
   const cb = base.extra.align_to_master as AlignChain | null | undefined
   const co = other.extra.align_to_master as AlignChain | null | undefined
-  if (!cb || !co) return null
+  if (!cb || !co || cb.master_asset_id !== co.master_asset_id) return null
+  if (cb.model === 'homography' || co.model === 'homography') {
+    const inverse = inverseMatrix(toMatrix(cb)), source = toMatrix(co)
+    if (!inverse || !inverseMatrix(source)) return null
+    const matrix = inverse.map(row => source[0].map((_, j) => row.reduce((sum, value, k) => sum+value*source[k][j], 0)))
+    return { xVp: 0, yVp: 0, wVp: 1, deg: 0, warpMatrix: matrix }
+  }
   const t = composeSim(invertSim(cb), co)
   return alignGeomToOverlay({
     target_asset_id: other.id, pairs: [], s: t.s, theta_deg: t.theta_deg, tx: t.tx, ty: t.ty, rmse_px: 0,
@@ -33,7 +55,10 @@ export function overlayFromChains(base: AssetBrief, other: AssetBrief): OverlayT
 }
 
 /** 由保存的对齐几何计算 OSD 叠加参数（左图视口宽 = 1） */
-export function alignGeomToOverlay(g: AlignGeometry): OverlayTransform {
+export function alignGeomToOverlay(g: AlignGeometry): OverlayTransform | null {
+  if (g.model === 'homography') {
+    return g.homography && inverseMatrix(g.homography) ? { xVp: 0, yVp: 0, wVp: 1, deg: 0, warpMatrix: g.homography } : null
+  }
   const th = (g.theta_deg * Math.PI) / 180
   const c = Math.cos(th), s = Math.sin(th)
   const cx = g.wr / 2, cy = g.hr / 2
@@ -94,6 +119,12 @@ export function isValid2DGeometry(atype: string, geometry: unknown): boolean {
 export function annotationBounds(a: Pick<Annotation, 'atype' | 'geometry'>): [number, number, number, number] | null {
   if (!isValid2DGeometry(a.atype, a.geometry)) return null
   const g = a.geometry as Record<string, unknown>
+  if (a.atype === 'polygon' && g.native_mask != null) {
+    try {
+      const bounds = nativeMaskBounds(nativeMask(g.native_mask)!)
+      return [bounds[0], bounds[1], bounds[2]-bounds[0], bounds[3]-bounds[1]]
+    } catch { return null }
+  }
   let pts: Pt[] = []
   if (a.atype === 'rect') {
     const x = g.x as number, y = g.y as number, w = g.w as number, h = g.h as number

@@ -15,21 +15,23 @@ export interface PageAnnotation {
   references: AnnotationReference[]
 }
 
+const NO_ROWS: PageAnnotation[] = []
+
 export function usePageAnnotations(pageId: number | null) {
-  const [rows, setRows] = useState<PageAnnotation[]>([])
-  const [error, setError] = useState('')
+  // 标注刷新后在后台重取，期间保留当前结果以免闪烁；只有换页才清空
+  const [loaded, setLoaded] = useState<{ pageId: number; rows: PageAnnotation[]; error: string } | null>(null)
   const annotations = useApp(s => s.stoneAnnos)
   useEffect(() => {
-    let active = true
-    setRows([]); setError('')
     if (pageId == null) return
+    let active = true
     fetch(`/api/library/pages/${pageId}/annotations`).then(async response => {
       if (!response.ok) throw new Error('关联图像读取失败')
       return response.json() as Promise<PageAnnotation[]>
-    }).then(value => { if (active) setRows(value) }).catch(reason => { if (active) setError(String(reason)) })
+    }).then(rows => { if (active) setLoaded({ pageId, rows, error: '' }) })
+      .catch(reason => { if (active) setLoaded({ pageId, rows: NO_ROWS, error: String(reason) }) })
     return () => { active = false }
   }, [pageId, annotations])
-  return { rows, error }
+  return loaded && loaded.pageId === pageId ? { rows: loaded.rows, error: loaded.error } : { rows: NO_ROWS, error: '' }
 }
 
 export function AnnotationCrop({ row }: { row: PageAnnotation }) {

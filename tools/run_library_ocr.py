@@ -297,8 +297,9 @@ class QueueRunner:
 
 
 def main(argv=None) -> int:
+    project = json.loads((Path(__file__).resolve().parents[1] / "config/project.json").read_text(encoding="utf-8"))
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--base-url", default="http://127.0.0.1:8020")
+    parser.add_argument("--base-url", default=f"http://127.0.0.1:{project.get('port', 8030)}")
     parser.add_argument("--state", type=Path, default=Path(__file__).resolve().parents[1] / "data/library/ocr-queue.json")
     parser.add_argument("--redo", action="store_true", help="Include pages already completed at queue creation")
     parser.add_argument("--resume", action="store_true", help="Continue the saved queue, preserving its original target list")

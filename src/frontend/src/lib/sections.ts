@@ -1,8 +1,8 @@
 export const publicSections = [
-  ['overview', '总览'], ['archive', '文物档案'], ['scene', '院落全景'],
-  ['graph', '知识图谱'], ['search', 'AI问答'], ['creative', '电子文创'],
+  ['overview', '首页'], ['archive', '文物档案'], ['scene', '院落全景'], ['center', '传承中心'],
+  ['motifs', '画像形象'], ['stories', '故事形象'], ['graph', '知识图谱'], ['search', '问答'], ['creative', '电子文创'],
 ] as const
-export const workspaceSections = [['research', '图像研究'], ['library', '文献中心'], ['video', '电子文创'], ['settings', 'API配置']] as const
+export const workspaceSections = [['research', '图像研究'], ['reconstruction', '三维复原'], ['library', '文献中心'], ['video', '电子文创'], ['settings', 'API配置']] as const
 export type PublicSection = typeof publicSections[number][0]
 export type WorkspaceSection = typeof workspaceSections[number][0]
 export type SectionId = PublicSection | WorkspaceSection | 'login'

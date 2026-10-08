@@ -1,0 +1,188 @@
+/* ==========================================================================
+   武氏墓群石刻 · 视觉层
+   墨石（深色，默认）/ 宣纸（浅色）两套语义 token；外壳、基础控件与各页面的统一样式。
+   本文件最后加载，覆盖 styles.css / unified.css / workspace.css 的旧 token 与写死颜色。
+   ========================================================================== */
+:root {
+  --font-sans: "Inter", "PingFang SC", "Microsoft YaHei UI", "Microsoft YaHei", "Noto Sans CJK SC", system-ui, sans-serif;
+  --font-serif: "Noto Serif SC", "Source Han Serif SC", "Songti SC", "STSong", "SimSun", serif;
+  --bg-0: #121110; --bg-1: #191816; --bg-2: #201e1b; --bg-3: #2a2723; --bg-4: #35312c;
+  --viewport: #0f0e0d;
+  --line: rgba(236, 226, 206, .085); --line-2: rgba(236, 226, 206, .16);
+  --text: #ede6d8; --text-2: #b9af9f; --text-3: #8f8677;
+  --accent: #cfab6b; --accent-2: #e2c48c; --accent-soft: rgba(207, 171, 107, .14); --accent-ink: #1b150d;
+  --seal: #bf4a33; --seal-soft: rgba(191, 74, 51, .16);
+  --green: #6fae84; --red: #d8634f; --warn: #d9ac55; --amber: #d9a14a; --blue: #6c9bd1; --cyan: #5bb3c2; --violet: #a888d6;
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, .3), 0 4px 14px rgba(0, 0, 0, .22);
+  --shadow-2: 0 10px 34px rgba(0, 0, 0, .42), 0 2px 8px rgba(0, 0, 0, .3);
+  --radius-sm: 6px; --radius: 9px; --radius-lg: 14px;
+  --header-h: 60px;
+  --focus: 0 0 0 2px var(--bg-1), 0 0 0 4px var(--accent);
+  /* aliases used by the archive / scene styles */
+  --bg: var(--bg-0); --panel: var(--bg-1); --panel2: var(--bg-2); --tx: var(--text); --tx-mut: var(--text-2); --tx-dim: var(--text-3);
+  --gold: var(--accent); --gold-hi: var(--accent-2); --gold-bg: var(--accent-soft); --line2: var(--line-2);
+  color-scheme: dark;
+}
+:root[data-theme="light"] {
+  --bg-0: #f3efe6; --bg-1: #faf7f1; --bg-2: #ffffff; --bg-3: #ece6da; --bg-4: #ddd4c4;
+  --viewport: #e8e3d8;
+  --line: rgba(64, 46, 24, .1); --line-2: rgba(64, 46, 24, .2);
+  --text: #221e19; --text-2: #574e43; --text-3: #7a7063;
+  --accent: #8c6424; --accent-2: #70501a; --accent-soft: rgba(140, 100, 36, .11); --accent-ink: #fffaf0;
+  --seal: #a63b28; --seal-soft: rgba(166, 59, 40, .1);
+  --green: #3e7a53; --red: #b3412f; --warn: #946514; --amber: #8f5c12; --blue: #33689f; --cyan: #1f6f7f; --violet: #6e4f98;
+  --shadow-1: 0 1px 2px rgba(70, 52, 28, .07), 0 4px 16px rgba(70, 52, 28, .07);
+  --shadow-2: 0 12px 36px rgba(70, 52, 28, .14), 0 2px 8px rgba(70, 52, 28, .08);
+  --focus: 0 0 0 2px var(--bg-2), 0 0 0 4px var(--accent);
+  color-scheme: light;
+}
+
+body { font-family: var(--font-sans); background: var(--bg-0); color: var(--text); }
+::selection { background: var(--accent-soft); color: var(--text); }
+::-webkit-scrollbar-thumb { background: var(--bg-4); border: 2px solid transparent; background-clip: content-box; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-3); border: 2px solid transparent; background-clip: content-box; }
+
+/* ---------------------------------------------------------------- shell */
+.unified-shell { font-size: 14px; background: var(--bg-0); }
+.unified-header {
+  position: relative; z-index: 20; min-height: var(--header-h); display: flex; align-items: stretch; gap: 20px;
+  padding: 0 20px 0 18px; background: var(--bg-1); border-bottom: 1px solid var(--line);
+}
+.unified-header::after { content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 1px; pointer-events: none;
+  background: linear-gradient(90deg, transparent, var(--accent-soft) 18%, var(--accent-soft) 82%, transparent); }
+.unified-brand { min-width: 0; flex-shrink: 0; display: flex; align-items: center; align-self: center; }
+.unified-brand-home { gap: 11px; }
+.unified-brand-logo { width: 40px; height: 40px; border-radius: 7px; padding: 2px; background: #fff; box-shadow: 0 0 0 1px var(--line-2); }
+.unified-brand strong { font-family: var(--font-serif); font-size: 19px; font-weight: 600; letter-spacing: 3px; line-height: 1.3; color: var(--text); }
+.unified-brand div > span { font-size: 11px; letter-spacing: 1.2px; color: var(--text-3); line-height: 1.5; }
+.workspace-badge { align-self: center; display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0; height: 26px; padding: 0 10px;
+  border: 1px solid var(--accent-soft); border-radius: 999px; background: var(--accent-soft); color: var(--accent); font-size: 12px; font-weight: 600; letter-spacing: 1px; }
+.unified-nav { display: flex; align-items: stretch; gap: 2px; height: auto; padding: 0; margin: 0; border: 0; background: transparent;
+  overflow-x: auto; overflow-y: hidden; scrollbar-width: none; flex: 0 1 auto; min-width: 0; }
+.unified-nav::-webkit-scrollbar { display: none; }
+.unified-nav.workspace-nav { border-top: 0; }
+.unified-nav button { position: relative; display: flex; align-items: center; padding: 0 14px; border: 0; background: transparent;
+  color: var(--text-2); font-size: 14.5px; letter-spacing: 1px; white-space: nowrap; transition: color .18s ease; }
+.unified-nav button:hover { color: var(--text); }
+.unified-nav button.active { color: var(--accent); font-weight: 600; }
+.unified-nav button.active::after { left: 14px; right: 14px; bottom: 0; height: 2px; border-radius: 2px 2px 0 0;
+  background: var(--accent); }
+.unified-search { align-self: center; flex: 1 1 240px; max-width: 400px; margin: 0 0 0 auto; height: 38px; padding: 3px 4px 3px 13px;
+  border: 1px solid var(--line-2); border-radius: 999px; background: var(--bg-2); gap: 9px; }
+.unified-search:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.unified-search input { font-size: 13.5px; min-height: 28px; }
+.unified-search button { border-radius: 999px; min-width: 32px; min-height: 30px; background: var(--accent); color: var(--accent-ink); }
+.workspace-header-actions { align-self: center; gap: 6px; margin-left: 0; flex-shrink: 0; }
+.unified-header > nav + .workspace-header-actions { margin-left: auto; }
+.unified-icon { width: 36px; height: 36px; padding: 0; border-radius: 50%; color: var(--text-2); transition: background .15s, color .15s; }
+.unified-icon:hover { background: var(--bg-3); color: var(--text); }
+.workspace-account { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border-radius: 999px; background: var(--bg-2);
+  border: 1px solid var(--line); color: var(--text-2); font-size: 12px; }
+.workspace-header-actions .workspace-public { height: 32px; padding: 0 12px; border-radius: 999px; border-color: var(--line-2); color: var(--text-2); font-size: 12.5px; }
+.workspace-header-actions .workspace-public:hover { border-color: var(--accent); color: var(--accent); }
+.unified-status { min-height: 24px; align-items: center; padding: 3px 18px; font-size: 11.5px; background: var(--bg-1); color: var(--text-3); }
+.unified-error { background: var(--seal); }
+
+.research-tabs { min-height: 46px; gap: 4px; padding: 6px 16px; background: var(--bg-1); border-bottom: 1px solid var(--line); }
+.research-tabs button { height: 32px; padding: 0 14px; border-radius: 999px; border: 1px solid transparent; font-size: 13.5px; color: var(--text-2); transition: background .15s, color .15s; }
+.research-tabs button:hover:not(:disabled) { background: var(--bg-3); color: var(--text); }
+.research-tabs button.active { background: var(--accent-soft); color: var(--accent); border-color: transparent; font-weight: 600; }
+.research-tabs > span + button, .research-tabs > span ~ button { border-color: var(--line-2); }
+.research-tabs > span ~ button.active { border-color: var(--accent); }
+
+/* ---------------------------------------------------------------- primitives */
+.btn { height: 32px; border-radius: 8px; border-color: var(--line-2); background: var(--bg-2); }
+.btn:hover:not(:disabled) { background: var(--bg-3); border-color: var(--text-3); }
+.btn.sm { height: 28px; border-radius: 7px; }
+.btn.xs { height: 23px; border-radius: 6px; }
+.btn.primary, .btn.primary:hover:not(:disabled) { color: var(--accent-ink); }
+.btn.primary { background: var(--accent); border-color: var(--accent); font-weight: 600; }
+.btn.primary:hover:not(:disabled) { background: var(--accent-2); border-color: var(--accent-2); }
+.btn.ghost:hover:not(:disabled) { background: var(--bg-3); }
+.chip { border-radius: 999px; background: var(--bg-2); }
+.chip.on { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
+.badge.accent { background: var(--accent); color: var(--accent-ink); }
+.step .n { background: var(--accent); color: var(--accent-ink); }
+.input, .select, textarea.input { border-radius: 8px; background: var(--bg-2); border-color: var(--line-2); }
+.input:focus, .select:focus, textarea.input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); outline: none; }
+.pane-h { height: 38px; font-size: 12.5px; font-weight: 600; letter-spacing: .06em; text-transform: none; color: var(--text-2); background: var(--bg-1); }
+.pane-h::before { width: 3px; height: 13px; background: var(--accent); }
+.layers-title, .art-cap { text-transform: none; letter-spacing: .06em; font-size: 12px; color: var(--text-2); }
+.side { background: var(--bg-1); }
+.page-grid .pg { border-color: var(--line); color: var(--text); text-shadow: none; border-radius: 5px; }
+.page-grid .pg:hover { border-color: var(--text-3); }
+
+/* ---------------------------------------------------------------- research home (no asset open) */
+.home { background: radial-gradient(900px 420px at 50% 0%, var(--accent-soft), transparent 72%), var(--bg-0); }
+.home-inner { width: min(860px, 100%); gap: 26px; }
+.home h1 { font-family: var(--font-serif); font-size: 28px; font-weight: 600; letter-spacing: 3px; }
+.home p { font-size: 14px; line-height: 1.9; }
+.home p b { color: var(--accent); font-weight: 600; }
+.stat { border-radius: var(--radius-lg); background: var(--bg-1); border: 1px solid var(--line); box-shadow: var(--shadow-1); padding: 16px 18px; }
+.stat .v { font-family: var(--font-serif); font-size: 26px; font-weight: 600; }
+.stat .k { font-size: 12.5px; }
+.step { background: var(--bg-1); padding: 14px 16px; }
+.step:hover { border-color: var(--accent); background: var(--bg-2); }
+.step .t { font-size: 14px; }
+.step .d { font-size: 12.5px; }
+.home .keys { font-size: 12.5px; }
+
+/* ---------------------------------------------------------------- archive / scene (scoped app) */
+.inventory-pane { font-family: var(--font-sans); }
+.inventory-pane .side { border-right: 1px solid var(--line); }
+.inventory-pane :is(.scene-tools, .sc-card, .walk-tip) {
+  background: color-mix(in srgb, var(--bg-1) 86%, transparent); border: 1px solid var(--line-2); box-shadow: var(--shadow-2);
+  backdrop-filter: blur(10px) saturate(1.1); -webkit-backdrop-filter: blur(10px) saturate(1.1);
+}
+.inventory-pane .scene-tools { border-radius: 999px; padding: 5px; gap: 2px; }
+.inventory-pane .scene-tools button { border-radius: 999px; color: var(--text-2); }
+.inventory-pane .scene-tools button:hover { background: var(--bg-3); color: var(--text); }
+.inventory-pane .scene-tools button.on { background: var(--accent-soft); color: var(--accent); }
+.inventory-pane .sc-card { border-radius: var(--radius-lg); }
+.inventory-pane .identity-card { border-radius: var(--radius-lg); border-top-width: 2px; box-shadow: var(--shadow-1); }
+.inventory-pane .identity-card h2 { font-family: var(--font-serif); letter-spacing: 1px; }
+
+/* ---------------------------------------------------------------- AI 问答 */
+.search-query { border-radius: 999px; min-height: 58px; padding: 7px 8px 7px 22px; background: var(--bg-1); box-shadow: var(--shadow-1); }
+.search-query button { border-radius: 999px; color: var(--accent-ink); }
+.answer-panel { border-radius: var(--radius-lg); box-shadow: var(--shadow-1); }
+.answer-question { font-family: var(--font-serif); letter-spacing: .5px; }
+
+/* ---------------------------------------------------------------- 知识图谱 / 电子文创 (lazy styles load later) */
+.unified-shell .kg-toolbar { flex-basis: 50px; padding: 7px 14px; background: var(--bg-1); }
+.unified-shell .kg-search { height: 34px; border-radius: 999px; background: var(--bg-2); }
+.unified-shell .creative-primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
+.unified-shell .creative-primary:hover { background: var(--accent-2); border-color: var(--accent-2); }
+.unified-shell :is(.creative-button, .creative-downloads a, .creative-downloads button) { border-radius: 999px; }
+.unified-shell .creative-heading h1, .unified-shell .creative-studio-heading h1 { font-family: var(--font-serif); letter-spacing: 2px; font-size: 23px; }
+
+/* ---------------------------------------------------------------- 登录 / API 配置 */
+.workspace-login { background: radial-gradient(1100px 520px at 50% -10%, var(--accent-soft), transparent 70%), var(--bg-0); }
+.workspace-login-card { width: min(100%, 400px); padding: 34px 36px 30px; border: 1px solid var(--line); border-radius: 18px; background: var(--bg-1); box-shadow: var(--shadow-2); }
+.workspace-login-card h1 { font-family: var(--font-serif); letter-spacing: 3px; }
+.workspace-login-card input { border-radius: 10px; background: var(--bg-2); }
+.workspace-login-card input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); outline: none; }
+.workspace-login-submit, .api-config-footer button { border-radius: 10px; background: var(--accent); color: var(--accent-ink); font-weight: 600; }
+.api-config-page { background: var(--bg-0); }
+.api-config-inner h1 { font-family: var(--font-serif); letter-spacing: 2px; }
+.api-config-form { border-radius: var(--radius-lg); background: var(--bg-1); box-shadow: var(--shadow-1); }
+.api-provider-tabs button { border-radius: var(--radius); }
+.public-reference { border-radius: var(--radius-lg); box-shadow: var(--shadow-2); }
+.public-reference::backdrop { background: rgba(10, 9, 8, .6); }
+
+/* ---------------------------------------------------------------- responsive: nav drops to a second row */
+@media (max-width: 1240px) {
+  .unified-header { flex-wrap: wrap; row-gap: 0; padding-top: 8px; }
+  .unified-brand { height: 44px; }
+  .unified-nav { order: 10; flex: 1 0 100%; height: 44px; margin: 0 -18px; padding: 0 8px; border-top: 1px solid var(--line); }
+  .unified-search { max-width: none; }
+  .workspace-header-actions { margin-left: auto; }
+}
+@media (max-width: 760px) {
+  .unified-header { gap: 8px; padding: 6px 12px 0; }
+  .unified-brand strong { font-size: 16px; letter-spacing: 1.5px; }
+  .unified-brand div > span, .workspace-badge { display: none; }
+  .unified-search { order: 5; flex: 1 0 100%; margin: 6px 0; }
+  .unified-nav { margin: 0 -12px; }
+  .unified-nav button { padding: 0 11px; font-size: 13.5px; }
+}

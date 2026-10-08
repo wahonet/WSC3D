@@ -4,6 +4,8 @@ export type AssetKind = 'photo' | 'photo_part' | 'rubbing' | 'model_high' | 'mod
 export type GroupKey = 'model' | 'photo' | 'photo_part' | 'rubbing'
 
 export interface AlignChain {
+  model?: 'homography'
+  homography?: number[][]
   s: number
   theta_deg: number
   tx: number
@@ -18,6 +20,7 @@ export interface AssetBrief {
   kind: AssetKind
   kind_label: string
   filename: string
+  sha256?: string
   bytes: number
   width: number
   height: number
@@ -27,6 +30,7 @@ export interface AssetBrief {
     textures?: string[]
     is_master?: boolean
     align_to_master?: AlignChain | null
+    cutout_rotation_ccw?: number
   }
   is_master: boolean
   in_frame: boolean
@@ -397,6 +401,10 @@ export type SegPromptMode = 'text' | 'box'
 
 /* ---------------- 对齐 ---------------- */
 export interface AlignGeometry {
+  /** A single face inside a photo containing multiple planes; never enters a whole-image chain. */
+  local_only?: boolean
+  model?: 'homography'
+  homography?: number[][]
   target_asset_id: number
   pairs: { a: [number, number]; b: [number, number] }[]
   s: number
@@ -407,7 +415,7 @@ export interface AlignGeometry {
   wl: number; hl: number; wr: number; hr: number
 }
 
-export interface OverlayTransform { xVp: number; yVp: number; wVp: number; deg: number }
+export interface OverlayTransform { xVp: number; yVp: number; wVp: number; deg: number; warpMatrix?: number[][] }
 
 export interface OverlaySpec {
   assetId: number

@@ -15,9 +15,9 @@ export default function Home() {
         <div>
           <h1>武氏祠 · 图像研究工作台</h1>
           <p>
-            面向武氏祠画像石的本地研究平台。工作按流水线推进：<b>对齐</b>把各图接入统一坐标系，
-            <b>分割</b>选取画面区域，<b>标注</b>填写名称、概念与图像描述，<b>文献</b>为标注关联原文；
-            首页集中展示成果。先在左侧列表打开一件素材。
+            面向武氏祠画像石的本地研究平台。工作按流水线推进：<b>图像对齐</b>把各图接入统一坐标系，
+            <b>智能分割</b>选取画面区域，<b>结构标注</b>填写名称、概念与图像描述，<b>文献举证</b>为标注关联原文；
+            <b>查看与测量</b>集中展示成果。先在左侧列表打开一件素材。
           </p>
         </div>
 
@@ -44,7 +44,7 @@ export default function Home() {
 
         <div className="keys">
           <span><Kbd>V</Kbd>选中</span>
-          <span><Kbd>M</Kbd>测量（首页）</span>
+          <span><Kbd>M</Kbd>测量（查看与测量）</span>
           <span><Kbd>A</Kbd>绘制 <Kbd>1</Kbd><Kbd>2</Kbd><Kbd>3</Kbd><Kbd>4</Kbd>矩形 / 圆形 / 多边形 / 点（分割）</span>
           <span><Kbd>S</Kbd>SAM 分割</span>
           <span><Kbd>F</Kbd>适应窗口</span>

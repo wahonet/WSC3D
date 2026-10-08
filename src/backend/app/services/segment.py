@@ -15,12 +15,14 @@ from __future__ import annotations
 
 import json
 import logging
+import queue
 import subprocess
 import threading
 from pathlib import Path
 from typing import Any, Optional
 
 from ..config import settings, model_path
+from .process_tree import line_reader
 
 log = logging.getLogger("stonelab.segment")
 
@@ -39,9 +41,11 @@ SAM31_WEIGHT = _find_sam31()
 
 ENGINES = ("mobilesam", "sam3", "sam3.1")
 TEXT_ENGINES = ("sam3", "sam3.1")
+SEGMENT_TIMEOUT = 180     # 工作进程启动、单次加载或分割的无响应上限（秒）
 
 _lock = threading.RLock()
 _proc: Optional[subprocess.Popen] = None
+_lines: Optional[queue.Queue] = None
 _boot_info: dict[str, Any] = {}
 _engine_state: dict[str, dict] = {e: {"status": "idle", "detail": ""} for e in ENGINES}
 
@@ -58,8 +62,8 @@ def _alive() -> bool:
 
 
 def _ensure_worker() -> Optional[str]:
-    """确保工作进程在跑；返回错误信息或 None。"""
-    global _proc, _boot_info
+    """确保工作进程在跑；返回错误信息或 None。调用方须持有 _lock。"""
+    global _proc, _lines, _boot_info
     if _alive():
         return None
     py = worker_python()
@@ -77,10 +81,14 @@ def _ensure_worker() -> Optional[str]:
             text=True, encoding="utf-8", bufsize=1,
             creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
         )
-        line = _proc.stdout.readline()
+        _lines = line_reader(_proc)
+        line = _lines.get(timeout=SEGMENT_TIMEOUT)
         _boot_info = json.loads(line) if line.strip() else {}
         log.info("sam worker started pid=%s gpu=%s", _proc.pid, _boot_info.get("gpu"))
         return None
+    except queue.Empty:
+        shutdown_worker()
+        return f"工作进程启动超过 {SEGMENT_TIMEOUT} 秒无响应，已停止，详见 {settings.worker_log.name}"
     except Exception as e:
         _proc = None
         return f"工作进程启动失败：{type(e).__name__}: {e}"
@@ -91,16 +99,19 @@ def _request(payload: dict) -> dict:
         err = _ensure_worker()
         if err:
             return {"ok": False, "error": err}
-        assert _proc and _proc.stdin and _proc.stdout
+        assert _proc and _proc.stdin and _lines
         try:
             _proc.stdin.write(json.dumps(payload, ensure_ascii=False) + "\n")
             _proc.stdin.flush()
-            line = _proc.stdout.readline()
+            line = _lines.get(timeout=SEGMENT_TIMEOUT)
             if not line:
                 code = _proc.poll()
                 return {"ok": False,
                         "error": f"工作进程中断（exit={code}），详见 {settings.worker_log.name}"}
             return json.loads(line)
+        except queue.Empty:
+            shutdown_worker()
+            return {"ok": False, "error": f"工作进程超过 {SEGMENT_TIMEOUT} 秒无响应，已停止，详见 {settings.worker_log.name}"}
         except Exception as e:
             return {"ok": False, "error": f"{type(e).__name__}: {e}"}
 
@@ -129,7 +140,7 @@ def models_status() -> dict:
 
     def w(p: Optional[Path]) -> dict:
         exists = p is not None and p.exists()
-        return {"file": str(p.relative_to(settings.models_root)) if p else None,
+        return {"file": str(p.relative_to(settings.models_root.resolve())) if p else None,
                 "exists": exists,
                 "bytes": p.stat().st_size if exists else 0}
 
@@ -151,10 +162,13 @@ def load_engine(engine: str) -> dict:
     if _engine_state[engine]["status"] in ("ready", "loading"):
         return {"ok": True, "engines": _engine_state}
 
-    err = _ensure_worker()
-    if err:
-        _engine_state[engine] = {"status": "error", "detail": err}
-        return {"ok": False, "error": err, "engines": _engine_state}
+    # 每次请求全程持有 _lock；工作进程已在运行时不必排队等待。
+    if not _alive():
+        with _lock:
+            err = _ensure_worker()
+        if err:
+            _engine_state[engine] = {"status": "error", "detail": err}
+            return {"ok": False, "error": err, "engines": _engine_state}
 
     _engine_state[engine] = {
         "status": "loading",

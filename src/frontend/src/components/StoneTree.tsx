@@ -4,7 +4,7 @@ import { thumbUrl } from '../api'
 import { fmtBytes } from '../lib/format'
 import { useApp } from '../store/useApp'
 import type { AssetBrief, StoneNode } from '../types'
-import { Badge, Empty } from './ui'
+import { Badge, Empty, onEnterSpace } from './ui'
 
 export default function StoneTree() {
   const stones = useApp(s => s.stones)
@@ -81,10 +81,11 @@ export default function StoneTree() {
           const open = !!query || openStones.has(s.id)
           const selected = curStone?.id === s.id
           const thumbnailId = thumbnailIds.get(s.id)
+          const toggleStone = () => setOpenStones(toggle(openStones, s.id))
           return (
             <div key={s.id}>
               <div data-stone-id={s.id} aria-current={selected ? 'true' : undefined} className={`stone-card${open ? ' open' : ''}${selected ? ' on' : ''}`}
-                onClick={() => setOpenStones(toggle(openStones, s.id))}>
+                role="button" tabIndex={0} aria-expanded={open} onClick={toggleStone} onKeyDown={onEnterSpace(toggleStone)}>
                 {thumbnailId
                   ? <img className="thumb" src={thumbUrl(thumbnailId)} alt={`${s.code} ${s.name}缩略图`} loading="lazy" />
                   : <div className="thumb" title="暂无图像"><ImageIcon size={16} /></div>}
@@ -103,9 +104,11 @@ export default function StoneTree() {
                   {s.groups.filter(g => g.assets.length > 0).map(g => {
                     const gid = `${s.id}:${g.key}`
                     const gOpen = !!query || openGroups.has(gid) || g.assets.some(a => a.id === curAsset?.id)
+                    const toggleGroup = () => setOpenGroups(toggle(openGroups, gid))
                     return (
                       <div key={g.key}>
-                        <div className={`grp-row${gOpen ? ' open' : ''}`} onClick={() => setOpenGroups(toggle(openGroups, gid))}>
+                        <div className={`grp-row${gOpen ? ' open' : ''}`} role="button" tabIndex={0} aria-expanded={gOpen}
+                          onClick={toggleGroup} onKeyDown={onEnterSpace(toggleGroup)}>
                           <ChevronRight size={12} className="chev" />
                           <span>{g.label}</span>
                           <span className="n">{g.assets.length}</span>
@@ -132,7 +135,7 @@ function Leaf({ a, isModel, on, onOpen }: {
   a: AssetBrief; stone: StoneNode; isModel: boolean; on: boolean; onOpen: () => void
 }) {
   return (
-    <div className={`leaf${on ? ' on' : ''}`} onClick={onOpen} title={a.filename}>
+    <div className={`leaf${on ? ' on' : ''}`} role="button" tabIndex={0} aria-pressed={on} onClick={onOpen} onKeyDown={onEnterSpace(onOpen)} title={a.filename}>
       {isModel
         ? <span className="licon"><Box size={15} /></span>
         : <img className="lthumb" src={thumbUrl(a.id)} alt="" loading="lazy" />}

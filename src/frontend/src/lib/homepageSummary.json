@@ -1,0 +1,104 @@
+{
+  "asOf": "2026-10-06",
+  "stories": 308,
+  "motifs": 1376,
+  "graph": {
+    "meta": {
+      "dataset_id": "core10-candidates-v1",
+      "schema_version": 1,
+      "status": "candidate",
+      "notice": "核心十本文献整理的候选关系，尚待逐条核对原页和图像；共现与目录识别不等于已确认的图像归属。",
+      "core_documents": 10,
+      "evidence_total": 1785,
+      "evidence_available": 1785,
+      "generated_at": "2026-09-12T06:21:01.486357+00:00",
+      "counts": {
+        "stone": 149,
+        "story": 246,
+        "person": 254,
+        "object": 230
+      },
+      "total_nodes": 879,
+      "total_edges": 1407,
+      "returned_nodes": 879,
+      "returned_edges": 1407,
+      "truncated": false
+    },
+    "hub": {
+      "id": "story:2647a35c24357b77",
+      "label": "荆轲刺秦王"
+    },
+    "preview": [
+      {
+        "id": "stone:武023",
+        "label": "前石室小龛西壁及西侧",
+        "kind": "stone"
+      },
+      {
+        "id": "stone:武037",
+        "label": "左石室后壁小龛西侧",
+        "kind": "stone"
+      },
+      {
+        "id": "stone:武011",
+        "label": "武梁祠西壁",
+        "kind": "stone"
+      },
+      {
+        "id": "person:9d81ef37a7c3a9a3:侍者",
+        "label": "侍者",
+        "kind": "person"
+      },
+      {
+        "id": "person:all152:1db6830cba81d95bbe77",
+        "label": "刺客故事人物",
+        "kind": "person"
+      },
+      {
+        "id": "person:9d81ef37a7c3a9a3:卫士",
+        "label": "卫士",
+        "kind": "person"
+      },
+      {
+        "id": "person:夏无且",
+        "label": "夏无且",
+        "kind": "person"
+      },
+      {
+        "id": "person:9d81ef37a7c3a9a3:武士",
+        "label": "武士",
+        "kind": "person"
+      },
+      {
+        "id": "person:秦始皇",
+        "label": "秦始皇",
+        "kind": "person"
+      },
+      {
+        "id": "person:秦武阳",
+        "label": "秦武阳",
+        "kind": "person"
+      },
+      {
+        "id": "person:荆轲",
+        "label": "荆轲",
+        "kind": "person"
+      },
+      {
+        "id": "object:人头",
+        "label": "人头",
+        "kind": "object"
+      },
+      {
+        "id": "object:刀",
+        "label": "刀",
+        "kind": "object"
+      },
+      {
+        "id": "object:剑",
+        "label": "剑",
+        "kind": "object"
+      }
+    ]
+  }
+}

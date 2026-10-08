@@ -16,12 +16,18 @@ LOCK = threading.Lock()
 router = APIRouter()
 
 
+def read_default():
+    if not DEFAULT.exists():
+        raise HTTPException(status_code=404, detail='缺少后展厅默认布局 rear-default.json，请从完整项目副本恢复 data/layouts 目录。')
+    return json.loads(DEFAULT.read_text(encoding='utf-8'))
+
+
 def read_layout():
-    return json.loads((CURRENT if CURRENT.exists() else DEFAULT).read_text(encoding='utf-8'))
+    return json.loads(CURRENT.read_text(encoding='utf-8')) if CURRENT.exists() else read_default()
 
 
 def validate_layout(payload):
-    defaults = json.loads(DEFAULT.read_text(encoding='utf-8'))['stones']
+    defaults = read_default()['stones']
     identities = {r['id']: r for r in defaults}
     rows = payload.get('stones') if isinstance(payload, dict) else None
     if not isinstance(rows, list) or len(rows) != len(defaults):

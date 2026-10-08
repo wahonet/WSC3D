@@ -3,6 +3,7 @@ import { COLORS, LEVEL_STYLE } from '../../lib/constants'
 import { hasReferences } from '../../lib/references'
 import { annotationLabel } from '../../lib/tree'
 import { isValid2DGeometry, type Pt } from '../../lib/geometry'
+import { nativeMask, nativeMaskBounds, nativeMaskPaths } from '../../lib/nativeMasks'
 import type { Annotation, ProjectedAnnotation } from '../../types'
 
 type ToEl = (p: Pt) => Pt
@@ -75,6 +76,24 @@ export function AnnoShape({ a, toEl, selected, interactive, onSelect, linkedTint
     )
   }
   if (a.atype === 'polygon') {
+    if (g.native_mask != null) {
+      try {
+        const mask = nativeMask(g.native_mask)!, [height, width] = mask.size
+        const [x0, y0] = toEl([mask.extent[0], mask.extent[1]])
+        const [x1, y1] = toEl([mask.extent[2], mask.extent[3]])
+        const paths = nativeMaskPaths(mask), bounds = nativeMaskBounds(mask)
+        const top = toEl([bounds[0], bounds[1]]), right = toEl([bounds[2], bounds[1]])
+        return <g {...common} stroke="none" fill="none">
+          {title}
+          <g transform={`translate(${x0} ${y0}) scale(${(x1-x0)/width} ${(y1-y0)/height})`}>
+            <path d={paths.fill} fill={stroke} fillOpacity={common.fillOpacity} stroke="none" />
+            <path d={paths.boundary} fill="none" stroke={stroke} strokeWidth={common.strokeWidth}
+              strokeDasharray={common.strokeDasharray} vectorEffect="non-scaling-stroke" />
+          </g>
+          {nameTag(top[0], top[1], right[0]-top[0], tagText, stroke)}
+        </g>
+      } catch { return null }
+    }
     const el = (g.points as Pt[]).map(p => toEl(p))
     const pts = el.map(p => p.join(',')).join(' ')
     const [tx, ty, tw] = polyTopLeft(el)

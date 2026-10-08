@@ -55,7 +55,7 @@ else:
     placement=json.loads((ROOT / 'resources/georeferencing/hanwenhua-center-placement.json').read_text('utf-8'))
     t=placement['transform'];x,y,z=t['translation']
     transform=Matrix.Translation((x,-z,y))@Matrix.Rotation(math.radians(t['rotationYDeg']),4,'Z')
-    import_glb(ROOT / 'resources/scenes/models/hanwenhua-center.glb',cc,transform)
+    import_glb(ROOT / 'resources/scenes/models/hanwenhua-center-20260925.glb',cc,transform)
     after={o.name:list(v for row in o.matrix_world for v in row) for o in scene.objects if o.get('stone_id')}
     assert after==before,'Stone placements changed while combining scene'
     scene['context_source']='resources/georeferencing/site-context.json'

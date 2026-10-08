@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import { locLabel, useStore } from '../store';
 import { api } from '../api';
 import type { StoneBrief, StoneDetail } from '../types';
@@ -9,11 +10,16 @@ import { goToSection, openExtensionBook } from '../../lib/navigation';
 import { useEntranceMotion } from '../../hooks/useEntranceMotion';
 import ScanButton from './ScanButton';
 import PublishedAnnotations from './PublishedAnnotations';
+import CreativeLinks from '../../components/CreativeLinks';
 
 const SRC_LABEL: Record<string, string> = { measured: '实测', registry: '名录', estimated: '估算' };
+/** 影像名可能是编码过的，也可能本身含 %（如"50%拓片"），解码失败时原样显示 */
+const fileLabel = (label: string) => { try { return decodeURIComponent(label); } catch { return label; } };
 
 export default function LedgerView({ editable = false }: { editable?: boolean }) {
-  const { selectedId, stones, detail, stats, openLightbox, mediaTarget } = useStore();
+  const { selectedId, stones, detail, stats, openLightbox, mediaTarget } = useStore(useShallow(s => ({
+    selectedId: s.selectedId, stones: s.stones, detail: s.detail, stats: s.stats, openLightbox: s.openLightbox, mediaTarget: s.mediaTarget,
+  })));
   const brief = stones.find(s => s.id === selectedId);
   const [tab, setTab] = useState('');
   const previewRef = useEntranceMotion<HTMLDivElement>(tab, { duration: 260, skipInitial: true });
@@ -66,9 +72,9 @@ export default function LedgerView({ editable = false }: { editable?: boolean })
         {items.length > 1 && <><button className="ph-nav prev" aria-label="上一张" onClick={() => step(-1)}>‹</button><button className="ph-nav next" aria-label="下一张" onClick={() => step(1)}>›</button></>}
       </div>}
     </div>
-    {item && <div className="media-caption"><div><span className="media-index">{cur + 1} / {items.length}</span><span title={item.label}>{decodeURIComponent(item.label)}</span></div>
+    {item && <div className="media-caption"><div><span className="media-index">{cur + 1} / {items.length}</span><span title={item.label}>{fileLabel(item.label)}</span></div>
       <a href={item.original_url} download={item.original_name} title="下载保留的原始文件">下载原图{item.bytes ? ` · ${(item.bytes / 1048576).toFixed(1)} MB` : ''}</a></div>}
-    {items.length > 0 && <div className="lg-film" ref={filmRef}>{items.map((p, idx) => <button key={p.id} className={'film-item' + (idx === cur ? ' cur' : '')} title={decodeURIComponent(p.label)} aria-label={`查看第${idx + 1}张`} onClick={() => setPhotoIdx(idx)}><img src={p.thumbnail_url} alt={decodeURIComponent(p.label)} loading="lazy" /></button>)}</div>}
+    {items.length > 0 && <div className="lg-film" ref={filmRef}>{items.map((p, idx) => <button key={p.id} className={'film-item' + (idx === cur ? ' cur' : '')} title={fileLabel(p.label)} aria-label={`查看第${idx + 1}张`} onClick={() => setPhotoIdx(idx)}><img src={p.thumbnail_url} alt={fileLabel(p.label)} loading="lazy" /></button>)}</div>}
     </div><aside className="lg-arch">{brief ? <ArchPanel key={`${brief.id}:${editable}`} brief={brief} detail={detail} editable={editable} /> : <div className="arch-empty">在左侧选择石刻<br />此处显示档案</div>}<MiniMap location={brief?.location} /></aside></div>
   </div>;
 }
@@ -134,6 +140,7 @@ function ArchPanel({ brief, detail: d, editable }: { brief: StoneBrief; detail: 
     </section>
     <section className="arch-sec imagery-intro"><div className="arch-hd">画像简介</div>{d ? (d.intro ? <Markdown src={d.intro} /> : <div className="arch-dim">画像释读待补充</div>) : <div className="arch-dim">读取简介…</div>}</section>
     <PublishedAnnotations stoneId={brief.id} />
+    <CreativeLinks className="arch-sec" title="这块石头的文创" hint="壁纸、明信片，场馆内可存到手机" match={t => t.stone_id === brief.id} />
     <section className="arch-sec"><div className="arch-hd">著录与研究{d && d.book_refs.length > 0 && <span className="arch-n">{d.book_refs.length}</span>}</div>
       {d && d.book_refs.length > 0 && <div className="ref-list">{d.book_refs.map((r, i) => {
         const page = pageFromLoc(r.book, r.loc);

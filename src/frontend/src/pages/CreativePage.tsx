@@ -1,154 +1,237 @@
-import { useEffect, useRef, useState, type CSSProperties } from 'react'
-import { ArrowLeft, ArrowUpRight, BookOpen, Check, Download, Film, ImagePlus, Layers, LoaderCircle, Palette, Plus, Search, Share2, X } from 'lucide-react'
-import { creativeApi, newDesign, type Catalogue, type Design, type Layer, type Material, type Preview, type Template, type Work } from '../lib/creativeApi'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { ArrowLeft, ArrowRight, ArrowUpRight, BookOpen, Images, LoaderCircle, Stamp, Wifi } from 'lucide-react'
+import { creativeApi, type Theme, type Venue } from '../lib/creativeApi'
 import { goToSection, openDocument } from '../lib/navigation'
+import { go, readParams, type CreativeParams } from './creative/shared'
+import TakeAway from './creative/TakeAway'
+import { MyWorks, PickupPage, StampBook } from './creative/Pickup'
+import ScreenLoop from './creative/Screen'
 import './CreativePage.css'
 
-const draftKey = 'wsc.creative.design.v1'
-function storedDesign(): Design | null { try { return JSON.parse(localStorage.getItem(draftKey) || 'null') } catch { return null } }
-function shareUrl(token: string) { return location.origin + '/#section=creative&share=' + encodeURIComponent(token) }
+const KIOSK_FLAG = 'wsc.kiosk'
 
-export function Sources({ items }: { items: Material[] }) {
-  const unique = [...new Map(items.map(item => [item.id, item])).values()]
-  return <details className="creative-sources"><summary><BookOpen size={15} />原石与文献</summary>{unique.map(item => <div key={item.id}>
-    {item.source.stone_id && <button onClick={() => goToSection('archive', { stone: item.source.stone_id, share: null })}>{item.source.stone_id} · {item.source.stone_name}<ArrowUpRight size={14} /></button>}
-    {(item.source.references || []).filter(ref => ref.document_id && ref.page_no).map((ref, i) => <button key={i} onClick={() => openDocument({ collection: 'core', documentId: ref.document_id, pageNo: ref.page_no })}>{ref.document_title} · 第 {ref.page_no} 页<ArrowUpRight size={12} /></button>)}
-    {!item.source.stone_id && !item.source.references?.length && <span>{item.title} · 汉画启发创作</span>}
-  </div>)}</details>
+/** A kiosk stays a kiosk for the whole browser session; `kiosk=0` turns it off again. */
+function useKiosk(requested: boolean) {
+  const [kiosk] = useState(() => {
+    try {
+      if (new URLSearchParams(location.hash.slice(1)).get('kiosk') === '0') sessionStorage.removeItem(KIOSK_FLAG)
+      else if (requested) sessionStorage.setItem(KIOSK_FLAG, '1')
+      return requested || sessionStorage.getItem(KIOSK_FLAG) === '1'
+    } catch { return requested }
+  })
+  useEffect(() => {
+    if (!kiosk) return
+    document.documentElement.dataset.kiosk = '1'
+    const block = (event: Event) => event.preventDefault()
+    window.addEventListener('contextmenu', block)
+    return () => { delete document.documentElement.dataset.kiosk; window.removeEventListener('contextmenu', block) }
+  }, [kiosk])
+  return kiosk
 }
 
-function Result({ work, onUpdate, shared = false }: { work: Work; onUpdate: (work: Work) => void; shared?: boolean }) {
-  const [error, setError] = useState(''), [busy, setBusy] = useState(false)
-  const share = async (enabled = true) => {
-    setBusy(true); setError('')
-    try { onUpdate(await creativeApi.share(work.id, enabled)) } catch (reason) { setError((reason as Error).message) } finally { setBusy(false) }
-  }
-  if (work.status === 'rendering') return <div className="creative-result" role="status"><LoaderCircle className="creative-spin" size={17} />正在导出…</div>
-  if (work.status !== 'succeeded') return <div className="creative-error" role="alert">{work.error || '导出未完成'}</div>
-  return <div className="creative-result">
-    <div className="creative-downloads"><a href={work.image_url} download={`${work.design.title || '汉画'}.png`}><Download size={15} />{work.video_url ? '封面 PNG' : '下载 PNG'}</a>
-      {work.video_url && <a href={work.video_url} download={`${work.design.title || '汉画'}.mp4`}><Film size={15} />下载视频</a>}
-      {!shared && <button disabled={busy} onClick={() => void share()}><Share2 size={15} />分享作品</button>}</div>
-    {work.share && !shared && <div className="creative-share-link"><input aria-label="作品分享链接" readOnly value={shareUrl(work.share)} onFocus={event => event.target.select()} />
-      <button onClick={() => void navigator.clipboard.writeText(shareUrl(work.share!)).catch(() => setError('请选中链接复制'))}>复制</button><button disabled={busy} onClick={() => void share(false)}>取消分享</button></div>}
-    {error && <span className="creative-error" role="alert">{error}</span>}
-  </div>
+function useParams() {
+  const [params, setParams] = useState<CreativeParams>(readParams)
+  useEffect(() => {
+    const sync = () => setParams(readParams())
+    window.addEventListener('hashchange', sync); window.addEventListener('popstate', sync)
+    return () => { window.removeEventListener('hashchange', sync); window.removeEventListener('popstate', sync) }
+  }, [])
+  return params
 }
 
 export default function CreativePage() {
-  const [catalogue, setCatalogue] = useState<Catalogue | null>(null)
-  const [design, setDesign] = useState<Design | null>(null)
-  const [preview, setPreview] = useState<Preview | null>(null)
-  const [previewBusy, setPreviewBusy] = useState(false)
-  const [error, setError] = useState('')
-  const [filter, setFilter] = useState(''), [kind, setKind] = useState('all')
-  const [selected, setSelected] = useState(0), [adding, setAdding] = useState(false)
-  const [work, setWork] = useState<Work | null>(null), [busy, setBusy] = useState(false)
-  const [history, setHistory] = useState<Work[] | null>(null)
-  const [shared, setShared] = useState<Work | null>(null), [sharedToken, setSharedToken] = useState(() => new URLSearchParams(location.hash.slice(1)).get('share') || '')
-  const [resume, setResume] = useState<Design | null>(storedDesign)
-  const requestRef = useRef<{ id: string; key: string } | null>(null)
-  const submitLock = useRef(false), drag = useRef<{ x: number; y: number; original: Layer } | null>(null)
-  const previewArea = useRef<HTMLDivElement>(null)
-  useEffect(() => { creativeApi.catalogue().then(setCatalogue).catch(reason => setError(reason.message)) }, [])
-  useEffect(() => {
-    const changed = () => setSharedToken(new URLSearchParams(location.hash.slice(1)).get('share') || '')
-    window.addEventListener('hashchange', changed)
-    return () => window.removeEventListener('hashchange', changed)
+  const params = useParams()
+  return params.screen ? <ScreenLoop /> : <VisitorPage params={params} />
+}
+
+function VisitorPage({ params }: { params: CreativeParams }) {
+  const kiosk = useKiosk(params.kiosk)
+  const [venue, setVenue] = useState<Venue | null>(null)
+  const [themes, setThemes] = useState<Theme[] | null>(null), [error, setError] = useState('')
+  const [generation, setGeneration] = useState(0), [attract, setAttract] = useState(kiosk)
+  const load = useCallback(() => {
+    setError('')
+    creativeApi.venue().then(setVenue).catch(() => undefined)
+    creativeApi.themes().then(setThemes).catch(reason => setError(reason.message))
   }, [])
-  useEffect(() => {
-    let current = true
-    setShared(null)
-    if (sharedToken) creativeApi.shared(sharedToken).then(value => { if (current) setShared(value) }).catch(reason => { if (current) setError(reason.message) })
-    return () => { current = false }
-  }, [sharedToken])
-  const designKey = JSON.stringify(design)
-  useEffect(() => {
-    if (!design) { setPreview(null); return }
-    const controller = new AbortController()
-    setPreviewBusy(true); setError('')
-    try { localStorage.setItem(draftKey, JSON.stringify(design)) } catch { /* The current composition still works without storage. */ }
-    const timer = window.setTimeout(() => creativeApi.preview(design, controller.signal).then(value => { if (!controller.signal.aborted) setPreview(value) })
-      .catch(reason => { if (!controller.signal.aborted) { setError(reason.message); setPreview(null) } }).finally(() => { if (!controller.signal.aborted) setPreviewBusy(false) }), 250)
-    return () => { controller.abort(); window.clearTimeout(timer) }
-  }, [designKey])
-  useEffect(() => {
-    if (work?.status !== 'rendering') return
-    let current = true, loading = false
-    const timer = window.setInterval(() => {
-      if (loading) return
-      loading = true
-      creativeApi.work(work.id).then(value => { if (current) setWork(value) }).catch(reason => { if (current) setError(reason.message) }).finally(() => { loading = false })
-    }, 2000)
-    return () => { current = false; window.clearInterval(timer) }
-  }, [work?.id, work?.status])
+  useEffect(load, [load])
+  useEffect(() => { document.querySelector('.cw-root')?.scrollTo({ top: 0 }) }, [params.theme, params.product, params.take, params.stamps])
 
-  const patch = (value: Partial<Design>) => { setDesign(old => old && ({ ...old, ...value })); setWork(null) }
-  const patchLayer = (value: Partial<Layer>) => { if (design) patch({ layers: design.layers.map((layer, i) => i === selected ? { ...layer, ...value } : layer) }) }
-  const chooseTemplate = (template: Template) => {
-    if (!catalogue) return
-    const starter = template.design?.layers.every(l => catalogue.materials.some(m => m.id === l.material_id)) ? template.design : undefined
-    const material = catalogue.materials.find(m => (template.video || m.kind === 'image') && (template.id !== 'sticker' || m.has_ink))
-    if (!material && !starter) { setError('暂无可用素材'); return }
-    setDesign(starter ? { ...starter, signature: '' } : newDesign(template, material!)); setWork(null); setSelected(0); setAdding(false); setKind('all'); setFilter(''); setError('')
-    if (sharedToken) goToSection('creative', { share: null })
-  }
-  const selectMaterial = (material: Material) => {
-    if (!design) return
-    if (design.template === 'sticker' && !material.has_ink) { setError('透明贴纸请选择标注图案'); return }
-    if (material.kind === 'video' && design.template !== 'postcard') { setError('请先选择动态明信片版式'); return }
-    if (adding && design.layers.length < 3 && material.kind !== 'video') {
-      patch({ layers: [...design.layers, { material_id: material.id, x: 72, y: 70, scale: .4, tint: material.has_ink }] }); setSelected(design.layers.length)
-    } else { patch({ layers: [{ material_id: material.id, x: 50, y: 50, scale: 1, tint: design.template === 'sticker' }] }); setSelected(0) }
-    setAdding(false); setError('')
-  }
-  const exportWork = async () => {
-    if (!design || submitLock.current || previewBusy || !preview) return
-    submitLock.current = true; setBusy(true); setError('')
-    if (requestRef.current?.key !== designKey) requestRef.current = { id: crypto.randomUUID(), key: designKey }
-    try { const result = await creativeApi.create(requestRef.current!.id, design); setWork(result); if (result.status === 'failed') requestRef.current = null }
-    catch (reason) { setError((reason as Error).message) }
-    finally { submitLock.current = false; setBusy(false) }
-  }
-  const showHistory = async () => { try { setHistory(await creativeApi.works()) } catch (reason) { setError((reason as Error).message) } }
-  const selectedMaterial = catalogue?.materials.find(item => item.id === design?.layers[selected]?.material_id)
-  const chosen = design?.layers.map(layer => catalogue?.materials.find(item => item.id === layer.material_id)).filter((item): item is Material => !!item) || []
-  const filtered = catalogue?.materials.filter(m => (kind === 'all' || m.kind === kind) && (design?.template === 'postcard' || m.kind !== 'video') && (design?.template !== 'sticker' || m.has_ink) && [m.title, ...m.tags].some(value => value.includes(filter))) || []
+  // Resetting forgets everything the last visitor did: their works, drafts and open dialogs.
+  const reset = useCallback(async () => {
+    await creativeApi.reset().catch(() => undefined)
+    try { Object.keys(sessionStorage).filter(key => key.startsWith('wsc.creative.')).forEach(key => sessionStorage.removeItem(key)) } catch { /* nothing kept */ }
+    setGeneration(n => n + 1); go(); setAttract(true); load()
+  }, [load])
 
-  return <div className="creative-page">
-    <header className="creative-heading"><div>{design && !sharedToken && <button className="creative-back" onClick={() => { setResume(design); setDesign(null); setWork(null) }}><ArrowLeft size={16} />全部版式</button>}<h1>电子文创</h1></div><button className="creative-button" onClick={() => void showHistory()}><Layers size={16} />我的作品</button></header>
-    {error && <div className="creative-error creative-page-error" role="alert">{error}<button aria-label="关闭错误提示" onClick={() => setError('')}><X size={14} /></button></div>}
-    {sharedToken ? shared ? <div className="creative-shared"><div className="creative-shared-art">{shared.video_url ? <video src={shared.video_url} poster={shared.cover_url} controls playsInline loop /> : <img src={shared.image_url} alt={shared.design.title} />}</div><div><h2>{shared.design.title}</h2>{shared.design.signature && <p>{shared.design.signature} 的汉画作品</p>}<Result work={shared} onUpdate={setShared} shared /><button className="creative-primary" onClick={() => { setDesign(shared.design); setWork(null); goToSection('creative', { share: null }) }}>制作我的版本<ArrowUpRight size={16} /></button><Sources items={shared.sources} /></div></div> : <div className="creative-empty">{error ? '此分享暂不可用' : '正在打开作品…'}</div>
-    : !design ? <main className="creative-gallery"><div className="creative-gallery-title"><h2>把汉画带走</h2>{resume && <button className="creative-button" onClick={() => { setDesign(resume); setResume(null) }}>继续上次创作<ArrowUpRight size={15} /></button>}</div>
-      <div className="creative-template-grid">{catalogue?.templates.map((template, index) => <button className={'creative-template creative-template-'+template.id} key={template.id} onClick={() => chooseTemplate(template)}><div className="creative-template-art"><>{template.cover_url ? <img src={template.cover_url} alt={template.category+'成品示例'} /> : <ImagePlus size={48} />}</><span className="creative-template-number">0{index+1}</span></div><div className="creative-template-caption"><span><small>{template.category}</small><strong>{template.title}</strong></span><ArrowUpRight size={22} /></div></button>)}</div>
-      {catalogue && !catalogue.templates.length && <div className="creative-empty">版式准备中</div>}
-      <div className="creative-collection-heading"><h3>从一个形象开始</h3><span>汉画图案 · 动态故事</span></div><div className="creative-inspiration">{catalogue?.materials.slice(0, 12).map(item => <button key={item.id} onClick={() => { const template = catalogue.templates.find(t => t.id === (item.kind === 'video' ? 'postcard' : 'card')); if (template) { setDesign(newDesign(template, item)); setSelected(0) } }}><img src={item.thumb_url} alt="" loading="lazy" /><span>{item.title}{item.kind === 'video' && <Film size={13} />}</span></button>)}</div>
-    </main> : <main className="creative-editor">
-      <aside className="creative-material-panel"><div className="creative-panel-title"><h2>选素材</h2><button className={adding ? 'active' : ''} aria-pressed={adding} disabled={design.layers.length >= 3} onClick={() => setAdding(!adding)}><Plus size={14} />叠加图案</button></div>
-        <label className="creative-search"><Search size={15} /><input aria-label="搜索文创素材" value={filter} onChange={event => setFilter(event.target.value)} placeholder="搜索形象、故事" /></label>
-        <div className="creative-filter">{[['all', '全部'], ['image', '图案'], ['video', '视频']].filter(([key]) => design.template === 'postcard' || key !== 'video').map(([key, label]) => <button key={key} className={kind === key ? 'active' : ''} onClick={() => setKind(key)}>{label}</button>)}</div>
-        <div className="creative-material-grid">{filtered.map(item => <button key={item.id} className={chosen.some(m => m.id === item.id) ? 'selected' : ''} onClick={() => selectMaterial(item)}><img src={item.thumb_url} alt="" loading="lazy" /><span>{item.title}</span>{item.kind === 'video' && <Film size={13} />}</button>)}</div>
-      </aside>
-      <section className="creative-canvas-panel"><div className="creative-canvas-toolbar"><span>{catalogue?.templates.find(t => t.id === design.template)?.category}</span><span>{previewBusy ? '更新预览…' : preview ? `${preview.width} × ${preview.height}` : ''}</span></div>
-        <div className="creative-artboard-wrap"><div className={'creative-artboard '+(design.template === 'sticker' ? 'creative-checker' : '')} ref={previewArea} style={{ '--art-ratio': preview ? preview.width/preview.height : 1.44 } as CSSProperties}
-          onPointerDown={event => { if (!selectedMaterial || selectedMaterial.kind === 'video' || !design.layers[selected]) return; drag.current = { x: event.clientX, y: event.clientY, original: design.layers[selected] }; event.currentTarget.setPointerCapture(event.pointerId) }}
-          onPointerMove={event => { if (!drag.current || !previewArea.current || !preview) return; const rect = previewArea.current.getBoundingClientRect(); const dx = (event.clientX-drag.current.x)/rect.width*preview.width/preview.artwork.width*100, dy = (event.clientY-drag.current.y)/rect.height*preview.height/preview.artwork.height*100; patchLayer({ x: Math.max(0, Math.min(100, drag.current.original.x+dx)), y: Math.max(0, Math.min(100, drag.current.original.y+dy)) }) }}
-          onPointerUp={() => { drag.current = null }} onPointerCancel={() => { drag.current = null }}>
-          {preview?.video && <video key={preview.video.url} src={preview.video.url} autoPlay muted loop playsInline style={{ left: `${preview.video.x/preview.width*100}%`, top: `${preview.video.y/preview.height*100}%`, width: `${preview.video.width/preview.width*100}%`, height: `${preview.video.height/preview.height*100}%` }} />}
-          {preview ? <img draggable={false} src={preview.image} alt="文创成品预览" /> : <div className="creative-empty"><ImagePlus size={25} />选择素材开始创作</div>}
-        </div></div>
-        <div className="creative-layer-strip">{design.layers.map((layer, index) => { const item = catalogue?.materials.find(m => m.id === layer.material_id); return <button key={index} className={selected === index ? 'active' : ''} onClick={() => setSelected(index)}>{item?.title || '图案'}{design.layers.length > 1 && <span role="button" aria-label={`移除${item?.title}`} onClick={event => { event.stopPropagation(); patch({ layers: design.layers.filter((_, i) => i !== index) }); setSelected(0) }}><X size={13} /></span>}</button> })}</div>
-        {work && <Result work={work} onUpdate={setWork} />}
-      </section>
-      <aside className="creative-controls"><div className="creative-panel-title"><h2>我的设计</h2><Palette size={17} /></div>
-        <label>版式<select value={design.template} onChange={event => { const next = catalogue?.templates.find(t => t.id === event.target.value); if (next) { if ((!next.video && chosen.some(m => m.kind === 'video')) || (next.id === 'sticker' && chosen.some(m => !m.has_ink))) chooseTemplate(next); else { patch({ template: next.id }); setKind('all') } } }}>{catalogue?.templates.map(t => <option value={t.id} key={t.id}>{t.category}</option>)}</select></label>
-        <label>配色</label><div className="creative-palettes">{Object.entries(catalogue?.palettes || {}).map(([key, p]) => <button key={key} title={p.title} aria-label={p.title} aria-pressed={design.palette === key} className={design.palette === key ? 'active' : ''} style={{ '--swatch': p.bg, '--swatch-ink': p.ink } as CSSProperties} onClick={() => patch({ palette: key as Design['palette'] })}>{design.palette === key ? <Check size={15} /> : <span />}</button>)}</div>
-        <label>标题<input maxLength={18} value={design.title} onChange={event => patch({ title: event.target.value })} /></label>
-        {design.template !== 'sticker' && <><label>寄语<input maxLength={48} value={design.greeting} onChange={event => patch({ greeting: event.target.value })} /></label><div className="creative-control-row"><label>署名<input maxLength={12} value={design.signature} onChange={event => patch({ signature: event.target.value })} placeholder="你的名字" /></label><label>印章<input maxLength={4} value={design.stamp} onChange={event => patch({ stamp: event.target.value })} /></label></div></>}
-        {selectedMaterial?.kind === 'image' && design.layers[selected] && <div className="creative-transform"><label>图案大小<input type="range" min={.15} max={1.5} step={.01} value={design.layers[selected].scale} onChange={event => patchLayer({ scale: +event.target.value })} /></label><div className="creative-control-row"><label>水平<input type="range" min={0} max={100} value={design.layers[selected].x} onChange={event => patchLayer({ x: +event.target.value })} /></label><label>垂直<input type="range" min={0} max={100} value={design.layers[selected].y} onChange={event => patchLayer({ y: +event.target.value })} /></label></div>{selectedMaterial.has_ink && design.template !== 'sticker' && <label className="creative-checkbox"><input type="checkbox" checked={design.layers[selected].tint} onChange={event => patchLayer({ tint: event.target.checked })} />使用单色纹样</label>}</div>}
-        <button className="creative-primary creative-export" disabled={busy || work?.status === 'rendering' || previewBusy || !preview} onClick={() => void exportWork()}>{busy || work?.status === 'rendering' ? <LoaderCircle className="creative-spin" size={16} /> : <Download size={16} />}{work?.status === 'rendering' ? '正在导出' : chosen.some(m => m.kind === 'video') ? '导出 5 秒动态卡片' : '导出作品'}</button><Sources items={chosen} />
-      </aside>
-    </main>}
-    {history && <div className="creative-modal-backdrop" onClick={() => setHistory(null)}><section className="creative-history" role="dialog" aria-modal="true" aria-label="我的作品" onClick={event => event.stopPropagation()}><header><h2>我的作品</h2><button aria-label="关闭我的作品" onClick={() => setHistory(null)}><X size={20} /></button></header><div className="creative-history-grid">{history.map(item => <article key={item.id}>{item.status === 'succeeded' && <img src={item.cover_url} alt={item.design.title} />}<h3>{item.design.title}</h3><Result work={item} onUpdate={value => setHistory(previous => previous?.map(w => w.id === value.id ? value : w) || null)} /><button className="creative-button" onClick={() => { setDesign(item.design); setSelected(0); setWork(item); setHistory(null); if (sharedToken) goToSection('creative', { share: null }) }}>继续编辑</button></article>)}</div>{!history.length && <div className="creative-empty">还没有导出的作品</div>}</section></div>}
+  let body
+  if (params.take) body = <PickupPage token={params.take} />
+  else if (params.stamp || params.stamps) body = <StampBook hall={params.stamp} code={params.code} />
+  else if (params.theme) body = <ThemeView id={params.theme} product={params.product} venue={venue} kiosk={kiosk} />
+  else body = <Wall themes={themes} error={error} venue={venue} kiosk={kiosk} onRetry={load} />
+
+  return <div className={'cw-root' + (kiosk ? ' is-kiosk' : '')}>
+    <div key={generation} className="cw-scroll">{body}</div>
+    {params.mine && !kiosk && <MyWorks onClose={() => go()} />}
+    {kiosk && <KioskIdle seconds={venue?.idle_seconds || 90} paused={attract} onReset={reset} />}
+    {kiosk && attract && <Attract themes={themes || []} onStart={() => setAttract(false)} />}
   </div>
+}
+
+function Wall({ themes, error, venue, kiosk, onRetry }: { themes: Theme[] | null; error: string; venue: Venue | null; kiosk: boolean; onRetry: () => void }) {
+  return <div className="cw-page cw-wall-page">
+    <section className="cw-hero">
+      <p className="cw-eyebrow">武氏墓群石刻 · 电子文创</p>
+      <h1>把一个汉画故事带回家</h1>
+      <ol className="cw-steps">
+        <li><b>一</b><span>挑一个石头上的故事</span></li>
+        <li><b>二</b><span>对照原石拓片看懂它</span></li>
+        <li><b>三</b><span>把壁纸、明信片存进手机</span></li>
+      </ol>
+      {!kiosk && <p className="cw-lan"><Wifi size={16} />本页只在传承中心的场馆网络内可用，离开前请把喜欢的作品保存到手机。</p>}
+    </section>
+    {themes ? themes.length ? <div className="cw-wall">{themes.map((theme, index) =>
+      <button key={theme.id} className="cw-card" style={{ ['--i' as string]: index }} onClick={() => go({ theme: theme.id })}>
+        <span className="cw-card-art">{theme.cover_url && <img src={theme.cover_url} alt="" loading="lazy" />}</span>
+        <span className="cw-card-text">
+          <small>{[theme.hall?.name, theme.stone_name].filter(Boolean).join(' · ')}</small>
+          <strong>{theme.title}</strong>
+          <em>{theme.hook}</em>
+        </span>
+        <ArrowRight className="cw-card-go" size={20} />
+      </button>)}</div>
+      : <div className="cw-empty">故事正在整理中，敬请期待</div>
+      : <div className="cw-empty">{error ? <>{error}<button className="cw-button" onClick={onRetry}>重试</button></> : <><LoaderCircle className="cw-spin" size={26} />正在载入</>}</div>}
+    <div className="cw-extras">
+      {kiosk ? <>
+        <div className="cw-extra cw-phone">
+          {venue && <img src={venue.home_qr} alt="用手机打开电子文创的二维码" />}
+          <div><strong>用手机继续逛</strong><span>{venue?.wifi_ssid ? `先连接场馆 Wi-Fi「${venue.wifi_ssid}」，再用相机扫码` : '连接场馆 Wi-Fi 后，用相机扫码'}</span></div>
+          {venue?.wifi_qr && <figure><img src={venue.wifi_qr} alt="连接场馆 Wi-Fi 的二维码" /><figcaption>扫码连 Wi-Fi</figcaption></figure>}
+        </div>
+        <div className="cw-extra"><Stamp size={30} /><div><strong>汉画寻踪 · 集章</strong><span>七个展厅各有一枚集章二维码，用手机扫码盖章，集齐可领纪念卡</span></div></div>
+      </> : <>
+        <button className="cw-extra" onClick={() => go({ stamps: '1' })}><Stamp size={30} /><div><strong>汉画寻踪 · 集章</strong><span>在七个展厅扫码盖章，集齐领取纪念卡</span></div><ArrowRight size={20} /></button>
+        <button className="cw-extra" onClick={() => go({ mine: '1' })}><Images size={30} /><div><strong>我的作品</strong><span>这台手机最近 3 天做的作品</span></div><ArrowRight size={20} /></button>
+      </>}
+    </div>
+  </div>
+}
+
+function ThemeView({ id, product, venue, kiosk }: { id: string; product: string; venue: Venue | null; kiosk: boolean }) {
+  const [theme, setTheme] = useState<Theme | null>(null), [error, setError] = useState('')
+  const counted = useRef('')
+  useEffect(() => {
+    setError('')
+    const view = counted.current !== id
+    counted.current = id
+    creativeApi.theme(id, view).then(setTheme).catch(reason => setError(reason.message))
+  }, [id])
+  if (!theme || theme.id !== id) return <div className="cw-page"><div className="cw-bar"><button className="cw-back" onClick={() => go()}><ArrowLeft size={20} />全部故事</button></div>
+    <div className="cw-empty cw-center">{error || <><LoaderCircle className="cw-spin" size={28} />正在打开</>}</div></div>
+  const chosen = theme.products.find(p => p.id === product)
+  return chosen ? <TakeAway key={chosen.id} theme={theme} product={chosen} venue={venue} kiosk={kiosk} /> : <ThemePage theme={theme} kiosk={kiosk} />
+}
+
+type View = { key: string; label: string; note: string; url: string; video?: boolean; evidence?: boolean }
+
+function views(theme: Theme): View[] {
+  const list: View[] = []
+  if (theme.art.original) list.push({ key: 'original', label: '原石拓片', note: `${theme.stone_name}拓片局部，这个故事的依据`, url: theme.art.original, evidence: true })
+  if (theme.art.line) list.push(theme.line_kind === 'rubbing'
+    ? { key: 'line', label: '拓片底稿', note: '按原石拓片整理的底稿', url: theme.art.line, evidence: true }
+    : { key: 'line', label: '线描', note: '据原石拓片勾出的线描，人物、器物已与原石逐项核对', url: theme.art.line, evidence: true })
+  theme.art.colors.forEach((url, i) => list.push({ key: 'color' + i, label: theme.art.colors.length > 1 ? `彩色演绎${'一二'[i] || i + 1}` : '彩色演绎', note: `以${theme.line_kind === 'rubbing' ? '拓片' : '线描'}为底稿的艺术演绎，颜色是今天的想象，汉代原石没有这些色彩`, url }))
+  if (theme.art.clip) list.push({ key: 'clip', label: '动态短片', note: '五秒动态演绎，属于艺术再创作', url: theme.art.clip, video: true })
+  return list
+}
+
+function ThemePage({ theme, kiosk }: { theme: Theme; kiosk: boolean }) {
+  const list = views(theme)
+  const [active, setActive] = useState(list[0]?.key || '')
+  const view = list.find(v => v.key === active) || list[0]
+  return <div className="cw-page cw-theme">
+    <div className="cw-bar"><button className="cw-back" onClick={() => go()}><ArrowLeft size={20} />全部故事</button>{theme.hall && <span>{theme.hall.name} · {theme.hall.chapter}</span>}</div>
+    <header className="cw-theme-head">
+      <p className="cw-eyebrow">{theme.stone_id} · {theme.stone_name}</p>
+      <h1>{theme.title}</h1>
+      <p className="cw-hook">{theme.hook}</p>
+    </header>
+    <div className="cw-theme-body">
+      <section className="cw-viewer" aria-label="原石与演绎对照">
+        <div className="cw-viewer-stage">{view && (view.video
+          ? <video key={view.url} src={view.url} poster={theme.art.colors[0]} controls playsInline loop muted autoPlay />
+          : <img key={view.url} src={view.url} alt={`${theme.title} · ${view.label}`} />)}
+          {view && <span className={'cw-tag' + (view.evidence ? ' is-evidence' : '')}>{view.evidence ? '依据' : '艺术演绎'}</span>}
+        </div>
+        <div className="cw-viewer-tabs" role="tablist">{list.map(v => <button key={v.key} role="tab" aria-selected={v.key === view?.key} onClick={() => setActive(v.key)}>
+          {v.video ? <span className="cw-tab-video">▶</span> : <img src={v.url} alt="" />}<span>{v.label}</span></button>)}</div>
+        {view && <p className="cw-viewer-note">{view.note}</p>}
+      </section>
+      <section className="cw-story">
+        <h2>石头上的故事</h2>
+        <p className="cw-story-text">{theme.story}</p>
+        {theme.story_refs.length > 0 && <div className="cw-refs"><h3><BookOpen size={17} />故事出处</h3>
+          {theme.story_refs.map((ref, i) => <blockquote key={i}>
+            <p>{ref.text.length > 90 ? ref.text.slice(0, 90) + '…' : ref.text}</p>
+            <footer><cite>《{ref.document_title}》第 {ref.page_no} 页</cite>
+              {!kiosk && <button className="cw-link" onClick={() => openDocument({ collection: 'core', documentId: ref.document_id, pageNo: ref.page_no })}>看原书<ArrowUpRight size={14} /></button>}</footer>
+          </blockquote>)}
+        </div>}
+        {!kiosk && <button className="cw-link cw-archive" onClick={() => goToSection('archive', { stone: theme.stone_id, theme: null, product: null })}>在文物档案里看「{theme.stone_name}」的全部画面<ArrowUpRight size={16} /></button>}
+      </section>
+    </div>
+    <section className="cw-products" aria-label="带走它">
+      <h2>带走它</h2>
+      <p className="cw-use">{kiosk ? '选一件，用手机扫码就能带走' : '选一件，保存到手机'}，每件成品都印着这块石头的出处。</p>
+      <div className="cw-product-grid">{theme.products.map(p => <button key={p.id} className={'cw-product cw-product-' + p.id} onClick={() => go({ theme: theme.id, product: p.id })}>
+        <span className="cw-product-art"><img src={p.thumb_url} alt="" loading="lazy" />{p.id === 'postcard_video' && <i className="cw-play">▶</i>}</span>
+        <strong>{p.title}</strong><small>{p.use}</small>
+      </button>)}</div>
+    </section>
+  </div>
+}
+
+/** Counts down after a visitor walks away, then hands the screen to the next one. */
+function KioskIdle({ seconds, paused, onReset }: { seconds: number; paused: boolean; onReset: () => void }) {
+  const [left, setLeft] = useState<number | null>(null)
+  const last = useRef(Date.now()), dirty = useRef(false), resetRef = useRef(onReset)
+  resetRef.current = onReset
+  useEffect(() => {
+    const touch = () => { last.current = Date.now(); dirty.current = true; setLeft(null) }
+    const events = ['pointerdown', 'keydown', 'wheel', 'touchstart'] as const
+    events.forEach(name => window.addEventListener(name, touch, { capture: true, passive: true }))
+    const timer = window.setInterval(() => {
+      if (!dirty.current) return
+      const idle = (Date.now() - last.current) / 1000
+      if (idle >= seconds) { dirty.current = false; setLeft(null); resetRef.current() }
+      else if (idle >= seconds - 10) setLeft(Math.ceil(seconds - idle))
+    }, 500)
+    return () => { events.forEach(name => window.removeEventListener(name, touch, { capture: true })); window.clearInterval(timer) }
+  }, [seconds])
+  useEffect(() => { if (paused) { dirty.current = false; setLeft(null) } }, [paused])
+  return left === null ? null : <div className="cw-idle" role="alertdialog" aria-label="即将回到首页">
+    <div><strong>还在看吗？</strong><span>{left} 秒后回到首页，刚才的作品会被清除</span><button className="cw-primary">继续看</button></div>
+  </div>
+}
+
+/** Full-screen loop shown while the kiosk waits for the next visitor. */
+function Attract({ themes, onStart }: { themes: Theme[]; onStart: () => void }) {
+  const covers = themes.filter(t => t.cover_url)
+  const [index, setIndex] = useState(0)
+  useEffect(() => {
+    if (covers.length < 2) return
+    const timer = window.setInterval(() => setIndex(i => (i + 1) % covers.length), 6000)
+    return () => window.clearInterval(timer)
+  }, [covers.length])
+  const current = covers[index % Math.max(covers.length, 1)]
+  return <button className="cw-attract" onClick={onStart} aria-label="开始浏览">
+    {covers.map((t, i) => <img key={t.id} src={t.cover_url!} alt="" className={i === index % covers.length ? 'on' : ''} />)}
+    <span className="cw-attract-text">
+      <small>武氏墓群石刻 · 电子文创</small>
+      <strong>把一个汉画故事带回家</strong>
+      {current && <em>{current.title} · {current.hook}</em>}
+      <b>轻触屏幕，开始</b>
+    </span>
+  </button>
 }

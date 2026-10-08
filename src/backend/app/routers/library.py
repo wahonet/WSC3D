@@ -101,6 +101,7 @@ def patch_doc(body: DocumentPatch, d: Document = Depends(get_document), db: Sess
     for k, v in body.model_dump(exclude_none=True).items():
         setattr(d, k, v)
     db.commit()
+    library.index_changed()
     return _doc_out(db, d)
 
 
@@ -192,6 +193,7 @@ def patch_figure(figure_id: int, body: FigurePatch, db: Session = Depends(get_db
     for k, v in body.model_dump(exclude_none=True).items():
         setattr(f, k, v)
     db.commit()
+    library.index_changed()
     return _fig_out(f, f.page.page_no)
 
 

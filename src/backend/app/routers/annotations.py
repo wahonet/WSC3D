@@ -26,6 +26,11 @@ def list_by_asset(asset_id: int = Query(..., description="资产 id"), db: Sessi
     return annotations_out(db, rows)
 
 
+@router.get("/{anno_id}", response_model=AnnotationOut, summary="单个标注（含文献与图像引用）")
+def get_one(x: Annotation = Depends(get_annotation)):
+    return annotation_out(x)
+
+
 def _new(db: Session, body: AnnotationCreate) -> Annotation:
     try:
         validate_annotation_geometry(body.atype, body.geometry)
@@ -38,8 +43,6 @@ def _new(db: Session, body: AnnotationCreate) -> Annotation:
         raise HTTPException(404, "资产不存在")
     if a.stone_id != body.stone_id:
         raise HTTPException(422, "stone_id 与资产所属石头不一致")
-    from ..services.resource_versions import pin_asset
-    pin_asset(db, a)
     if body.atype == "none":
         body.geometry = {}
     data = body.model_dump(exclude={"concept_ids", "auto_parent", "parent_id"})
@@ -55,6 +58,8 @@ def _new(db: Session, body: AnnotationCreate) -> Annotation:
         structure.apply_auto_parent_on_create(db, x)
     if body.concept_ids:
         structure.set_concepts(db, x, body.concept_ids)
+    from ..services.resource_versions import pin_asset
+    pin_asset(db, a)
     return x
 
 

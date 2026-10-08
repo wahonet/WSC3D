@@ -4,7 +4,7 @@ import contextManifest from './siteContextManifest.json';
 
 /** One source for the established camera positions and their scene navigation. */
 export const VIEWPOINTS: Record<ViewKey, { p: number[]; t: number[] }> = {
-  pan:  { p: [98, 86, 120], t: [-2, 0, 2] },
+  pan:  { p: [-0.9324, 28.1785, 61.9492], t: [-3.9487, -5.0941, -1.2304] },
   gate: { p: [-52, 5, -42], t: [-38, 2, -26] },
   que:  { p: [6, 15, 8], t: [-13, 2, -11] },
   xcl:  { p: [-12, 5, 2], t: [-16, 2, 20] },

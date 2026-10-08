@@ -1,0 +1,1296 @@
+{
+ "source": "build_center_blender.py（施工图房间名分区，裁切到建模楼层；局部米制坐标 X 东 Y 北）",
+ "functions": {
+  "exhibit": "展陈",
+  "perform": "演艺",
+  "collection": "藏品与研究",
+  "office": "办公管理",
+  "equipment": "设备机房",
+  "service": "卫生及服务",
+  "traffic": "交通",
+  "parking": "车库"
+ },
+ "levels": {
+  "B1": {
+   "title": "负一层",
+   "floor": -4.8,
+   "family": "冷色系",
+   "zones": [
+    {
+     "id": "B1-01",
+     "name": "预留展厅",
+     "function": "exhibit",
+     "color": "#1864AB",
+     "area": 1072,
+     "p": [
+      -0.14,
+      47.46
+     ],
+     "z": -4.8
+    },
+    {
+     "id": "B1-02",
+     "name": "画像石核心展厅",
+     "function": "exhibit",
+     "color": "#339AF0",
+     "area": 768,
+     "p": [
+      -0.35,
+      16.78
+     ],
+     "z": -3.6
+    },
+    {
+     "id": "B1-03",
+     "name": "藏品库房一",
+     "function": "collection",
+     "color": "#3B5BDB",
+     "area": 283,
+     "p": [
+      -7.08,
+      75.38
+     ],
+     "z": -4.8
+    },
+    {
+     "id": "B1-04",
+     "name": "藏品库房二",
+     "function": "collection",
+     "color": "#5C7CFA",
+     "area": 279,
+     "p": [
+      7.24,
+      75.35
+     ],
+     "z": -4.8
+    },
+    {
+     "id": "B1-05",
+     "name": "非文物库房一",
+     "function": "collection",
+     "color": "#22B8CF",
+     "area": 101,
+     "p": [
+      21.33,
+      75.27
+     ],
+     "z": -4.8
+    },
+    {
+     "id": "B1-06",
+     "name": "非文物库房二",
+     "function": "collection",
+     "color": "#66D9E8",
+     "area": 100,
+     "p": [
+      -21.91,
+      74.4
+     ],
+     "z": -4.8
+    },
+    {
+     "id": "B1-07",
+     "name": "卸货",
+     "function": "collection",
+     "color": "#0CA678",
+     "area": 41,
+     "p": [
+      2.53,
+      87.83
+     ],
+     "z": -4.8
+    },
+    {
+     "id": "B1-08",
+     "name": "研究室二",
+     "function": "collection",
+     "color": "#63E6BE",
+     "area": 25,
+     "p": [
+      -7.67,
+      87.83
+     ],
+     "z": -4.8
+    },
+    {
+     "id": "B1-09",
+     "name": "暂存",
+     "function": "collection",
+     "color": "#38D9A9",
+     "area": 24,
+     "p": [
+      14.64,
+      87.83
+     ],
+     "z": -4.8
+    },
+    {
+     "id": "B1-10",
+     "name": "研究室一",
+     "function": "collection",
+     "color": "#748FFC",
+     "area": 17,
+     "p": [
+      -14.74,
+      87.83
+     ],
+     "z": -4.8
+    },
+    {
+     "id": "B1-11",
+     "name": "管理",
+     "function": "office",
+     "color": "#5F8FB4",
+     "area": 27,
+     "p": [
+      34.28,
+      41.43
+     ],
+     "z": -4.8
+    },
+    {
+     "id": "B1-12",
+     "name": "消防水池",
+     "function": "equipment",
+     "color": "#1098AD",
+     "area": 96,
+     "p": [
+      -42.86,
+      63.06
+     ],
+     "z": -4.8
+    },
+    {
+     "id": "B1-13",
+     "name": "水泵房",
+     "function": "equipment",
+     "color": "#0B7285",
+     "area": 94,
+     "p": [
+      -40.74,
+      48.33
+     ],
+     "z": -4.8
+    },
+    {
+     "id": "B1-14",
+     "name": "生活泵房",
+     "function": "equipment",
+     "color": "#15AABF",
+     "area": 32,
+     "p": [
+      -34.4,
+      41.3
+     ],
+     "z": -4.8
+    },
+    {
+     "id": "B1-15",
+     "name": "卫生间",
+     "function": "service",
+     "color": "#D0EBFF",
+     "area": 52,
+     "p": [
+      42.04,
+      52.0
+     ],
+     "z": -4.8
+    },
+    {
+     "id": "B1-16",
+     "name": "开水间",
+     "function": "service",
+     "color": "#C5F6FA",
+     "area": 48,
+     "p": [
+      36.15,
+      47.28
+     ],
+     "z": -4.8
+    },
+    {
+     "id": "B1-17",
+     "name": "卫生间",
+     "function": "service",
+     "color": "#D0EBFF",
+     "area": 12,
+     "p": [
+      33.34,
+      48.18
+     ],
+     "z": -4.8
+    },
+    {
+     "id": "B1-18",
+     "name": "杂物间",
+     "function": "service",
+     "color": "#E3FAFC",
+     "area": 10,
+     "p": [
+      45.2,
+      47.59
+     ],
+     "z": -4.8
+    },
+    {
+     "id": "B1-19",
+     "name": "披檐廊",
+     "function": "traffic",
+     "color": "#DBE4FF",
+     "area": 92,
+     "p": [
+      17.09,
+      28.97
+     ],
+     "z": -3.6
+    },
+    {
+     "id": "B1-20",
+     "name": "披檐廊",
+     "function": "traffic",
+     "color": "#DBE4FF",
+     "area": 46,
+     "p": [
+      -20.6,
+      28.57
+     ],
+     "z": -3.6
+    },
+    {
+     "id": "B1-21",
+     "name": "电梯",
+     "function": "traffic",
+     "color": "#99E9F2",
+     "area": 17,
+     "p": [
+      19.98,
+      87.92
+     ],
+     "z": -4.8
+    },
+    {
+     "id": "B1-22",
+     "name": "电梯",
+     "function": "traffic",
+     "color": "#99E9F2",
+     "area": 14,
+     "p": [
+      37.05,
+      100.13
+     ],
+     "z": -4.8
+    },
+    {
+     "id": "B1-23",
+     "name": "电梯",
+     "function": "traffic",
+     "color": "#99E9F2",
+     "area": 10,
+     "p": [
+      12.99,
+      21.46
+     ],
+     "z": -3.6
+    },
+    {
+     "id": "B1-24",
+     "name": "电梯",
+     "function": "traffic",
+     "color": "#99E9F2",
+     "area": 10,
+     "p": [
+      42.03,
+      42.77
+     ],
+     "z": -4.8
+    },
+    {
+     "id": "B1-25",
+     "name": "电梯",
+     "function": "traffic",
+     "color": "#99E9F2",
+     "area": 8,
+     "p": [
+      -13.36,
+      21.41
+     ],
+     "z": -3.6
+    },
+    {
+     "id": "B1-26",
+     "name": "电梯",
+     "function": "traffic",
+     "color": "#99E9F2",
+     "area": 8,
+     "p": [
+      -20.87,
+      88.43
+     ],
+     "z": -4.8
+    },
+    {
+     "id": "B1-27",
+     "name": "电梯",
+     "function": "traffic",
+     "color": "#99E9F2",
+     "area": 7,
+     "p": [
+      -37.08,
+      100.14
+     ],
+     "z": -4.8
+    },
+    {
+     "id": "B1-28",
+     "name": "地下车库",
+     "function": "parking",
+     "color": "#74A9CF",
+     "area": 910,
+     "p": [
+      4.97,
+      93.9
+     ],
+     "z": -4.8
+    }
+   ]
+  },
+  "F1": {
+   "title": "一层",
+   "floor": 0.0,
+   "family": "暖色系",
+   "zones": [
+    {
+     "id": "F1-01",
+     "name": "展厅",
+     "function": "exhibit",
+     "color": "#E8590C",
+     "area": 1012,
+     "p": [
+      -1.93,
+      75.88
+     ],
+     "z": 0.0
+    },
+    {
+     "id": "F1-02",
+     "name": "画像石核心展厅",
+     "function": "exhibit",
+     "color": "#F59F00",
+     "area": 866,
+     "p": [
+      0.37,
+      21.33
+     ],
+     "z": 2.4
+    },
+    {
+     "id": "F1-03",
+     "name": "序厅",
+     "function": "exhibit",
+     "color": "#C92A2A",
+     "area": 390,
+     "p": [
+      -1.16,
+      90.72
+     ],
+     "z": 0.0
+    },
+    {
+     "id": "F1-04",
+     "name": "中剧场",
+     "function": "perform",
+     "color": "#D6336C",
+     "area": 484,
+     "p": [
+      44.53,
+      61.1
+     ],
+     "z": 0.0
+    },
+    {
+     "id": "F1-05",
+     "name": "观演席",
+     "function": "perform",
+     "color": "#FF922B",
+     "area": 345,
+     "p": [
+      -46.6,
+      58.89
+     ],
+     "z": 0.0
+    },
+    {
+     "id": "F1-06",
+     "name": "演艺舞台",
+     "function": "perform",
+     "color": "#F06595",
+     "area": 290,
+     "p": [
+      -46.75,
+      75.59
+     ],
+     "z": 0.0
+    },
+    {
+     "id": "F1-07",
+     "name": "化妆间",
+     "function": "perform",
+     "color": "#FFA94D",
+     "area": 18,
+     "p": [
+      -36.08,
+      77.01
+     ],
+     "z": 0.0
+    },
+    {
+     "id": "F1-08",
+     "name": "办公",
+     "function": "office",
+     "color": "#FCC419",
+     "area": 73,
+     "p": [
+      19.68,
+      92.92
+     ],
+     "z": 0.0
+    },
+    {
+     "id": "F1-09",
+     "name": "办公",
+     "function": "office",
+     "color": "#FCC419",
+     "area": 71,
+     "p": [
+      -20.4,
+      92.92
+     ],
+     "z": 0.0
+    },
+    {
+     "id": "F1-10",
+     "name": "消控室、监控室",
+     "function": "office",
+     "color": "#E9B949",
+     "area": 71,
+     "p": [
+      -51.64,
+      42.16
+     ],
+     "z": 0.0
+    },
+    {
+     "id": "F1-11",
+     "name": "管理",
+     "function": "office",
+     "color": "#FFD43B",
+     "area": 14,
+     "p": [
+      -16.26,
+      97.55
+     ],
+     "z": 0.0
+    },
+    {
+     "id": "F1-12",
+     "name": "设备机房",
+     "function": "equipment",
+     "color": "#A0522D",
+     "area": 51,
+     "p": [
+      51.32,
+      41.81
+     ],
+     "z": 0.0
+    },
+    {
+     "id": "F1-13",
+     "name": "电话网络机房",
+     "function": "equipment",
+     "color": "#B7794B",
+     "area": 45,
+     "p": [
+      34.81,
+      78.0
+     ],
+     "z": 0.0
+    },
+    {
+     "id": "F1-14",
+     "name": "弱电机房",
+     "function": "equipment",
+     "color": "#9C6644",
+     "area": 18,
+     "p": [
+      46.6,
+      42.72
+     ],
+     "z": 0.0
+    },
+    {
+     "id": "F1-15",
+     "name": "安防设备机房",
+     "function": "equipment",
+     "color": "#8D5B3F",
+     "area": 15,
+     "p": [
+      -42.7,
+      42.97
+     ],
+     "z": 0.0
+    },
+    {
+     "id": "F1-16",
+     "name": "展厅机房",
+     "function": "equipment",
+     "color": "#A47148",
+     "area": 13,
+     "p": [
+      16.26,
+      97.55
+     ],
+     "z": 0.0
+    },
+    {
+     "id": "F1-17",
+     "name": "配电间",
+     "function": "equipment",
+     "color": "#B08968",
+     "area": 9,
+     "p": [
+      53.01,
+      73.66
+     ],
+     "z": 0.0
+    },
+    {
+     "id": "F1-18",
+     "name": "管井",
+     "function": "equipment",
+     "color": "#C49A6C",
+     "area": 4,
+     "p": [
+      -39.92,
+      43.82
+     ],
+     "z": 0.0
+    },
+    {
+     "id": "F1-19",
+     "name": "工具间",
+     "function": "service",
+     "color": "#F3D9B1",
+     "area": 51,
+     "p": [
+      51.79,
+      79.23
+     ],
+     "z": 0.0
+    },
+    {
+     "id": "F1-20",
+     "name": "开水间",
+     "function": "service",
+     "color": "#EED6C4",
+     "area": 31,
+     "p": [
+      42.09,
+      75.56
+     ],
+     "z": 0.0
+    },
+    {
+     "id": "F1-21",
+     "name": "开水间",
+     "function": "service",
+     "color": "#EED6C4",
+     "area": 14,
+     "p": [
+      -17.1,
+      84.16
+     ],
+     "z": 0.0
+    },
+    {
+     "id": "F1-22",
+     "name": "卫生间",
+     "function": "service",
+     "color": "#E6CCB2",
+     "area": 11,
+     "p": [
+      47.16,
+      76.18
+     ],
+     "z": 0.0
+    },
+    {
+     "id": "F1-23",
+     "name": "卫生间",
+     "function": "service",
+     "color": "#E6CCB2",
+     "area": 9,
+     "p": [
+      -36.09,
+      73.81
+     ],
+     "z": 0.0
+    },
+    {
+     "id": "F1-24",
+     "name": "电梯",
+     "function": "traffic",
+     "color": "#FFE8CC",
+     "area": 20,
+     "p": [
+      37.05,
+      100.09
+     ],
+     "z": 0.0
+    },
+    {
+     "id": "F1-25",
+     "name": "电梯厅",
+     "function": "traffic",
+     "color": "#F6DCC3",
+     "area": 18,
+     "p": [
+      -17.43,
+      86.98
+     ],
+     "z": 0.0
+    },
+    {
+     "id": "F1-26",
+     "name": "电梯厅",
+     "function": "traffic",
+     "color": "#F6DCC3",
+     "area": 14,
+     "p": [
+      17.31,
+      87.85
+     ],
+     "z": 0.0
+    },
+    {
+     "id": "F1-27",
+     "name": "电梯",
+     "function": "traffic",
+     "color": "#FFE8CC",
+     "area": 14,
+     "p": [
+      19.96,
+      88.14
+     ],
+     "z": 0.0
+    },
+    {
+     "id": "F1-28",
+     "name": "电梯",
+     "function": "traffic",
+     "color": "#FFE8CC",
+     "area": 10,
+     "p": [
+      42.03,
+      42.77
+     ],
+     "z": 0.0
+    },
+    {
+     "id": "F1-29",
+     "name": "电梯",
+     "function": "traffic",
+     "color": "#FFE8CC",
+     "area": 10,
+     "p": [
+      12.99,
+      21.46
+     ],
+     "z": 2.4
+    },
+    {
+     "id": "F1-30",
+     "name": "电梯",
+     "function": "traffic",
+     "color": "#FFE8CC",
+     "area": 8,
+     "p": [
+      -37.08,
+      100.07
+     ],
+     "z": 0.0
+    },
+    {
+     "id": "F1-31",
+     "name": "电梯",
+     "function": "traffic",
+     "color": "#FFE8CC",
+     "area": 8,
+     "p": [
+      -13.47,
+      21.41
+     ],
+     "z": 2.4
+    },
+    {
+     "id": "F1-32",
+     "name": "电梯",
+     "function": "traffic",
+     "color": "#FFE8CC",
+     "area": 7,
+     "p": [
+      -20.87,
+      88.43
+     ],
+     "z": 0.0
+    },
+    {
+     "id": "M1-01",
+     "name": "文创展区",
+     "function": "exhibit",
+     "color": "#F76707",
+     "area": 204,
+     "p": [
+      -25.93,
+      143.55
+     ],
+     "z": 0.0,
+     "building": "文物管理用房"
+    },
+    {
+     "id": "M1-02",
+     "name": "办公",
+     "function": "office",
+     "color": "#FCC419",
+     "area": 139,
+     "p": [
+      27.01,
+      152.66
+     ],
+     "z": 0.0,
+     "building": "文物管理用房"
+    },
+    {
+     "id": "M1-03",
+     "name": "会议室",
+     "function": "office",
+     "color": "#F4C875",
+     "area": 151,
+     "p": [
+      39.1,
+      148.1
+     ],
+     "z": 0.0,
+     "building": "文物管理用房"
+    },
+    {
+     "id": "M1-04",
+     "name": "服务中心",
+     "function": "office",
+     "color": "#EFB54A",
+     "area": 147,
+     "p": [
+      0.24,
+      156.63
+     ],
+     "z": 0.0,
+     "building": "文物管理用房"
+    },
+    {
+     "id": "M1-05",
+     "name": "服务中心",
+     "function": "office",
+     "color": "#EFB54A",
+     "area": 55,
+     "p": [
+      -23.97,
+      155.17
+     ],
+     "z": 0.0,
+     "building": "文物管理用房"
+    },
+    {
+     "id": "M1-06",
+     "name": "票务",
+     "function": "office",
+     "color": "#FFE066",
+     "area": 82,
+     "p": [
+      7.73,
+      159.63
+     ],
+     "z": 0.0,
+     "building": "文物管理用房"
+    },
+    {
+     "id": "M1-07",
+     "name": "办公",
+     "function": "office",
+     "color": "#FCC419",
+     "area": 35,
+     "p": [
+      27.01,
+      143.91
+     ],
+     "z": 0.0,
+     "building": "文物管理用房"
+    },
+    {
+     "id": "M1-08",
+     "name": "办公",
+     "function": "office",
+     "color": "#FCC419",
+     "area": 35,
+     "p": [
+      27.18,
+      135.16
+     ],
+     "z": 0.0,
+     "building": "文物管理用房"
+    },
+    {
+     "id": "M1-09",
+     "name": "办公",
+     "function": "office",
+     "color": "#FCC419",
+     "area": 74,
+     "p": [
+      39.1,
+      135.19
+     ],
+     "z": 0.0,
+     "building": "文物管理用房"
+    },
+    {
+     "id": "M1-10",
+     "name": "咨询",
+     "function": "office",
+     "color": "#F2C14E",
+     "area": 68,
+     "p": [
+      -15.64,
+      152.43
+     ],
+     "z": 0.0,
+     "building": "文物管理用房"
+    },
+    {
+     "id": "M1-11",
+     "name": "办公",
+     "function": "office",
+     "color": "#FCC419",
+     "area": 24,
+     "p": [
+      27.18,
+      128.54
+     ],
+     "z": 0.0,
+     "building": "文物管理用房"
+    },
+    {
+     "id": "M1-12",
+     "name": "服务中心",
+     "function": "office",
+     "color": "#EFB54A",
+     "area": 51,
+     "p": [
+      -10.88,
+      156.88
+     ],
+     "z": 0.0,
+     "building": "文物管理用房"
+    },
+    {
+     "id": "M1-13",
+     "name": "办公",
+     "function": "office",
+     "color": "#FCC419",
+     "area": 50,
+     "p": [
+      39.1,
+      128.61
+     ],
+     "z": 0.0,
+     "building": "文物管理用房"
+    },
+    {
+     "id": "M1-14",
+     "name": "休息区",
+     "function": "office",
+     "color": "#E0A526",
+     "area": 40,
+     "p": [
+      -6.64,
+      158.55
+     ],
+     "z": 0.0,
+     "building": "文物管理用房"
+    },
+    {
+     "id": "M1-15",
+     "name": "值班室",
+     "function": "office",
+     "color": "#FCC419",
+     "area": 18,
+     "p": [
+      14.43,
+      152.66
+     ],
+     "z": 0.0,
+     "building": "文物管理用房"
+    },
+    {
+     "id": "M1-16",
+     "name": "办公",
+     "function": "office",
+     "color": "#FCC419",
+     "area": 17,
+     "p": [
+      18.74,
+      152.62
+     ],
+     "z": 0.0,
+     "building": "文物管理用房"
+    },
+    {
+     "id": "M1-17",
+     "name": "变配电室",
+     "function": "equipment",
+     "color": "#D4B08C",
+     "area": 172,
+     "p": [
+      -36.23,
+      132.25
+     ],
+     "z": 0.0,
+     "building": "文物管理用房"
+    },
+    {
+     "id": "M1-18",
+     "name": "配电间",
+     "function": "equipment",
+     "color": "#B08968",
+     "area": 12,
+     "p": [
+      -40.89,
+      140.42
+     ],
+     "z": 0.0,
+     "building": "文物管理用房"
+    },
+    {
+     "id": "M1-19",
+     "name": "厨房",
+     "function": "service",
+     "color": "#F1C9A5",
+     "area": 61,
+     "p": [
+      -37.08,
+      144.86
+     ],
+     "z": 0.0,
+     "building": "文物管理用房"
+    },
+    {
+     "id": "M1-20",
+     "name": "开水间",
+     "function": "service",
+     "color": "#EED6C4",
+     "area": 36,
+     "p": [
+      34.65,
+      123.77
+     ],
+     "z": 0.0,
+     "building": "文物管理用房"
+    },
+    {
+     "id": "M1-21",
+     "name": "卫生间",
+     "function": "service",
+     "color": "#E6CCB2",
+     "area": 3,
+     "p": [
+      24.69,
+      123.76
+     ],
+     "z": 0.0,
+     "building": "文物管理用房"
+    },
+    {
+     "id": "M1-22",
+     "name": "卫生间",
+     "function": "service",
+     "color": "#E6CCB2",
+     "area": 15,
+     "p": [
+      38.89,
+      124.04
+     ],
+     "z": 0.0,
+     "building": "文物管理用房"
+    },
+    {
+     "id": "M1-23",
+     "name": "卫生间",
+     "function": "service",
+     "color": "#E6CCB2",
+     "area": 11,
+     "p": [
+      -37.5,
+      154.26
+     ],
+     "z": 0.0,
+     "building": "文物管理用房"
+    },
+    {
+     "id": "M1-24",
+     "name": "工具间",
+     "function": "service",
+     "color": "#F3D9B1",
+     "area": 3,
+     "p": [
+      -36.94,
+      149.77
+     ],
+     "z": 0.0,
+     "building": "文物管理用房"
+    }
+   ]
+  },
+  "F2": {
+   "title": "二层",
+   "floor": 5.4,
+   "family": "紫色系",
+   "zones": [
+    {
+     "id": "F2-01",
+     "name": "展厅四",
+     "function": "exhibit",
+     "color": "#5F3DC4",
+     "area": 376,
+     "p": [
+      45.62,
+      64.0
+     ],
+     "z": 5.4
+    },
+    {
+     "id": "F2-02",
+     "name": "展厅一",
+     "function": "exhibit",
+     "color": "#9775FA",
+     "area": 291,
+     "p": [
+      -2.01,
+      75.78
+     ],
+     "z": 5.4
+    },
+    {
+     "id": "F2-03",
+     "name": "展厅二",
+     "function": "exhibit",
+     "color": "#BE4BDB",
+     "area": 278,
+     "p": [
+      -18.39,
+      73.55
+     ],
+     "z": 5.4
+    },
+    {
+     "id": "F2-04",
+     "name": "展厅三",
+     "function": "exhibit",
+     "color": "#862E9C",
+     "area": 266,
+     "p": [
+      18.72,
+      73.55
+     ],
+     "z": 5.4
+    },
+    {
+     "id": "F2-05",
+     "name": "排烟机房",
+     "function": "equipment",
+     "color": "#8E7CC3",
+     "area": 58,
+     "p": [
+      -34.6,
+      43.48
+     ],
+     "z": 5.4
+    },
+    {
+     "id": "F2-06",
+     "name": "排烟机房",
+     "function": "equipment",
+     "color": "#8E7CC3",
+     "area": 47,
+     "p": [
+      -14.93,
+      93.32
+     ],
+     "z": 5.4
+    },
+    {
+     "id": "F2-07",
+     "name": "排烟机房",
+     "function": "equipment",
+     "color": "#8E7CC3",
+     "area": 47,
+     "p": [
+      51.7,
+      42.98
+     ],
+     "z": 5.4
+    },
+    {
+     "id": "F2-08",
+     "name": "展厅机房",
+     "function": "equipment",
+     "color": "#A99CD6",
+     "area": 28,
+     "p": [
+      16.11,
+      92.36
+     ],
+     "z": 5.4
+    },
+    {
+     "id": "F2-09",
+     "name": "排烟机房",
+     "function": "equipment",
+     "color": "#8E7CC3",
+     "area": 19,
+     "p": [
+      14.12,
+      97.48
+     ],
+     "z": 5.4
+    },
+    {
+     "id": "F2-10",
+     "name": "弱电机房",
+     "function": "equipment",
+     "color": "#7C6BAE",
+     "area": 18,
+     "p": [
+      46.6,
+      42.72
+     ],
+     "z": 5.4
+    },
+    {
+     "id": "F2-11",
+     "name": "配电间",
+     "function": "equipment",
+     "color": "#9A8CC2",
+     "area": 9,
+     "p": [
+      53.01,
+      73.66
+     ],
+     "z": 5.4
+    },
+    {
+     "id": "F2-12",
+     "name": "电气设备间",
+     "function": "equipment",
+     "color": "#B8ADDF",
+     "area": 4,
+     "p": [
+      -41.45,
+      42.8
+     ],
+     "z": 5.4
+    },
+    {
+     "id": "F2-13",
+     "name": "工具间",
+     "function": "service",
+     "color": "#EEE3F7",
+     "area": 51,
+     "p": [
+      51.79,
+      78.38
+     ],
+     "z": 5.4
+    },
+    {
+     "id": "F2-14",
+     "name": "工具间",
+     "function": "service",
+     "color": "#EEE3F7",
+     "area": 50,
+     "p": [
+      -50.02,
+      42.72
+     ],
+     "z": 5.4
+    },
+    {
+     "id": "F2-15",
+     "name": "开水间",
+     "function": "service",
+     "color": "#E5DBF3",
+     "area": 38,
+     "p": [
+      42.09,
+      75.56
+     ],
+     "z": 5.4
+    },
+    {
+     "id": "F2-16",
+     "name": "卫生间",
+     "function": "service",
+     "color": "#DCD0EE",
+     "area": 11,
+     "p": [
+      47.16,
+      76.18
+     ],
+     "z": 5.4
+    },
+    {
+     "id": "F2-17",
+     "name": "电梯",
+     "function": "traffic",
+     "color": "#F3F0FF",
+     "area": 24,
+     "p": [
+      19.96,
+      88.14
+     ],
+     "z": 5.4
+    },
+    {
+     "id": "F2-18",
+     "name": "电梯",
+     "function": "traffic",
+     "color": "#F3F0FF",
+     "area": 10,
+     "p": [
+      42.03,
+      42.77
+     ],
+     "z": 5.4
+    },
+    {
+     "id": "F2-19",
+     "name": "电梯",
+     "function": "traffic",
+     "color": "#F3F0FF",
+     "area": 8,
+     "p": [
+      -20.87,
+      88.43
+     ],
+     "z": 5.4
+    }
+   ]
+  }
+ }
+}

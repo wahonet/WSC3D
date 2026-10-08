@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import { useStore } from '../store';
 import type { Book, StoneBrief } from '../types';
 import { LOCATION_GROUPS as TOP, locationKeys as groupKeys } from '../locations';
@@ -36,7 +37,7 @@ export default function Sidebar({ editable = false }: { editable?: boolean }) {
 }
 
 function StoneTree({ kw }: { kw: string }) {
-  const { stones, selectedId, select } = useStore();
+  const { stones, selectedId, select } = useStore(useShallow(s => ({ stones: s.stones, selectedId: s.selectedId, select: s.select })));
   const [open, setOpen] = useState<Record<string, boolean>>({});
   const bodyRef = useRef<HTMLDivElement>(null);
 
@@ -133,7 +134,7 @@ function StoneTree({ kw }: { kw: string }) {
 }
 
 function BookTree({ kw }: { kw: string }) {
-  const { books, selectedBookId, selectBook } = useStore();
+  const { books, selectedBookId, selectBook } = useStore(useShallow(s => ({ books: s.books, selectedBookId: s.selectedBookId, selectBook: s.selectBook })));
   const [open, setOpen] = useState<Record<string, boolean>>({});
   const bodyRef = useRef<HTMLDivElement>(null);
 

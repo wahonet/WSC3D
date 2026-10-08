@@ -301,10 +301,16 @@ export function setupInteractions(
     pitch = THREE.MathUtils.clamp(pitch, -1.25, 1.25);
     lookDrag = [ev.clientX, ev.clientY];
   };
+  const onLookEnd = () => { lookDrag = null; };
+  /* 失焦(Alt-Tab/弹窗)时收不到keyup, 不清空按键会一直前进 */
+  const releaseKeys = () => { for (const k in keys) keys[k] = false; lookDrag = null; };
+  const onVisibility = () => { if (document.hidden) releaseKeys(); };
   addEventListener('keydown', onKeyDown);
   addEventListener('keyup', onKeyUp);
   addEventListener('pointermove', onLook);
-  addEventListener('pointerup', () => { lookDrag = null; });
+  addEventListener('pointerup', onLookEnd);
+  addEventListener('blur', releaseKeys);
+  document.addEventListener('visibilitychange', onVisibility);
 
   function tryMove(v: THREE.Vector3): boolean {
     if (v.lengthSq() === 0) return false;
@@ -347,6 +353,9 @@ export function setupInteractions(
     removeEventListener('keydown', onKeyDown);
     removeEventListener('keyup', onKeyUp);
     removeEventListener('pointermove', onLook);
+    removeEventListener('pointerup', onLookEnd);
+    removeEventListener('blur', releaseKeys);
+    document.removeEventListener('visibilitychange', onVisibility);
   }
 
   return {

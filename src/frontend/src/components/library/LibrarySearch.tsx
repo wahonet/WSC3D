@@ -4,7 +4,7 @@ import { Search, X } from 'lucide-react'
 import { searchLibrary } from '../../api'
 import { toast } from '../../store/useToast'
 import type { LibraryCollection, SearchHit, SearchOut } from '../../types'
-import { Button, Chip, Spinner } from '../ui'
+import { Button, Chip, Spinner, onEnterSpace } from '../ui'
 import { KIND_LABEL } from './PageWorkbench'
 import { Snippet } from './highlight'
 
@@ -127,7 +127,8 @@ export default function LibrarySearch({ collection, activeSegment, onOpenHit, on
                 <span className="mono">{g.code}</span><span className="truncate">{g.title}</span><span className="n">{g.hits.length}</span>
               </div>
               {g.hits.map(h => (
-                <div key={h.segment_id} className={`hit${h.segment_id === activeSegment ? ' on' : ''}`} onClick={() => onOpenHit(h, doneQ || q)}>
+                <div key={h.segment_id} className={`hit${h.segment_id === activeSegment ? ' on' : ''}`} role="button" tabIndex={0} aria-pressed={h.segment_id === activeSegment}
+                  onClick={() => onOpenHit(h, doneQ || q)} onKeyDown={onEnterSpace(() => onOpenHit(h, doneQ || q))}>
                   <span className="pg mono">p{h.page_no}</span>
                   <span className="snip">
                     <Snippet s={h.snippet} />

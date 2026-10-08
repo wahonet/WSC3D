@@ -30,8 +30,10 @@ import sys
 import threading
 from contextlib import nullcontext
 
-_PROTO = os.fdopen(os.dup(sys.stdout.fileno()), "w", encoding="utf-8", newline="\n")
-sys.stdout = sys.stderr
+_PROTO = sys.stdout
+if __name__ == '__main__':
+    _PROTO = os.fdopen(os.dup(sys.stdout.fileno()), "w", encoding="utf-8", newline="\n")
+    sys.stdout = sys.stderr
 
 
 def send(obj: dict) -> None:
@@ -48,7 +50,8 @@ ap.add_argument("--mobilesam", default="")
 ap.add_argument("--sam3", default="")
 ap.add_argument("--sam31", default="")
 ap.add_argument("--sam3-device", default="")
-args = ap.parse_args()
+ap.add_argument("--sam3-interactive", action="store_true", help="Enable native SAM3 instance point refinement for authoring")
+args = ap.parse_args() if __name__ == '__main__' else ap.parse_args([])
 
 _lock = threading.Lock()
 STATE: dict = {
@@ -164,6 +167,27 @@ def mask_to_polygons(mask, width: int, height: int, max_polys: int = 4) -> list:
     return polys
 
 
+def encode_native_mask(mask) -> dict:
+    """Lossless row-major binary RLE retains holes, thin parts and disconnected components.
+
+    Counts always start with background. This is opt-in for research versions; the
+    legacy polygon remains available for existing clients and geometry selection.
+    """
+    import hashlib
+    import numpy as np
+    binary = (np.asarray(mask) > 0.5).astype(np.uint8)
+    if binary.ndim != 2 or not binary.size:
+        raise ValueError('Native mask must be a nonempty 2D array')
+    flat = binary.ravel(order='C')
+    transitions = np.flatnonzero(flat[1:] != flat[:-1]) + 1
+    boundaries = np.concatenate(([0], transitions, [flat.size]))
+    counts = np.diff(boundaries).tolist()
+    if flat[0]:
+        counts.insert(0, 0)
+    return {'format': 'wsc-binary-mask-rle-1', 'size': list(binary.shape), 'counts': counts,
+            'foreground_pixels': int(binary.sum()), 'binary_sha256': hashlib.sha256(binary.tobytes()).hexdigest()}
+
+
 def tile_windows(w: int, h: int, tile: int = TILE_PX, overlap: float = TILE_OVERLAP) -> list:
     """返回覆盖整图的切块 (x0, y0, x1, y1)，最后一块贴边对齐。"""
     def axis(n: int) -> list:
@@ -181,7 +205,7 @@ def is_blocky(mask, bx: list, rw: int, rh: int, is_tile: bool) -> bool:
     """块状伪检出。
     - 切块：外接框占切块 60% 以上（比切块更大的目标的一部分，整图那遍负责），
             或面积不小（>12%）且掩膜几乎填满外接框（真实人物剪影不会是矩形）；
-    - 整图：外接框覆盖 92% 以上的整图（示例框模式常见的"整张背景"掩膜）。
+    - 整图：外接框覆盖 92% 以上且前景填满 90% 以上，才视为整张背景。
     局部特写照片里一个人物可能占整图六成，所以整图阈值要宽。"""
     import numpy as np
     x0, y0 = max(0, int(bx[0])), max(0, int(bx[1]))
@@ -190,7 +214,8 @@ def is_blocky(mask, bx: list, rw: int, rh: int, is_tile: bool) -> bool:
         return True
     box_ratio = ((x1 - x0) * (y1 - y0)) / float(rw * rh)
     if not is_tile:
-        return box_ratio >= 0.92
+        fill = float((np.asarray(mask)[y0:y1, x0:x1] > 0.5).mean())
+        return box_ratio >= 0.92 and fill > 0.9
     if box_ratio >= 0.6:
         return True
     if box_ratio >= 0.12:
@@ -315,7 +340,12 @@ def load_sam3_family(engine: str) -> None:
         if engine == "sam3":
             model = build_sam3_image_model(
                 bpe_path=_bpe_path(), device=dev, checkpoint_path=weight,
-                load_from_HF=False, enable_segmentation=True)
+                load_from_HF=False, enable_segmentation=True,
+                enable_inst_interactivity=args.sam3_interactive)
+            if args.sam3_interactive:
+                # Native holes must not be automatically filled during refinement.
+                model.inst_interactive_predictor._transforms.max_hole_area = 0.0
+                model.inst_interactive_predictor._transforms.max_sprinkle_area = 0.0
             note = f"facebook/sam3 ({dev})"
         else:
             from safetensors.torch import load_file
@@ -417,7 +447,7 @@ def _sam3_infer(proc, rgb, prompt: str, boxes: list, threshold: float) -> list:
 
 def text_segment(engine: str, image_path: str, prompt: str, threshold: float, max_results: int,
                  boxes: list | None = None, preprocess: str = "none", invert: bool = False,
-                 tiling: str = "none") -> dict:
+                 tiling: str = "none", preserve_mask: bool = False) -> dict:
     import cv2
     proc = _procs.get(engine)
     if proc is None:
@@ -442,13 +472,17 @@ def text_segment(engine: str, image_path: str, prompt: str, threshold: float, ma
     for (x0, y0, x1, y1), is_tile in windows:
         crop = img[y0:y1, x0:x1]
         ch, cw = crop.shape[:2]
-        # 模型内部只用 1008x1008，整图先缩小以免上采样掩膜撑爆显存
-        scale = 1.0 if is_tile else min(1.0, WHOLE_MAX_EDGE / max(cw, ch))
+        # Native research masks must stay in the inspected input pixel frame.
+        # SAM's internal feature resize remains part of the model; this external
+        # preview reduction is only suitable when no native bitmap is requested.
+        scale = 1.0 if (is_tile or preserve_mask) else min(1.0, WHOLE_MAX_EDGE / max(cw, ch))
         if scale < 1.0:
             crop = cv2.resize(crop, (max(1, round(cw * scale)), max(1, round(ch * scale))),
                               interpolation=cv2.INTER_AREA)
         rh, rw = crop.shape[:2]
         for mask, sc, bx in _sam3_infer(proc, crop, prompt, boxes, threshold):
+            if preserve_mask and tuple(mask.shape) != (ch, cw):
+                raise ValueError(f'Native mask frame mismatch: mask {tuple(mask.shape)} vs input {(ch, cw)}; resizing is forbidden')
             if sc < threshold:
                 continue
             # 块状伪检出：比切块更大的目标的一部分（整图那遍负责）、找不到目标时的大片低分区域、
@@ -461,7 +495,11 @@ def text_segment(engine: str, image_path: str, prompt: str, threshold: float, ma
             poly = [[(x0 + px * cw) / W, (y0 + py * ch) / H] for px, py in polys[0]]
             box = [(x0 + bx[0] / rw * cw) / W, (y0 + bx[1] / rh * ch) / H,
                    (x0 + bx[2] / rw * cw) / W, (y0 + bx[3] / rh * ch) / H]
-            dets.append({"polygon": poly, "score": sc, "box": box, "from_tile": is_tile})
+            detection = {"polygon": poly, "score": sc, "box": box, "from_tile": is_tile}
+            if preserve_mask:
+                detection['native_mask'] = {**encode_native_mask(mask),
+                    'extent': [x0 / W, y0 / H, x1 / W, y1 / H]}
+            dets.append(detection)
 
     dets = merge_detections(dets, W, H) if tiles else sorted(dets, key=lambda d: d["score"], reverse=True)
     for d in dets:
@@ -475,6 +513,47 @@ def preprocess_to_file(image_path: str, mode: str, invert: bool, out_path: str) 
     rgb = preprocess_image(read_image_rgb(image_path), mode, invert)
     write_jpeg(out_path, rgb)
     return {"ok": True, "path": out_path, "size": [rgb.shape[1], rgb.shape[0]], "mode": mode}
+
+
+def instance_segment(image_path: str, points: list, labels: list, box: list | None = None,
+                     preprocess: str = 'none', multimask: bool = False) -> dict:
+    """Opt-in SAM3 native point refinement. Coordinates and box are normalized to this image."""
+    import numpy as np
+    from PIL import Image
+    proc = _procs.get('sam3')
+    if proc is None or not args.sam3_interactive:
+        return {'ok': False, 'error': 'sam3-interactive-not-loaded'}
+    xy, values = np.asarray(points, dtype=float), np.asarray(labels)
+    if xy.ndim != 2 or xy.shape[1] != 2 or not len(xy) or len(values) != len(xy) or values.ndim != 1:
+        return {'ok': False, 'error': 'invalid-native-point-prompts'}
+    if not np.isfinite(xy).all() or np.any(xy < 0) or np.any(xy > 1) or not np.isin(values, [0, 1]).all():
+        return {'ok': False, 'error': 'invalid-native-point-prompts'}
+    bbox = None if box is None else np.asarray(box, dtype=float)
+    if bbox is not None and (bbox.shape != (4,) or not np.isfinite(bbox).all() or np.any(bbox < 0) or
+                            np.any(bbox > 1) or bbox[2] <= bbox[0] or bbox[3] <= bbox[1]):
+        return {'ok': False, 'error': 'invalid-native-box'}
+    rgb = preprocess_image(read_image_rgb(image_path), preprocess)
+    height, width = rgb.shape[:2]
+    with _lock, _autocast():
+        state = proc.set_image(Image.fromarray(rgb))
+        masks, scores, _ = proc.model.predict_inst(state, point_coords=xy * [width, height],
+            point_labels=values.astype(np.int32), box=None if bbox is None else bbox * [width, height, width, height],
+            multimask_output=multimask, normalize_coords=True)
+    detections = []
+    for mask, score in zip(masks, scores):
+        binary = (mask > .5).astype(np.uint8)
+        ys, xs = np.nonzero(binary)
+        if not len(xs):
+            continue
+        polygons = mask_to_polygons(binary, width, height, max_polys=1)
+        if not polygons:
+            continue
+        detections.append({'polygon': polygons[0], 'score': float(score),
+            'box': [float(xs.min() / width), float(ys.min() / height),
+                    float((xs.max() + 1) / width), float((ys.max() + 1) / height)],
+            'native_mask': {**encode_native_mask(binary), 'extent': [0, 0, 1, 1]}})
+    return {'ok': True, 'detections': detections, 'size': [width, height], 'model': 'sam3-instance',
+            'preprocess': preprocess, 'prompt_count': len(points), 'automatic_hole_filling': False}
 
 
 # ------------------------------------------------------------------ 主循环
@@ -497,11 +576,15 @@ def handle(req: dict) -> dict:
         return unload_engine(req.get("engine", ""))
     if cmd == "point_segment":
         return point_segment(req["image"], req["points"], req["labels"])
+    if cmd == 'instance_segment':
+        return instance_segment(req['image'], req['points'], req['labels'], box=req.get('box'),
+                                preprocess=req.get('preprocess', 'none'), multimask=bool(req.get('multimask', False)))
     if cmd == "text_segment":
         return text_segment(req.get("engine", "sam3"), req["image"], req.get("prompt", ""),
                             float(req.get("threshold", 0.5)), int(req.get("max_results", 20)),
                             boxes=req.get("boxes") or [], preprocess=req.get("preprocess", "none"),
-                            invert=bool(req.get("invert", False)), tiling=req.get("tiling", "none"))
+                            invert=bool(req.get("invert", False)), tiling=req.get("tiling", "none"),
+                            preserve_mask=bool(req.get("preserve_mask", False)))
     if cmd == "preprocess":
         return preprocess_to_file(req["image"], req.get("mode", "enhance"),
                                   bool(req.get("invert", False)), req["out"])

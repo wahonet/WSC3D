@@ -1,6 +1,7 @@
 """Workspace sessions and the default authentication boundary for API writes."""
 import hashlib
 import hmac
+import math
 import os
 import secrets
 import threading
@@ -15,6 +16,8 @@ COOKIE = 'wsc_workspace'
 _sessions: dict[str, float] = {}
 _lock = threading.Lock()
 _lifetime = 8 * 3600
+_failures: dict[str, tuple[int, float]] = {}   # client -> (consecutive failures, locked until)
+_max_failures, _lockout = 5, 60
 
 
 def same_origin(request: Request):
@@ -40,7 +43,8 @@ def require_workspace(request: Request):
 
 _PUBLIC_POSTS = frozenset({
     '/api/workspace/login', '/api/workspace/logout', '/api/archive/ask',
-    '/api/creative/preview', '/api/creative/works', '/api/creative/works/{identifier}/share',
+    '/api/creative/preview', '/api/creative/works', '/api/creative/handoff', '/api/creative/session/reset',
+    '/api/creative/stamps', '/api/creative/prints',
 })
 
 
@@ -68,11 +72,19 @@ class Login(BaseModel):
 def login(body: Login, request: Request, response: Response):
     same_origin(request)
     expected = os.environ.get('WSC_WORKSPACE_PASSWORD', '123456')
-    if body.username.strip() != 'admin' or not hmac.compare_digest(body.password.encode(), expected.encode()):
-        raise HTTPException(401, '账号或密码不正确')
-    token = secrets.token_urlsafe(32)
+    client = request.client.host if request.client else ''
     now = time.monotonic()
+    # Check, compare and count under one lock so parallel guesses cannot bypass the limit.
     with _lock:
+        failures, until = _failures.get(client, (0, 0))
+        if until > now:
+            raise HTTPException(429, f'登录失败次数过多，请 {math.ceil(until - now)} 秒后再试')
+        if body.username.strip() != 'admin' or not hmac.compare_digest(body.password.encode(), expected.encode()):
+            failures = 1 if until else failures + 1   # a served lockout starts a new count
+            _failures[client] = (0, now + _lockout) if failures >= _max_failures else (failures, 0)
+            raise HTTPException(401, '账号或密码不正确')
+        _failures.pop(client, None)
+        token = secrets.token_urlsafe(32)
         for key in [key for key, expiry in _sessions.items() if expiry <= now]:
             _sessions.pop(key, None)
         _sessions[hashlib.sha256(token.encode()).hexdigest()] = now + _lifetime

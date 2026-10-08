@@ -2,11 +2,14 @@ import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three-inventory';
 import { OrbitControls } from 'three-inventory/examples/jsm/controls/OrbitControls';
 import { GLTFLoader } from 'three-inventory/examples/jsm/loaders/GLTFLoader';
+import { onEnterSpace } from '../../components/ui';
 
 /** 台账模型查看器；扫描模型和照片重建模型共用，后者显示来源说明。 */
 export default function GltfViewer({ url, info }: { url: string; info?: { label: string; description: string; view?: [number, number, number] } }) {
   const hostRef = useRef<HTMLDivElement>(null);
   const [loadText, setLoadText] = useState('');
+  const [lost, setLost] = useState(false);
+  const [reloadNonce, setReloadNonce] = useState(0);
 
   useEffect(() => {
     const host = hostRef.current!;
@@ -17,9 +20,14 @@ export default function GltfViewer({ url, info }: { url: string; info?: { label:
     host.appendChild(renderer.domElement);
 
     const scene = new THREE.Scene();
+    /* 按需渲染：相机变化(含阻尼惯性)、尺寸、主题或模型载入时才画一帧，不与院落小地图争抢帧率 */
+    let raf = 0;
+    const draw = () => { raf = 0; ctl.update(); renderer.render(scene, cam); };
+    const invalidate = () => { if (!raf) raf = requestAnimationFrame(draw); };
     const updateBackground = () => {
       const color = getComputedStyle(document.documentElement).getPropertyValue('--viewport').trim() || '#111820';
       scene.background = new THREE.Color(color).convertSRGBToLinear();
+      invalidate();
     };
     updateBackground();
     const themeObserver = new MutationObserver(updateBackground);
@@ -27,6 +35,11 @@ export default function GltfViewer({ url, info }: { url: string; info?: { label:
     const cam = new THREE.PerspectiveCamera(45, 1, 0.01, 500);
     const ctl = new OrbitControls(cam, renderer.domElement);
     ctl.enableDamping = true;
+    ctl.addEventListener('change', invalidate);
+    const onLost = (e: Event) => { e.preventDefault(); cancelAnimationFrame(raf); raf = 0; setLost(true); };
+    const onRestored = () => { setLost(false); invalidate(); };
+    renderer.domElement.addEventListener('webglcontextlost', onLost);
+    renderer.domElement.addEventListener('webglcontextrestored', onRestored);
     scene.add(new THREE.HemisphereLight(0xffffff, 0x39404a, 0.85));
     const d1 = new THREE.DirectionalLight(0xffffff, 1.15); d1.position.set(3, 5, 4);
     const d2 = new THREE.DirectionalLight(0xffffff, 0.45); d2.position.set(-4, 2, -3);
@@ -38,6 +51,7 @@ export default function GltfViewer({ url, info }: { url: string; info?: { label:
       renderer.setSize(host.clientWidth, host.clientHeight);
       cam.aspect = host.clientWidth / Math.max(1, host.clientHeight);
       cam.updateProjectionMatrix();
+      invalidate();
     };
     resize();
     const ro = new ResizeObserver(resize);
@@ -74,6 +88,7 @@ export default function GltfViewer({ url, info }: { url: string; info?: { label:
       if (disposed) return;
       root.add(g.scene);
       fit();
+      invalidate();
       setLoadText('');
     }, xhr => {
       if (disposed) return;
@@ -85,20 +100,17 @@ export default function GltfViewer({ url, info }: { url: string; info?: { label:
       setLoadText('模型加载失败');
     });
 
-    let raf = 0;
-    const loop = () => {
-      raf = requestAnimationFrame(loop);
-      ctl.update();
-      renderer.render(scene, cam);
-    };
-    loop();
+    invalidate();
 
     return () => {
       disposed = true;
       cancelAnimationFrame(raf);
       ro.disconnect();
       themeObserver.disconnect();
+      ctl.removeEventListener('change', invalidate);
       ctl.dispose();
+      renderer.domElement.removeEventListener('webglcontextlost', onLost);
+      renderer.domElement.removeEventListener('webglcontextrestored', onRestored);
       root.traverse((o: any) => {
         o.geometry?.dispose();
         const mats = Array.isArray(o.material) ? o.material : o.material ? [o.material] : [];
@@ -108,16 +120,19 @@ export default function GltfViewer({ url, info }: { url: string; info?: { label:
         });
       });
       renderer.dispose();
+      renderer.forceContextLoss();   /* dispose() 不释放 WebGL 上下文，页面上下文过多时浏览器会回收最老的 */
       renderer.domElement.remove();
     };
-  }, [url]);
+  }, [url, reloadNonce]);
 
+  const reload = () => { setLost(false); setReloadNonce(n => n + 1); };
   return (
     <div className={`gv${info ? ' gv-with-note' : ''}`}>
       {info && <div className="gv-model-note"><b>{info.label}</b><span>{info.description}</span></div>}
       <div className="gv-canvas" ref={hostRef} />
-      {loadText && <div className="gv-load">{loadText}</div>}
-      {!loadText && <div className="gv-tip">拖动旋转 · 滚轮缩放 · 右键平移</div>}
+      {lost ? <div className="gv-load" role="button" tabIndex={0} onClick={reload} onKeyDown={onEnterSpace(reload)}>三维画布已被浏览器回收，点击重新加载</div>
+        : loadText && <div className="gv-load">{loadText}</div>}
+      {!loadText && !lost && <div className="gv-tip">拖动旋转 · 滚轮缩放 · 右键平移</div>}
     </div>
   );
 }

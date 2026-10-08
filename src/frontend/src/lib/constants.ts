@@ -68,11 +68,11 @@ export const ATYPE_LABEL: Record<string, string> = {
 /* ---------------- 流水线模块 ---------------- */
 export type Page = 'home' | 'align' | 'segment' | 'annotate' | 'library'
 export const PAGES: { id: Page; label: string; step: number | null; desc: string }[] = [
-  { id: 'home', label: '首页', step: null, desc: '集中展示：画像石、图层、测量' },
-  { id: 'align', label: '对齐', step: 1, desc: '各图与主图配准，接入统一坐标系' },
-  { id: 'segment', label: '分割', step: 2, desc: 'SAM 与矩形 / 圆形 / 多边形，把画面切成实体' },
-  { id: 'annotate', label: '标注', step: 3, desc: '填写名称、概念与图像描述，关联文献' },
-  { id: 'library', label: '文献', step: 4, desc: '把释文与文献段落关联到已标注的节点' },
+  { id: 'home', label: '查看与测量', step: null, desc: '浏览画像石、叠加图层、测量尺寸' },
+  { id: 'align', label: '图像对齐', step: 1, desc: '各图与主图配准，接入统一坐标系' },
+  { id: 'segment', label: '智能分割', step: 2, desc: 'SAM 与矩形 / 圆形 / 多边形，把画面切成实体' },
+  { id: 'annotate', label: '结构标注', step: 3, desc: '填写名称、概念与图像描述，搭建结构树' },
+  { id: 'library', label: '文献举证', step: 4, desc: '把释文与文献段落关联到已标注的节点' },
 ]
 /** 各模块允许的工具（其余按键 / 按钮忽略） */
 export const PAGE_TOOLS: Record<Page, Tool[]> = {

@@ -24,11 +24,14 @@ INDEX_DIR.mkdir(parents=True,exist_ok=True)
 INDEX = INDEX_DIR / "retrieval.sqlite"
 VECTORS = INDEX_DIR / "retrieval-vectors.npz"
 _lock = threading.RLock()
-_state = {"ready": False, "building": False, "error": "", "chunks": 0, "dense_ready": False,
+_state = {"ready": False, "building": False, "refreshing": False, "error": "", "chunks": 0, "dense_ready": False,
           "dense_building": False, "dense_pending": False, "dense_done": 0, "dense_n": 0, "dense_error": "", "dense_reused": 0}
 _model = None
 _dense = None
 _dense_complete = threading.Event()
+_stale = threading.Event()
+_watch = None
+_checked = None
 
 def synchronized(fn):
     @wraps(fn)
@@ -54,6 +57,28 @@ def source_version() -> str:
     return hashlib.sha256(json.dumps(['unified-index-v7-bm25-cjk', manifests, revisions, figures, books, documents], ensure_ascii=False).encode()).hexdigest()
 
 
+def mark_stale():
+    """Indexed sources changed; the next search rebuilds in the background."""
+    _stale.set()
+
+
+def _data_version():
+    # PRAGMA data_version changes only after another connection commits, including
+    # maintenance tools in other processes; it must stay on one long-lived connection.
+    global _watch
+    with _lock:
+        if _watch is None:
+            _watch = sqlite3.connect(settings.db_path, check_same_thread=False)
+        return _watch.execute("PRAGMA data_version").fetchone()[0]
+
+
+def _current_version():
+    global _checked
+    _stale.clear()
+    _checked = _data_version()
+    return source_version()
+
+
 def split_text(value: str, limit=800, overlap=80):
     value = value.strip()
     if not value:
@@ -67,13 +92,15 @@ def split_text(value: str, limit=800, overlap=80):
         start = end - overlap
 
 
-def build_index():
+def build_index(version=None):
     with _lock:
         if _state["building"]:
+            # The running build may predate the latest edit; check again afterwards.
+            _stale.set()
             return
-        _state.update(building=True, ready=False, dense_ready=False, error="")
+        _state.update(building=True, error="")
     try:
-        version = source_version()
+        version = version or _current_version()
         copied_files = {}
         manifest = settings.resource_manifest
         if manifest.is_file():
@@ -176,22 +203,48 @@ def build_index():
         (settings.data_dir / 'library-quality.json').write_text(json.dumps(quality,ensure_ascii=False,indent=2),encoding='utf-8')
     except Exception as exc:
         log.exception("Index build failed")
-        _state["error"] = str(exc)
+        # The previous index is served only while a rebuild runs, never after it fails.
+        _state.update(ready=False, dense_ready=False, error=str(exc))
     finally:
         _state["building"] = False
 
 
 def ensure_index():
+    """Full source check. It reads the whole library, so only background threads call it."""
+    if _state["ready"] and not _stale.is_set():
+        return
+    current = _current_version()
     if INDEX.exists():
         try:
-            with closing(connect()) as db:
+            with _lock, closing(connect()) as db:
                 version = db.execute("SELECT value FROM metadata WHERE key='source_version'").fetchone()[0]
-                if version == source_version():
+                if version == current:
                     _state.update(ready=True, source_version=version, chunks=db.execute("SELECT COUNT(*) FROM chunks").fetchone()[0])
                     return
         except sqlite3.Error:
             pass
-    build_index()
+    build_index(current)
+
+
+def start_refresh():
+    """Check and rebuild in the background; searches keep the current index meanwhile."""
+    with _lock:
+        if _state["refreshing"] or _state["building"]:
+            return
+        _state["refreshing"] = True
+    threading.Thread(target=_refresh, name="retrieval-refresh", daemon=True).start()
+
+
+def _refresh():
+    try:
+        ensure_index()
+        if not _state["dense_ready"] and not _state["building"]:
+            build_dense()
+    except Exception:
+        log.exception("Index refresh failed")
+        _stale.set()
+    finally:
+        _state["refreshing"] = False
 
 
 def model():
@@ -271,7 +324,7 @@ def build_dense():
         temporary = VECTORS.with_name("retrieval-vectors-building.npz")
         np.savez_compressed(temporary, matrix=matrix, ids=ids, scopes=scope_array, version=version)
         with _lock:
-            if source_version() + ":bge-m3:1024:v1" != version:
+            if _state["source_version"] + ":bge-m3:1024:v1" != version:
                 raise ValueError("资料在建索引期间发生修改，请重新构建向量")
             temporary.replace(VECTORS)
             _dense = {"matrix": matrix, "ids": ids, "scopes": scope_array}
@@ -347,8 +400,11 @@ def hit(row, score=0):
 
 @synchronized
 def search(query: str, scope="all", limit=8, offsets=None):
-    ensure_index()
-    if _state['ready'] and not _state["dense_ready"] and not _state["dense_building"] and not _state["dense_pending"]:
+    if _checked is not None and _data_version() != _checked:
+        _stale.set()
+    if _stale.is_set() or not _state["ready"]:
+        start_refresh()
+    if _state['ready'] and not any(_state[key] for key in ("dense_ready", "dense_building", "dense_pending", "refreshing")):
         # Publish pending state before the worker can be scheduled, while holding
         # the lock; a first question must not race past vector initialization.
         _state["dense_pending"] = True
@@ -474,7 +530,7 @@ def ask(question: str, include_extension=False):
     citations = [{"number": i + 1, **item} for i, item in enumerate(evidence)]
     retrieval_info = {"dense": bool(result.get("dense")), "method": "hybrid" if result.get("dense") else "keyword", "model": "BGE-M3", "reranker": "bge-reranker-v2-m3"}
     if not result.get("dense"):
-        pending = any(_state[key] for key in ("building", "dense_building", "dense_pending"))
+        pending = any(_state[key] for key in ("building", "refreshing", "dense_building", "dense_pending"))
         error = _state["error"] or _state["dense_error"]
         # Never send incomplete/stale evidence to the model. The browser waits
         # for the current index and resubmits this question when it is ready.

@@ -1,12 +1,12 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import OpenSeadragon from 'openseadragon'
-import { preprocessedUrl, previewUrl } from '../../api'
+import { preprocessedUrl, previewUrl, projectivePreviewUrl } from '../../api'
 import { COLORS } from '../../lib/constants'
 import { annotationBounds, type Pt } from '../../lib/geometry'
 import { clamp01 } from '../../lib/format'
 import { useApp } from '../../store/useApp'
 import type { AssetBrief } from '../../types'
-import { Spinner } from '../ui'
+import { Button, Spinner } from '../ui'
 import {
   AnnoShape, ExemplarBoxShape, ProjectedShape, SegCandidate, SegPointMark, measureLabel,
 } from './AnnotationShapes'
@@ -21,7 +21,7 @@ interface Draft {
 }
 const EMPTY: Draft = { kind: null, pts: [] }
 
-export default function Viewer2D({ asset }: { asset: AssetBrief }) {
+export default function Viewer2D({ asset, imageOnly = false }: { asset: AssetBrief; imageOnly?: boolean }) {
   const page = useApp(s => s.page)
   const tool = useApp(s => s.tool)
   const shape = useApp(s => s.shape)
@@ -45,20 +45,22 @@ export default function Viewer2D({ asset }: { asset: AssetBrief }) {
   const addSegBox = useApp(s => s.addSegBox)
   const toggleSegExcluded = useApp(s => s.toggleSegExcluded)
 
-  const interactive = tool !== 'annotate' && tool !== 'measure' && tool !== 'segment'
+  const interactive = imageOnly || (tool !== 'annotate' && tool !== 'measure' && tool !== 'segment')
   // 选中了无几何的骨架节点：绘制的图形会挂接到它
   const attachTarget = selectedId != null ? stoneAnnos.find(a => a.id === selectedId && a.atype === 'none') : undefined
   const visibleShape = (level: string, status: string) =>
     status !== 'rejected' && (status !== 'candidate' || showCandidates) && !hiddenLevels.includes(level as never)
   const segTextEngine = seg.engine !== 'mobilesam'
-  const src = seg.viewPreprocessed && seg.preprocess !== 'none'
+  const src = !imageOnly && seg.viewPreprocessed && seg.preprocess !== 'none'
     ? preprocessedUrl(asset.id, seg.preprocess, seg.invert)
     : previewUrl(asset.id)
-  const { hostRef, viewerRef, ready, toEl, toNorm, eventPos, zoomBy, goHome, fitNorm } = useOsd(src)
+  const { hostRef, viewerRef, ready, failed, retry, toEl, toNorm, eventPos, zoomBy, goHome, fitNorm } = useOsd(src)
   const overlayItemRef = useRef<OpenSeadragon.TiledImage | null>(null)
+  const overlayTicket = useRef(0)
   const draftRef = useRef<Draft>(EMPTY)
   const [, forceDraft] = useState(0)
   const [cursor, setCursor] = useState<Pt | null>(null)
+  const [overlayLoad, setOverlayLoad] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle')
 
   const shapeRef = useRef(shape); shapeRef.current = shape
   const assetRef = useRef(asset); assetRef.current = asset
@@ -75,19 +77,29 @@ export default function Viewer2D({ asset }: { asset: AssetBrief }) {
 
   /* ---------------- 对齐叠加层（带相似变换参数） ---------------- */
   useEffect(() => {
+    // 加载是异步的：叠加层在此期间被替换、关闭或主图重开时，迟到的结果直接丢弃
+    const ticket = ++overlayTicket.current
     const v = viewerRef.current
     if (!v || !ready) return
     if (overlayItemRef.current) {
       try { v.world.removeItem(overlayItemRef.current) } catch { /* 已移除 */ }
       overlayItemRef.current = null
     }
-    if (!overlay) return
+    if (!overlay) { setOverlayLoad('idle'); return }
+    setOverlayLoad('loading')
     v.addTiledImage({
-      tileSource: { type: 'image', url: previewUrl(overlay.assetId) },
+      tileSource: { type: 'image', url: overlay.transform?.warpMatrix
+        ? projectivePreviewUrl(asset.id, overlay.assetId, overlay.transform.warpMatrix) : previewUrl(overlay.assetId) },
       opacity: overlay.opacity,
       success: (e: unknown) => {
         const item = (e as { item: OpenSeadragon.TiledImage }).item
+        if (ticket !== overlayTicket.current) {
+          try { v.world.removeItem(item) } catch { /* 查看器已销毁 */ }
+          return
+        }
         overlayItemRef.current = item
+        setOverlayLoad('ready')
+        item.setOpacity(useApp.getState().overlay?.opacity ?? overlay.opacity)
         const t = overlay.transform
         if (t) {
           item.setPosition(new OpenSeadragon.Point(t.xVp, t.yVp), true)
@@ -97,7 +109,9 @@ export default function Viewer2D({ asset }: { asset: AssetBrief }) {
         }
         forceDraft(x => x + 1)
       },
+      error: () => { if (ticket === overlayTicket.current) setOverlayLoad('error') },
     })
+    return () => { overlayTicket.current++ }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [overlay?.assetId, overlay?.transform, ready])
 
@@ -107,13 +121,13 @@ export default function Viewer2D({ asset }: { asset: AssetBrief }) {
 
   /* ---------------- 定位到标注（自有或投影） / 外部命令 ---------------- */
   useEffect(() => {
-    if (!flyTo || !ready) return
+    if (imageOnly || !flyTo || !ready) return
     const a = annos.find(x => x.id === flyTo.id)
     const pj = !a ? projItems.find(x => x.id === flyTo.id) : undefined
     const b = a ? annotationBounds(a) : pj ? annotationBounds({ atype: pj.atype, geometry: pj.geometry }) : null
     if (b) fitNorm(b)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [flyTo?.nonce, ready])
+  }, [flyTo?.nonce, ready, imageOnly])
 
   useEffect(() => {
     if (!viewerCmd || !ready) return
@@ -125,6 +139,7 @@ export default function Viewer2D({ asset }: { asset: AssetBrief }) {
 
   /* ---------------- 绘制交互 ---------------- */
   useEffect(() => {
+    if (imageOnly) return
     const host = hostRef.current
     if (!host) return
     const pxLen = (a: Pt, b: Pt) =>
@@ -220,7 +235,7 @@ export default function Viewer2D({ asset }: { asset: AssetBrief }) {
       host.removeEventListener('dblclick', dbl)
       window.removeEventListener('keydown', key)
     }
-  }, [hostRef, viewerRef, toNorm, eventPos, createShape, addSegPoint, addSegBox])
+  }, [hostRef, viewerRef, toNorm, eventPos, createShape, addSegPoint, addSegBox, imageOnly])
 
   /* ---------------- 渲染 ---------------- */
   const d = draftRef.current
@@ -232,11 +247,20 @@ export default function Viewer2D({ asset }: { asset: AssetBrief }) {
       <div className="osd-host" ref={hostRef} />
       {!ready && (
         <div className="loading-mask">
-          <Spinner />
-          {asset.has_preview ? '载入预览…' : '首次打开：正在生成预览（大 TIF 需数秒）…'}
+          {failed ? (
+            <>
+              <span>预览生成失败</span>
+              <Button size="sm" variant="primary" onClick={retry}>重试</Button>
+            </>
+          ) : (
+            <>
+              <Spinner />
+              {asset.has_preview ? '载入预览…' : '首次打开：正在生成预览（大 TIF 需数秒）…'}
+            </>
+          )}
         </div>
       )}
-      <svg className="svg-overlay">
+      {!imageOnly && <svg className="svg-overlay">
         {ready && projOn && showAnnoLayer && projItems.map(p => {
           if (hiddenAnnotations.includes(p.id) || !visibleShape(p.level, p.review_status)) return null
           return <ProjectedShape key={`pj${p.id}`} p={p} toEl={toEl} selected={p.id === selectedId}
@@ -287,7 +311,7 @@ export default function Viewer2D({ asset }: { asset: AssetBrief }) {
             </g>
           )
         })()}
-      </svg>
+      </svg>}
 
       {ready && cursor && (
         <div className="vp-float bl" style={{ pointerEvents: 'none' }}>
@@ -299,11 +323,13 @@ export default function Viewer2D({ asset }: { asset: AssetBrief }) {
           )}
         </div>
       )}
-      {seg.viewPreprocessed && seg.preprocess !== 'none' && (
+      {!imageOnly && seg.viewPreprocessed && seg.preprocess !== 'none' && (
         <div className="vp-float tl" style={{ pointerEvents: 'none' }}>
           <b>预处理视图</b><span className="muted">{seg.preprocess === 'rubbing' ? '仿拓片' : '增强'}{seg.invert ? ' · 反相' : ''} · 模型看到的图</span>
         </div>
       )}
+      {overlay && overlayLoad === 'loading' && <div className="vp-float tl" role="status">正在载入叠加图…</div>}
+      {overlay && overlayLoad === 'error' && <div className="vp-float tl" role="alert">叠加图载入失败，请重新打开此记录。</div>}
       {attachTarget && (page === 'annotate' || page === 'segment') && (tool === 'annotate' || tool === 'select') && (
         <div className="vp-float tl attach-hint" style={{ pointerEvents: 'none' }}>
           <b>挂接模式</b>

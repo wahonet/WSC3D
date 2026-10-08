@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Sparkles, X } from 'lucide-react'
 import { skeletonCreate, skeletonPreview } from '../../api'
+import { useEscape } from '../../hooks/useEscape'
 import { LEVEL_SHORT } from '../../lib/constants'
 import { useApp } from '../../store/useApp'
 import { toast } from '../../store/useToast'
@@ -18,14 +19,21 @@ export default function SkeletonDialog({ stoneId, onClose }: { stoneId: string; 
   const [checked, setChecked] = useState<Set<string>>(new Set())
   const [labels, setLabels] = useState<Record<string, string>>({})
   const [busy, setBusy] = useState(false)
+  // 父组件每次重渲染都会传入新的内联 onClose；放进依赖会重新解析并清掉勾选
+  const closeRef = useRef(onClose)
+  closeRef.current = onClose
+  useEscape(onClose)
 
   useEffect(() => {
+    let active = true
     skeletonPreview(stoneId).then(r => {
+      if (!active) return
       setItems(r.items)
       setAssetId(r.asset_id)
       setChecked(new Set(r.items.filter(i => !i.exists).map(i => i.key)))
-    }).catch(e => { toast.error(e); onClose() })
-  }, [stoneId, onClose])
+    }).catch(e => { if (active) { toast.error(e); closeRef.current() } })
+    return () => { active = false }
+  }, [stoneId])
 
   const depthOf = useMemo(() => {
     const m = new Map((items ?? []).map(i => [i.key, i]))
@@ -77,7 +85,7 @@ export default function SkeletonDialog({ stoneId, onClose }: { stoneId: string; 
 
   return (
     <div className="modal-mask" onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}>
-      <div className="modal skeleton">
+      <div className="modal skeleton" role="dialog" aria-modal="true" aria-label="从释文生成骨架">
         <div className="modal-h">
           <Sparkles size={15} />
           <b>从释文生成骨架</b>
@@ -86,7 +94,7 @@ export default function SkeletonDialog({ stoneId, onClose }: { stoneId: string; 
             节点先没有几何：创建后选中节点、在图上绘制即挂接，或把 SAM 候选拖到节点上"并入几何"。
           </span>
           <span style={{ flex: 1 }} />
-          <Button size="sm" variant="ghost" icon={<X size={14} />} onClick={onClose} />
+          <Button size="sm" variant="ghost" icon={<X size={14} />} onClick={onClose} aria-label="关闭" autoFocus />
         </div>
         {!items ? <div className="modal-b" style={{ display: 'flex', gap: 8, alignItems: 'center' }}><Spinner />解析释文…</div> : (
           <>

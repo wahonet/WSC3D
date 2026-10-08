@@ -486,6 +486,8 @@ button.step:hover { border-color: var(--accent); background: var(--bg-3); }
   background: var(--bg-1); border-bottom: 1px solid var(--line); font-size: 12px; color: var(--text-2);
 }
 .align-bar .select { width: 260px; }
+.align-preview-name { max-width: 280px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.align-preview > .viewport { flex: 1; min-height: 0; }
 .align-stat { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
 .align-stat b { font-family: var(--font-mono); font-weight: 600; color: var(--text); }
 .align-pairs { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; padding: 6px 12px; background: var(--bg-2); border-bottom: 1px solid var(--line); }
@@ -598,7 +600,9 @@ button.step:hover { border-color: var(--accent); background: var(--bg-3); }
 .align-rec .head { display: flex; align-items: center; gap: 5px; min-width: 0; color: var(--text); font-weight: 600; }
 .align-rec .head .truncate { max-width: 45%; }
 .align-rec .meta { display: flex; align-items: center; gap: 6px; margin-top: 5px; flex-wrap: wrap; font-size: 11px; }
-.align-rec .range { margin-top: 6px; }
+.align-opacity { display: flex; align-items: center; gap: 8px; margin-top: 6px; font-size: 11px; color: var(--text-2); }
+.align-opacity .range { flex: 1; width: auto; min-width: 0; height: 24px; margin: 0; }
+.align-opacity output { min-width: 32px; text-align: right; font-family: var(--font-mono); }
 
 /* 首页节点信息卡 */
 .node-card {

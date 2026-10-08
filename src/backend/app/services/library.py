@@ -12,6 +12,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import queue
 import re
 import shutil
 import subprocess
@@ -36,10 +37,17 @@ log = logging.getLogger("stonelab.library")
 WORKER_SCRIPT = Path(__file__).resolve().parents[1] / "ocr_worker.py"
 ENGINES = ("mineru", "ndl")
 MINERU_CHUNK = 6          # 每次交给 MinerU 的连续页数（模型常驻，分块只为了及时落库与显示进度）
+OCR_TIMEOUT = 600         # 工作进程启动、每页识别的无响应上限（秒）；多页请求按页数累计
 COLLECTIONS = ("core", "extension")
 EXTENSION_PREFIX = "extension/"          # 扩展库文献 relpath 前缀，其后相对 resources/documents/extension
 # 页级 OCR 来源标签：新 OCR 引擎与从原 inventory 导入的既有文本
 ENGINE_LABEL = {"text-layer": "文字层", "legacy-ocr": "OCR，需核对原图", "mineru": "OCR，需核对原图", "ndl": "OCR，需核对原图"}
+
+
+def index_changed() -> None:
+    """文段、插图或书目的修改已提交：统一检索在下一次检索时于后台重建索引。"""
+    from . import retrieval
+    retrieval.mark_stale()
 
 
 # ================================================================ 文件与页图
@@ -107,22 +115,38 @@ def _page_count(p: Path) -> int:
         doc.close()
 
 
+_page_locks: dict[str, threading.Lock] = {}
+_page_locks_guard = threading.Lock()
+
+
+def _page_lock(key: str) -> threading.Lock:
+    with _page_locks_guard:
+        if key not in _page_locks:
+            _page_locks[key] = threading.Lock()
+        return _page_locks[key]
+
+
 def render_page_image(d: Document, page_no: int, dpi: int, fmt: str = "jpg") -> Path:
     """渲染并缓存一页页图；同一 (页, dpi) 只渲染一次。"""
     out = settings.cache_dir / 'library' / f'doc{d.id}' / 'pages' / f"p{page_no:04d}_{dpi}.{fmt}"
     if out.exists():
         return out
-    import pypdfium2 as pdfium
-    out.parent.mkdir(parents=True, exist_ok=True)
-    doc = pdfium.PdfDocument(str(doc_path(d)))
-    try:
-        img = doc[page_no - 1].render(scale=dpi / 72).to_pil().convert("RGB")
-        if fmt == "jpg":
-            img.save(out, quality=86)
-        else:
-            img.save(out)
-    finally:
-        doc.close()
+    with _page_lock(str(out)):
+        if out.exists():
+            return out
+        import pypdfium2 as pdfium
+        out.parent.mkdir(parents=True, exist_ok=True)
+        tmp = out.with_suffix(f".tmp.{fmt}")
+        doc = pdfium.PdfDocument(str(doc_path(d)))
+        try:
+            img = doc[page_no - 1].render(scale=dpi / 72).to_pil().convert("RGB")
+            if fmt == "jpg":
+                img.save(tmp, quality=86)
+            else:
+                img.save(tmp)
+        finally:
+            doc.close()
+        tmp.replace(out)
     return out
 
 
@@ -197,6 +221,8 @@ def scan(db: Session, collection: str = "core") -> dict:
         if d.relpath not in seen:
             report["removed"] += 1        # 文件不在了：保留记录与 OCR 结果，只计数提示
     db.commit()
+    if report["added"] or report["updated"]:
+        index_changed()
     report["duration_ms"] = int((time.perf_counter() - t0) * 1000)
     log.info("library scan: %s", report)
     return report
@@ -314,6 +340,8 @@ def register_extension_books(db: Session) -> dict:
         raise
     finally:
         _register_lock.release()
+    if report["added"] or report["updated"]:
+        index_changed()
     report["duration_ms"] = int((time.perf_counter() - t0) * 1000)
     log.info("extension library registration: %s", {k: v for k, v in report.items() if k != "skipped"} | {"skipped": len(report["skipped"])})
     return report
@@ -369,6 +397,7 @@ def _import_legacy_text(db: Session, d: Document, book: dict) -> int:
 
 # ================================================================ 工作进程管理（每个引擎一个）
 _procs: dict[str, Optional[subprocess.Popen]] = {e: None for e in ENGINES}
+_lines: dict[str, Optional[queue.Queue]] = {e: None for e in ENGINES}
 _boot: dict[str, dict] = {e: {} for e in ENGINES}
 _locks: dict[str, threading.Lock] = {e: threading.Lock() for e in ENGINES}
 
@@ -395,19 +424,24 @@ def _ensure_worker(engine: str) -> Optional[str]:
                 f"或设置环境变量 STONELAB_{'OCR' if engine == 'mineru' else 'NDL'}_PYTHON")
     cmd = [py, "-X", "utf8", str(WORKER_SCRIPT), "--engine", engine,
            "--ndl-root", str(settings.ndl_root), "--models-dir", str(settings.ndl_models_dir if engine == "ndl" else settings.mineru_models_dir)]
+    from .process_tree import line_reader, stop_worker
     try:
         logf = settings.ocr_log.open("a", encoding="utf-8")
         proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=logf,
                                 text=True, encoding="utf-8", bufsize=1,
                                 creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
-        line = proc.stdout.readline()
+        lines = line_reader(proc)
+        line = lines.get(timeout=OCR_TIMEOUT)
         boot = json.loads(line) if line.strip() else {"ok": False, "error": "工作进程无输出"}
         if not boot.get("ok"):
             proc.kill()
             return f"OCR 工作进程启动失败：{boot.get('error')}"
-        _procs[engine], _boot[engine] = proc, boot
+        _procs[engine], _lines[engine], _boot[engine] = proc, lines, boot
         log.info("ocr worker %s started pid=%s version=%s gpu=%s", engine, proc.pid, boot.get("version"), boot.get("gpu"))
         return None
+    except queue.Empty:
+        stop_worker(proc)
+        return f"OCR 工作进程启动超过 {OCR_TIMEOUT} 秒无响应，已停止，详见 {settings.ocr_log.name}"
     except Exception as e:
         return f"OCR 工作进程启动失败：{type(e).__name__}: {e}"
 
@@ -421,19 +455,23 @@ def _request(engine: str, payload: dict) -> dict:
 
 
 def _request_raw(engine: str, payload: dict) -> dict:
-    err = _ensure_worker(engine)
-    if err:
-        return {"ok": False, "error": err}
-    proc = _procs[engine]
-    assert proc and proc.stdin and proc.stdout
     with _locks[engine]:
+        err = _ensure_worker(engine)
+        if err:
+            return {"ok": False, "error": err}
+        proc, lines = _procs[engine], _lines[engine]
+        assert proc and proc.stdin and lines
+        timeout = OCR_TIMEOUT * max(1, len(payload.get("pages") or ()))
         try:
             proc.stdin.write(json.dumps(payload, ensure_ascii=False) + "\n")
             proc.stdin.flush()
-            line = proc.stdout.readline()
+            line = lines.get(timeout=timeout)
             if not line:
                 return {"ok": False, "error": f"OCR 工作进程中断（exit={proc.poll()}），详见 {settings.ocr_log.name}"}
             return json.loads(line)
+        except queue.Empty:
+            shutdown_worker(engine)
+            return {"ok": False, "error": f"OCR 工作进程超过 {timeout} 秒无响应，已停止，详见 {settings.ocr_log.name}"}
         except Exception as e:
             return {"ok": False, "error": f"{type(e).__name__}: {e}"}
 
@@ -752,6 +790,7 @@ def _store_page(db: Session, d: Document, page_no: int, res: dict, engine: str) 
                                          "message": "重建时部分旧记录未能可靠匹配，已保留人工工作及节点引用的来源，请复核。"}
     page.ocr_at = datetime.now()
     db.commit()
+    index_changed()
 
 
 # ================================================================ 校订与检索
@@ -783,6 +822,8 @@ def patch_segment(db: Session, s: Segment, text_edit: str | None, kind: str | No
     except Exception:
         db.rollback()
         raise
+    if changes:
+        index_changed()
     return s
 
 

@@ -20,14 +20,12 @@ export interface CenterLayer {
 }
 
 export const CENTER_PLACEMENT = placement;
-
-/** 传承中心局部米制坐标（X 东、Y 北沿建筑轴网、Z 相对 ±0.000）→ 院落场景世界坐标。 */
-export function centerLocalToScene(x: number, y: number, z: number): THREE.Vector3 {
-  const t = placement.transform;
-  const angle = THREE.MathUtils.degToRad(t.rotationYDeg), c = Math.cos(angle), s = Math.sin(angle);
-  const gx = x, gz = -y;   // glTF Y-up: x = X, z = -Y
-  return new THREE.Vector3(c * gx + s * gz + t.translation[0], z + t.translation[1], -s * gx + c * gz + t.translation[2]);
-}
+/** Invisible quads that cut the scene backdrop over below-grade openings (build_center_blender.py). */
+const OPENING_MASK = '遮罩_下沉开口';
+/** The courtyard shows the closed building. Storey views and zone colours belong to the
+ * centre project module (center/centerModel.ts): the basement mask and the coloured zone
+ * floors stay hidden here. */
+const HIDDEN_ROLES = new Set(['b1_mask', 'zone']);
 
 export function disposeTree(root: THREE.Object3D) {
   const textures = new Set<THREE.Texture>();
@@ -69,12 +67,23 @@ export function createCenterLayer(
       const mesh = object as THREE.Mesh;
       if (!mesh.isMesh) return;
       // The courtyard's shadow frustum (±108 m) does not reach the centre; skipping shadow
-      // passes and raycasts keeps the ~1.7M-triangle overlay from slowing picking and walking.
+      // passes and raycasts keeps the overlay out of picking and walking.
       mesh.castShadow = false;
       mesh.receiveShadow = false;
       mesh.raycast = () => {};
       mesh.userData.hanwenhuaCenter = true;
+      if (HIDDEN_ROLES.has(mesh.userData.center_role)) { mesh.visible = false; return; }
       const materials = (Array.isArray(mesh.material) ? mesh.material : [mesh.material]) as THREE.MeshPhysicalMaterial[];
+      if (materials.some(material => material.name === OPENING_MASK)) {
+        // Drawn first and colourless, they mark the stencil so the scene backdrop
+        // (sceneTheme.ts) leaves the below-grade geometry visible.
+        for (const material of materials) {
+          Object.assign(material, { colorWrite: false, depthWrite: false, stencilWrite: true, stencilRef: 1,
+            stencilFunc: THREE.AlwaysStencilFunc, stencilZPass: THREE.ReplaceStencilOp, side: THREE.DoubleSide });
+        }
+        mesh.renderOrder = -1;
+        return;
+      }
       for (const material of materials) {
         material.side = THREE.DoubleSide;
         // r147 transmission needs an extra scene pass; the delivered web viewer uses plain alpha glass too.

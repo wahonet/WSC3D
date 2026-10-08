@@ -1,0 +1,46 @@
+{
+  "title": "武氏祠汉文化保护传承中心",
+  "subtitle": "浙江省古建筑设计研究院 · 2026-09-25 施工图",
+  "models": {
+    "building": {
+      "glb": "models/hanwenhua-center-20260925.glb",
+      "revision": "courtyard-20260928-2",
+      "sha256": "d1835b79520cbc70b4baad2790e9833eaabb8aeb68f00233928c5849731011d9",
+      "builder": "tools/authoring/build_center_blender.py"
+    },
+    "project": {
+      "glb": "models/hanwenhua-center-project-20260927.glb",
+      "revision": "project-20260927-2",
+      "sha256": "513dc971e10550bba832fe97bbdb5f5773605a13f1a4b25126a199df58f72367",
+      "builder": "tools/authoring/build_center_project_blender.py"
+    },
+    "exhibition": {
+      "glb": "models/hanwenhua-center-exhibition-20260927.glb",
+      "revision": "exhibit-20260927-10",
+      "sha256": "38a62e813a990d2c7eeff726e7efdb6de8e8e748114fdf1e0297f0599225b4a5",
+      "builder": "tools/authoring/build_center_exhibition_blender.py"
+    }
+  },
+  "areas": [
+    { "label": "负一层", "value": 6297.97 },
+    { "label": "一层", "value": 5490.31, "note": "另含地上出入口 89.90 m²" },
+    { "label": "二层", "value": 2670.55 },
+    { "label": "文物管理用房", "value": 2021.32 }
+  ],
+  "drawings": [
+    { "discipline": "建筑", "file": "施工图_建筑20260925.dwg", "use": "外形、立面、屋顶、各层平面与房间" },
+    { "discipline": "外观", "file": "02.pdf（第 2、3 页）", "use": "浅米色竖纹墙面、暖棕色柱框与窗套、深色檐下带、暖棕色檐口" },
+    { "discipline": "结构", "file": "结构施工图260925.dwg", "use": "柱、梁、地下室外墙" },
+    { "discipline": "暖通", "file": "武氏祠暖通施工图.dwg", "use": "送风、排风、排烟风管与空调室内机" },
+    { "discipline": "给排水", "file": "武氏祠汉文化保护传承中心给排水施工图-W.dwg", "use": "给水、排水、雨水与喷淋管" },
+    { "discipline": "景观", "file": "9.24武氏祠景观施工图（土建底图、绿化）", "use": "用地红线（界址点），红线内的绿地、铺装、灌木与乔木树种" },
+    { "discipline": "展陈", "file": "武氏祠汉文化保护传承中心项目展陈设计文件9.18改(2).pdf", "use": "主展线六个展厅、三座剧场、专题与临时展厅的装修、展项、灯光与图文" },
+    { "discipline": "周边", "file": "院落全景周边环境 site-context-20260911.glb", "use": "道路、农田、南侧村舍与树木，与院落全景同一布局" }
+  ],
+  "landmarks": [
+    { "name": "武氏祠（现状白模）", "p": [-14, -118], "z": 13 },
+    { "name": "文物管理用房", "p": [0, 146], "z": 12 },
+    { "name": "北入口汉阙", "p": [0, 209], "z": 10 },
+    { "name": "下沉庭院", "p": [-15.8, 32.7], "z": 1.7 }
+  ]
+}

@@ -7,6 +7,7 @@ import sys
 sys.path.insert(0,str(Path(__file__).resolve().parent))
 from project import stone_dir, stone_file, source_path, node_binary
 ROOT=Path(__file__).resolve().parents[2]
+PLATFORM='http://127.0.0.1:'+str(json.loads((ROOT/'config/project.json').read_text(encoding='utf-8')).get('port',8030))
 OUT=ROOT / 'resources/authoring/catalogue-preparation'
 TOOL=ROOT / 'resources/reference/viewers/04-旧版三维模型/摆放工具/西长廊石刻摆放.html'
 src=(OUT/'inputs/placement-tool-original.html').read_text(encoding='utf-8')
@@ -59,7 +60,8 @@ function serializableLayout(){
   return {version:'xcl-layout-2',base_updated_at:systemUpdatedAt,stones:stones.map(s=>({id:s.id,name:s.name,wall:s.wall,
     L:s.L,H:s.H,T:s.T,along:s.along,off:s.off,y:s.y,rotY:s.rotY,sizeRevision:s.sizeRevision}))};
 }
-const SYSTEM_URL=location.protocol==='file:'?'http://127.0.0.1:8002':location.origin;
+const SYSTEM_URL=location.protocol==='file:'?'__PLATFORM__':location.origin;
+const FILE_HINT='直接打开的本地文件无法读取或应用系统布局，请运行 tools/打开西长廊摆放工具.bat，或通过平台打开 __PLATFORM__/tools/xcl-placement.html';
 function commitEditor(){
   if(sel<0) return;
   const s=stones[sel];
@@ -71,6 +73,7 @@ function commitEditor(){
   clampStone(s);buildMesh(s);highlight();refreshList();refreshPanel();draw2D();
 }
 async function applyToSystem(){
+  if(location.protocol==='file:'){toast(FILE_HINT);return;}
   const button=$('[data-op="applySystem"]'); button.disabled=true;
   try{
     const layout=serializableLayout();
@@ -82,10 +85,11 @@ async function applyToSystem(){
     systemUpdatedAt=result.updated_at;
     saveLS(); toast('已将40件石刻的位置与贴图同步到系统；返回全景即可查看');
     if(window.opener) window.opener.postMessage({type:'xcl-layout-applied'},SYSTEM_URL);
-  }catch(error){toast('应用失败：'+error.message+'；请确认8002上的系统已启动。');}
+  }catch(error){toast('应用失败：'+error.message+'；请确认平台已启动。');}
   finally{button.disabled=false;}
 }
 async function loadFromSystem(automatic=false){
+  if(location.protocol==='file:'){if(!automatic) toast(FILE_HINT);return;}
   if(!automatic && !confirm('用系统中已应用的布局替换当前摆放？当前摆放可先导出JSON备份。')) return;
   try{
     const response=await fetch(SYSTEM_URL+'/api/layouts/xcl',{cache:'no-store'});
@@ -94,7 +98,7 @@ async function loadFromSystem(automatic=false){
     systemUpdatedAt=result.updated_at;
     stones=fromInit().map(s=>map[s.id]?mergePlacement(s,map[s.id]):s);
     rebuildAll(); saveLS(); toast('已读取系统当前布局，40件照片随石刻同步移动');
-  }catch(error){if(!automatic) toast('无法读取系统布局，请确认8002已启动。');}
+  }catch(error){if(!automatic) toast('无法读取系统布局，请确认平台已启动。');}
 }
 const photoTextures={};
 function photoFor(s){
@@ -114,7 +118,7 @@ function disposeStoneMesh(mesh){
   if(!mesh)return;
   mesh.traverse(o=>{if(o.isMesh){o.geometry.dispose();(Array.isArray(o.material)?o.material:[o.material]).forEach(m=>m.dispose());}});
 }
-'''
+'''.replace('__PLATFORM__',PLATFORM)
 src=src.replace('function fromInit(){',helpers+'\nfunction fromInit(){',1)
 src=src.replace('const data = { v: 1, t: Date.now(), stones:', 'const data = { v: 1, t: Date.now(), base_updated_at:systemUpdatedAt, stones:')
 src=src.replace('    return true;\n  }catch(e){ return false; }', "    systemUpdatedAt=typeof d.base_updated_at==='string'?d.base_updated_at:null;\n    return true;\n  }catch(e){ return false; }")
@@ -157,7 +161,7 @@ edit=edit.replace("    if(isNaN(v)) return;", "    if(!Number.isFinite(v) || (['
 edit=edit.replace("  });\n});", "  };\n  $('#' + id).addEventListener('input',updateValue);\n  $('#' + id).addEventListener('change',updateValue);\n});")
 src=src[:begin]+edit+src[end:]
 src=src.replace("  stones.forEach(s => { s.gltfObj = null; buildMesh(s); });","  stones.forEach(s => { s.gltfObj = null; buildMesh(s); });")
-src=src.replace("toast(restored ? '已恢复上次进度'", "if(!restored) void loadFromSystem(true);\ntoast(restored ? '已恢复上次进度'")
+src=src.replace("toast(restored ? '已恢复上次进度'", "if(!restored) void loadFromSystem(true);\ntoast(location.protocol==='file:' ? FILE_HINT : restored ? '已恢复上次进度'")
 for dest in [TOOL,ROOT / 'tools/viewers/placement/xcl-placement.html']:
     dest.parent.mkdir(parents=True,exist_ok=True);dest.write_text(src,encoding='utf-8')
 # Save only the application script for linting without the bundled libraries/data.

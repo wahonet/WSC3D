@@ -70,6 +70,11 @@ def records(kind):
     return [json.loads(row['data']) for row in rows]
 
 
+def delete(kind, identifier):
+    with lock, connect() as db:
+        db.execute('DELETE FROM records WHERE kind=? AND id=?', (kind, str(identifier)))
+
+
 def material_file(item, variant='image'):
     names = {'image': 'image.png', 'thumb': 'thumb.webp', 'ink': 'ink.png', 'video': 'video.mp4'}
     if variant not in names or (variant == 'video' and item['kind'] != 'video'):
@@ -82,7 +87,8 @@ def material_file(item, variant='image'):
 
 def public_material(item, internal=False):
     value = {k: item[k] for k in ('id', 'title', 'kind', 'tags', 'story', 'width', 'height', 'created_at', 'published', 'origin')}
-    value['source'] = item.get('source', {})
+    value.update(source=item.get('source', {}), theme=item.get('theme'), role=item.get('role'),
+                 style=(item.get('generation') or {}).get('style'), review=item.get('review'))
     prefix = '/api/creative/' + ('admin/' if internal else '') + 'materials/' + item['id']
     value.update(image_url=prefix + '/image', thumb_url=prefix + '/thumb',
                  video_url=prefix + '/video' if item['kind'] == 'video' else None,
@@ -101,14 +107,17 @@ def provenance(source):
             'references': refs}
 
 
-def add_image(image, title, *, origin, source=None, tags=None, story='', ink=False, identifier=None):
+def add_image(image, title, *, origin, source=None, tags=None, story='', ink=False, identifier=None, stencil=None, limit=3000):
     identifier = str(UUID(identifier)) if identifier else str(uuid4())
     dest = folder('materials', identifier)
     dest.mkdir(parents=True, exist_ok=True)
     image = image.convert('RGBA')
-    image.thumbnail((3000, 3000), Image.Resampling.LANCZOS)
+    # Wide friezes keep more pixels so each figure's strokes survive the downscale.
+    image.thumbnail((limit, limit), Image.Resampling.LANCZOS)
     image.save(dest / 'image.png', optimize=True)
-    if ink:
+    if stencil is not None:
+        stencil.resize(image.size, Image.Resampling.LANCZOS).save(dest / 'ink.png', optimize=True)
+    elif ink:
         # Preserve the geometric mask, making the white rubbing paper transparent.
         alpha = ImageChops.multiply(ImageOps.invert(ImageOps.grayscale(image)), image.getchannel('A'))
         stencil = Image.new('RGBA', image.size, (31, 43, 43, 0))
@@ -124,7 +133,15 @@ def add_image(image, title, *, origin, source=None, tags=None, story='', ink=Fal
     return save('materials', record)
 
 
-def from_annotations(db, ids):
+def remove_material(identifier):
+    with lock:
+        shutil.rmtree(folder('materials', identifier), ignore_errors=True)
+        delete('materials', identifier)
+
+
+def from_annotations(db, ids, rotation=0):
+    if type(rotation) is not int or rotation not in range(4):
+        raise ValueError('转正角度须为逆时针90度的整数倍')
     ids = sorted(set(ids))
     nodes = db.query(Annotation).filter(Annotation.id.in_(ids)).order_by(Annotation.id).all()
     if len(nodes) != len(ids) or any(not video_sources.eligible(n) for n in nodes):
@@ -137,16 +154,22 @@ def from_annotations(db, ids):
     snapshot = video_sources.snapshot(db, asset, stone, nodes)
     path = resources.asset_path(asset.relpath)
     fingerprint = hashlib.sha256(json.dumps([snapshot, path.stat().st_mtime_ns], sort_keys=True, ensure_ascii=False).encode()).hexdigest()
+    if rotation:
+        fingerprint = hashlib.sha256(f'{fingerprint}:rotation={rotation}'.encode()).hexdigest()
     with lock:
         previous = next((m for m in records('materials') if m.get('fingerprint') == fingerprint), None)
         if previous:
             return previous
         region, box = video_sources.export_region(asset, nodes, path, 2600)
+        if rotation:
+            region = region.transpose({1: Image.Transpose.ROTATE_90, 2: Image.Transpose.ROTATE_180,
+                                       3: Image.Transpose.ROTATE_270}[rotation])
         tags = [c for n in snapshot['annotations'] for c in n['concepts']]
         stories = [video_sources.plain(n['semantics'].get('iconographic') or n['semantics'].get('pre_iconographic') or n['desc_text']) for n in snapshot['annotations']]
         value = add_image(region, '、'.join(video_sources.display_label(n) for n in nodes), origin='annotation',
                           source=provenance(snapshot), tags=tags, story='\n'.join(dict.fromkeys(s for s in stories if s)), ink=True)
         value.update(fingerprint=fingerprint, snapshot=snapshot, pixel_box=box)
+        value['source']['rotation'] = rotation
         return save('materials', value)
 
 

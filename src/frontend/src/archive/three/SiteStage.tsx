@@ -1,3 +1,4 @@
+import { VIEWPOINTS } from './sceneWaypoints'
 import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three-inventory';
 import { OrbitControls } from 'three-inventory/examples/jsm/controls/OrbitControls';
@@ -111,10 +112,10 @@ export default function SiteStage() {
       const gpu = createGpuQueue(renderer);
       cleanup.push(gpu.dispose);
       const camera = new THREE.PerspectiveCamera(45, 1, 0.5, 1500);
-      camera.position.set(98, 86, 120);
+      camera.position.fromArray(VIEWPOINTS.pan.p);
       const controls = new OrbitControls(camera, renderer.domElement);
       cleanup.push(() => controls.dispose());
-      controls.target.set(-2, 0, 2);
+      controls.target.fromArray(VIEWPOINTS.pan.t);
       controls.enableDamping = true;
       controls.dampingFactor = 0.08;
       controls.maxPolarAngle = Math.PI / 2 - 0.03;

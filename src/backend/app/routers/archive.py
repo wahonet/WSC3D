@@ -12,9 +12,11 @@ from ..services import catalogue, model_gateway
 from ..services import retrieval
 import threading
 from ..services.resources import within
+from .creative import throttle
 
 router = APIRouter(prefix="/api/archive", tags=["统一档案"])
 files = APIRouter(tags=["馆藏资源"])
+_asking = threading.BoundedSemaphore(3)   # 公开问答会调用在线付费模型或本机 GPU
 
 
 def stone_for(db, sid):
@@ -31,8 +33,9 @@ def same_origin(request: Request):
 
 
 @router.get("/stones")
-def stones(db: Session = Depends(get_db)):
-    return [catalogue.brief(s) for s in db.query(Stone).order_by(Stone.id).all()]
+def stones(include_related: bool = False, db: Session = Depends(get_db)):
+    return [catalogue.brief(s) for s in db.query(Stone).order_by(Stone.id).all()
+            if include_related or catalogue.in_local_collection(s)]
 
 
 @router.get("/stones/{sid}")
@@ -102,7 +105,13 @@ def ask(body: dict, request: Request):
     question = body.get("question")
     if not isinstance(question, str) or not question.strip() or len(question) > 2000:
         raise HTTPException(422, "请输入有效问题")
-    return retrieval.ask(question.strip(), body.get("include_extension") is True)
+    throttle(request, 'ask', 12, 60)
+    if not _asking.acquire(blocking=False):
+        raise HTTPException(429, "当前提问人数较多，请稍后再试")
+    try:
+        return retrieval.ask(question.strip(), body.get("include_extension") is True)
+    finally:
+        _asking.release()
 
 
 @router.get("/rag/status")
@@ -194,13 +203,6 @@ def scene_file(name: str):
 @files.get("/textures/{name:path}")
 def texture_file(name: str):
     return FileResponse(within(settings.scenes_dir / "textures", name))
-
-
-@files.get("/api/layouts/{area}")
-def layout(area: str):
-    if area not in {"xcl", "rear"}:
-        raise HTTPException(404)
-    return json.loads(within(settings.layouts_dir, area + ".json").read_text(encoding="utf-8"))
 
 
 @files.get("/data/{name:path}")

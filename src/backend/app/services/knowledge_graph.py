@@ -316,7 +316,7 @@ def _candidate_concept(db: Session, dataset_id: str, candidate: dict) -> Concept
 
 
 def attach(db: Session, stone_id: str, annotation_id: int, node_id: str, story_id: str | None,
-           evidence_ids: list[str] | None = None, *, path: Path | None = None) -> dict:
+           evidence_ids: list[str] | None = None, *, path: Path | None = None, keep_structure: bool = False) -> dict:
     """Assign a book label and selected citations; the original region keeps its ID."""
     from . import structure
     with _import_lock:
@@ -334,14 +334,24 @@ def attach(db: Session, stone_id: str, annotation_id: int, node_id: str, story_i
         chosen = candidate['evidence_ids'] if evidence_ids is None else evidence_ids
         if any(eid not in candidate['evidence_ids'] or eid not in sources for eid in chosen):
             raise HTTPException(409, '所选文献不属于当前条目或原文已变化')
+        if keep_structure:
+            from ..constants import PARENT_LEVELS
+            allowed = ('scene',) if candidate['kind'] == 'story' else ('figure', 'component', 'inscription', 'trace')
+            if candidate['kind'] == 'object':
+                allowed = (*allowed, 'band')
+            parent = db.get(Annotation, annotation.parent_id) if annotation.parent_id else None
+            if annotation.level not in allowed or not parent or parent.stone_id != stone_id or parent.asset_id != annotation.asset_id:
+                raise HTTPException(422, '保留结构关联需要同图的已定位父节点与相应层级')
+            if parent.level not in PARENT_LEVELS.get(annotation.level, ()):
+                raise HTTPException(422, '当前父子层级不适合保留结构关联')
         try:
             old = db.query(AnnotationKnowledgeLink).filter_by(annotation_id=annotation_id).first()
-            if story_id:
+            if story_id and not keep_structure:
                 parent = materialize(db, stone_id, [{'node_id': story_id}], annotation.asset_id, path=path, commit=False)
                 parent_id = next(binding['annotation_id'] for binding in parent['bindings'] if binding['node_id'] == story_id)
                 structure.validate_parent(db, annotation, parent_id)
                 annotation.parent_id = parent_id
-            elif old and old.story_id:
+            elif not keep_structure and old and old.story_id:
                 old_parent = db.query(KnowledgeGraphBinding).filter_by(dataset_id=old.dataset_id, stone_id=stone_id,
                                     node_id=old.story_id, story_id='').first()
                 if old_parent and annotation.parent_id == old_parent.annotation_id:
@@ -354,7 +364,8 @@ def attach(db: Session, stone_id: str, annotation_id: int, node_id: str, story_i
                     current = [cid for cid in current if cid != previous.concept_id]
             structure.set_concepts(db, annotation, _unique([*current, concept.id]))
             annotation.label = candidate['label']
-            annotation.level = 'scene' if candidate['kind'] == 'story' else 'figure'
+            if not keep_structure:
+                annotation.level = 'scene' if candidate['kind'] == 'story' else 'figure'
             # Naming is an explicit edit, but does not constitute scholarly review.
             selected_segments = _unique(sources[eid]['segment_id'] for eid in chosen)
             owned = set(old.reference_ids or []) if old else set()

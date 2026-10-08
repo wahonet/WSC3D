@@ -2,8 +2,9 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowLeft, ArrowRight, ArrowUpRight, BookOpen, ChevronDown, LoaderCircle, Network, PanelLeftClose, PanelRightClose, Search, X } from 'lucide-react'
 import KnowledgeForceGraph, { GRAPH_COLORS, GRAPH_LABELS, graphRelation } from '../components/knowledge/KnowledgeForceGraph'
 import { fetchKnowledgeGraph, type KnowledgeGraph, type KnowledgeKind, type KnowledgeNode } from '../lib/knowledgeGraph'
-import { graphDegrees, inducedGraph, neighbourhood, type GraphData } from '../lib/graphExploration'
+import { graphDegrees, inducedGraph, neighbourhood, relatedStoneNodes, type GraphData } from '../lib/graphExploration'
 import { goToSection, openDocument } from '../lib/navigation'
+import CreativeLinks from '../components/CreativeLinks'
 import './knowledgeGraph.css'
 
 const KINDS: KnowledgeKind[] = ['story', 'person', 'object', 'stone']
@@ -34,7 +35,6 @@ export default function KnowledgeGraphPage() {
   const [documentsOpen, setDocumentsOpen] = useState(false)
   const modalRef = useRef<HTMLElement>(null)
   const [detailTab, setDetailTab] = useState<'relations' | 'sources'>('relations')
-
   useEffect(() => {
     const abort = new AbortController()
     setLoading(true); setError('')
@@ -104,7 +104,7 @@ export default function KnowledgeGraphPage() {
     return data?.evidence.filter(source => ids.has(source.id)) || []
   }, [data, selected, relations])
   const stories = selected?.kind === 'story' ? [selected] : relations.map(edge => nodeMap.get(edge.source === selectedId ? edge.target : edge.source)).filter((node): node is KnowledgeNode => node?.kind === 'story')
-  const relatedStones = stones.filter(stone => stone.id === selectedId || data?.edges.some(edge => (edge.source === stone.id && stories.some(story => story.id === edge.target)) || (edge.target === stone.id && stories.some(story => story.id === edge.source))))
+  const relatedStones = useMemo(() => relatedStoneNodes(data || EMPTY, selectedId), [data, selectedId])
 
   function persist(id: string, stone: string) {
     const hash = readHash()
@@ -142,7 +142,7 @@ export default function KnowledgeGraphPage() {
   function openStone(stone: KnowledgeNode) {
     if (stone.stone_id) goToSection('archive', { stone: stone.stone_id })
   }
-  const nodeButton = (node: KnowledgeNode) => <button key={node.id} className={`kg-node-row${node.id === selectedId ? ' selected' : ''}`} onClick={() => pick(node.id)} title={`${node.label} · ${GRAPH_LABELS[node.kind]} · ${degrees.get(node.id) || 0} 条关联`}><i style={{ background: GRAPH_COLORS[node.kind] }} /><span>{node.label}</span><small>{degrees.get(node.id) || 0}</small></button>
+  const nodeButton = (node: KnowledgeNode) => <button key={node.id} className={`kg-node-row${node.id === selectedId ? ' selected' : ''}`} onClick={() => pick(node.id)} title={`${node.label} · ${GRAPH_LABELS[node.kind]} · ${degrees.get(node.id) || 0} 条关系`}><i style={{ background: GRAPH_COLORS[node.kind] }} /><span>{node.label}</span><small>{degrees.get(node.id) || 0}</small></button>
 
   return <div className="kg-page" aria-label="知识图谱工作区">
     <div className="kg-toolbar" role="toolbar" aria-label="图谱工具">
@@ -182,6 +182,7 @@ export default function KnowledgeGraphPage() {
               <div className="kg-relations">{relations.map(edge => { const other = nodeMap.get(edge.source === selectedId ? edge.target : edge.source); return other && <button key={edge.id} onClick={() => focus(other.id)}><small>{edge.source === selectedId ? '→' : '←'} {graphRelation(edge.relation)}</small><span><i style={{ background: GRAPH_COLORS[other.kind] }} />{other.label}<ArrowUpRight size={12} /></span></button> })}{!relations.length && <p className="kg-muted">尚无关联记录</p>}</div>
               {!!relatedStones.length && <section className="kg-block kg-related-stones"><h3>关联画像石</h3>{relatedStones.map(stone => <div key={stone.id}><button onClick={() => focus(stone.id)}><small>{stone.stone_id}</small>{stone.label}</button><button onClick={() => openStone(stone)} title={`打开${stone.stone_id}的文物档案`} aria-label={`文物档案：${stone.stone_id} ${stone.label}`}><ArrowRight size={15} /></button></div>)}</section>}
               {selected.kind === 'stone' && selected.stone_id && <button className="kg-open-archive" onClick={() => goToSection('archive', { stone: selected.stone_id })}>打开文物档案<ArrowUpRight size={14} /></button>}
+              <CreativeLinks className="kg-block" title="做成文创" match={t => selected.kind === 'stone' ? t.stone_id === selected.stone_id : stories.some(story => t.nodes.includes(story.id))} />
               {selected.description && <details className="kg-node-note"><summary>整理说明</summary><p>{selected.description}</p></details>}
             </> : <div className="kg-evidence">{!evidence.length && <p className="kg-muted">暂无可回查出处</p>}{evidence.map(source => <article key={source.id}><button className="kg-source-link" disabled={!source.source_available} onClick={() => openDocument({ collection: 'core', documentId: source.document_id, pageNo: source.page_no, segmentId: source.segment_id })}><BookOpen size={13} /><span>{source.document_title}<small>PDF 第 {source.page_no} 页</small></span><ArrowUpRight size={13} /></button><blockquote>{source.excerpt}</blockquote><small>{source.source_available ? (source.review_status === 'reviewed' ? '已校订文字' : '识别文字 · 待核对') : source.source_notice || '出处待核验'}</small></article>)}</div>}
           </div>

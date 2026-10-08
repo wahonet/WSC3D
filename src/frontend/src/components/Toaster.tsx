@@ -18,7 +18,7 @@ export default function Toaster() {
         <div key={t.id} className={`toast ${t.kind}`} role="status">
           {ICON[t.kind]}
           <span>{t.text}</span>
-          <button className="x" onClick={() => dismiss(t.id)} aria-label="dismiss"><X size={13} /></button>
+          <button className="x" onClick={() => dismiss(t.id)} aria-label="关闭提示"><X size={13} /></button>
         </div>
       ))}
     </div>

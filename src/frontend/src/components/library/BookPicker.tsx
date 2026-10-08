@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Check, ChevronDown, RefreshCw, Search } from 'lucide-react'
 import type { DocumentInfo, LibraryCollection } from '../../types'
-import { Badge, Button, Spinner } from '../ui'
+import { Badge, Button, Spinner, onEnterSpace } from '../ui'
 
 const KIND_LABEL: Record<DocumentInfo['kind'], string> = { book: '专著', article: '论文', catalog: '图录', other: '其他' }
 const pct = (d: DocumentInfo) => (d.page_count ? Math.round((100 * d.pages_done) / d.page_count) : 0)
@@ -87,7 +87,8 @@ export default function BookPicker({ collection, docs, docId, runningDocId, busy
               </div>
             )}
             {shown.map(d => (
-              <div key={d.id} className={`bpick-item${d.id === docId ? ' on' : ''}`} onClick={() => pick(d.id)} title={d.filename}>
+              <div key={d.id} className={`bpick-item${d.id === docId ? ' on' : ''}`} role="button" tabIndex={0} aria-pressed={d.id === docId}
+                onClick={() => pick(d.id)} onKeyDown={onEnterSpace(() => pick(d.id))} title={d.filename}>
                 <div className="t">
                   <span className="mono muted">{d.code}</span>
                   <span className="truncate">{d.title || d.filename}</span>

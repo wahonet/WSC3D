@@ -22,11 +22,17 @@ def decode(value, fallback):
     return value if value is not None else fallback
 
 
+def in_local_collection(stone: Stone) -> bool:
+    """Related objects are research records, without inflating local holdings."""
+    return (stone.archive or {}).get("in_local_collection", True) is not False
+
+
 def brief(stone: Stone) -> dict:
     row, meta = stone.archive or {}, metadata(stone)
     media, photos = decode(row.get("media"), []), decode(row.get("photos"), [])
     grading = meta.get("grading")
     return {"id": stone.id, "catalogue_no": stone.id, "legacy_id": stone.id,
+            "in_local_collection": in_local_collection(stone),
             "name": stone.name, "location": row.get("location", stone.location),
             "size_cm": decode(row.get("size_cm"), None), "size_source": row.get("size_source"),
             "size_display": meta.get("size_display") or "", "condition": row.get("condition") or "",
@@ -95,7 +101,8 @@ def detail(stone: Stone, db: Session) -> dict:
 
 
 def statistics(db: Session) -> dict:
-    stones = db.query(Stone).all()
+    all_stones = db.query(Stone).all()
+    stones = [s for s in all_stones if in_local_collection(s)]
     rows = [brief(s) for s in stones]
     by_location = {}
     for row in rows:
@@ -104,7 +111,8 @@ def statistics(db: Session) -> dict:
     if isinstance(groups, dict):
         groups = groups.get("groups", [])
     by_area = {g["key"]: sum(by_location.get(loc, 0) for loc in g.get("locs", []) + g.get("children", [])) for g in groups}
-    return {"total": len(rows), "by_location": by_location, "by_area": by_area,
+    return {"total": len(rows), "related_objects": len(all_stones) - len(stones),
+            "research_total": len(all_stones), "by_location": by_location, "by_area": by_area,
             "measured": sum(r["size_source"] == "measured" for r in rows), "with_model": sum(r["has_model"] for r in rows),
             "with_photos": sum(r["photo_count"] > 0 for r in rows), "graded": sum(r["is_graded"] for r in rows),
             "books": len(all_books(db)), "core_books": 10}

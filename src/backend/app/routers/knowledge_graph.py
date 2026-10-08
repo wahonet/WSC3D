@@ -30,6 +30,7 @@ class MaterializeIn(BaseModel):
 class AttachIn(CandidateSelection):
     annotation_id: int = Field(gt=0)
     evidence_ids: list[str] | None = Field(None, max_length=1000)
+    keep_structure: bool = False
 
 
 @router.get("")
@@ -63,7 +64,8 @@ def stone_literature(stone_id: str, db: Session = Depends(get_db)):
 @router.post('/stones/{stone_id}/attach')
 def attach(stone_id: str, body: AttachIn, request: Request, db: Session = Depends(get_db)):
     same_origin(request)
-    return knowledge_graph.attach(db, stone_id, body.annotation_id, body.node_id, body.story_id, body.evidence_ids)
+    return knowledge_graph.attach(db, stone_id, body.annotation_id, body.node_id, body.story_id, body.evidence_ids,
+                                  keep_structure=body.keep_structure)
 
 
 @router.post("/stones/{stone_id}/materialize")

@@ -2,8 +2,10 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowUp, ArrowUpRight, BookOpen, Check, ChevronDown, FileText, Layers3, LoaderCircle, MapPin, RotateCcw, Sparkles } from 'lucide-react'
 import { marked } from 'marked'
 import { useApp } from '../store/useApp'
+import { useWorkspaceAuth } from '../store/useWorkspaceAuth'
 import type { DocumentTarget } from '../lib/navigation'
 import { askWhenReady, readResponse as read } from '../lib/askArchive'
+import CreativeLinks from '../components/CreativeLinks'
 import './search.css'
 
 interface Hit {
@@ -59,6 +61,8 @@ export default function SearchPage({ active, query, submissionId, onQuery, onSto
   const [allCitations, setAllCitations] = useState(false)
   const generation = useRef(0)
   const inFlight = useRef<{ key: string; abort: AbortController; timer: number; pending: boolean } | null>(null)
+  // 文献检索失败时单独重试：回答仍在进行时整体重试会被上面的"同一请求进行中"挡住
+  const searchAgain = useRef<() => void>(() => undefined)
   const pageRef = useRef<HTMLDivElement>(null)
   useEffect(() => () => {
     generation.current++
@@ -86,6 +90,7 @@ export default function SearchPage({ active, query, submissionId, onQuery, onSto
         .then(data => { if (token === generation.current) setResult(data) })
         .catch(e => { if (e.name !== 'AbortError' && token === generation.current) setError(e.message) })
         .finally(() => { if (token === generation.current) setBusy(false) })
+      searchAgain.current = () => { if (token !== generation.current) return; setError(''); setBusy(true); void search() }
       void search()
       void askWhenReady<Answer>(query, extension, abort.signal,
         message => { if (token === generation.current) setAnswerProgress(message) },
@@ -121,6 +126,7 @@ export default function SearchPage({ active, query, submissionId, onQuery, onSto
     finally { if (token === generation.current) setMore('') }
   }
   async function openNode(stoneId: string, node: { id: number; asset_id: number }) {
+    if (!useWorkspaceAuth.getState().authenticated) { onStone(stoneId); return }
     const state = useApp.getState()
     const stone = state.stones.find(s => s.id === stoneId)
     const asset = stone?.groups.flatMap(g => g.assets).find(a => a.id === node.asset_id)
@@ -142,7 +148,7 @@ export default function SearchPage({ active, query, submissionId, onQuery, onSto
       <div className="search-options"><span><BookOpen size={14} />依据文物身份卡与核心文献回答</span><label><input type="checkbox" checked={extension} onChange={e => setExtension(e.target.checked)} />同时参考扩展文献</label></div>
       {!query && <section className="search-empty"><span className="empty-symbol"><Layers3 size={30} strokeWidth={1.1} /></span><h2>关于武氏祠，你想了解什么？</h2><p>直接提问，查看回答，也可以沿着引用回到原石和文献原页。</p><div className="question-suggestions">{['武梁祠', '西王母在武梁祠画像中有哪些特征？', '武011是什么文物？', '全馆有多少件文物？'].map(q => <button key={q} onClick={() => submit(q)}>{q}<ArrowUpRight size={15} /></button>)}</div></section>}
       {query && <>
-        {error && <div role="alert" className="search-error">{error}<button onClick={() => setRetry(n => n + 1)}>重试</button></div>}
+        {error && <div role="alert" className="search-error">{error}<button onClick={() => searchAgain.current()}>重试</button></div>}
         <div className="search-layout">
           <div className="search-main">
             <section className="answer-panel" data-scope="answer" aria-label="AI 回答" aria-busy={asking}>
@@ -154,6 +160,9 @@ export default function SearchPage({ active, query, submissionId, onQuery, onSto
                 {answer.notice && <p className="answer-notice" role="status">{answer.notice}</p>}
                 {answer.answer ? <AnswerText text={answer.answer} onCitation={number => { const citation = citations.find(c => c.number === number); if (citation) open(citation) }} /> : <p className="answer-unavailable">暂时未能生成回答。你仍可查阅下方证据，或重新提问。</p>}
                 {!!citations.length && <div className="answer-sources"><div className="answer-sources-heading"><span><Check size={13} />参考资料 · {citations.length}</span><small>点击回到原页</small></div><div className="citation-list">{(allCitations ? citations : citations.slice(0, 4)).map(c => <button key={c.number} className="citation-link" onClick={() => open(c)}><span className="citation-number">{c.number}</span><span><b>{c.title}</b><small>{sourceLabel(c.scope)}{c.page_no ? ` · PDF 第 ${c.page_no} 页` : ''}</small></span><ArrowUpRight size={14} /></button>)}</div>{citations.length > 4 && <button className="citation-toggle" onClick={() => setAllCitations(value => !value)}>{allCitations ? '收起引用' : `展开全部 ${citations.length} 条参考资料`}<ChevronDown size={13} /></button>}</div>}
+                {/* A cited stone alone is too coarse (one stone holds several stories), so the story must also be named. */}
+                <CreativeLinks className="answer-creative" title="做成壁纸" hint="场馆内可存到手机" product="wallpaper"
+                  match={t => citations.some(c => c.scope === 'stone' && c.id === t.stone_id) && (query + (answer.answer || '')).includes(t.title.slice(0, 2))} />
                 <footer className="answer-footer">{answer.provider || '研究助手'}{answer.model ? ` · ${answer.model}` : ''}</footer>
               </>}
             </section>

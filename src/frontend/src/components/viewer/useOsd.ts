@@ -17,6 +17,8 @@ export function useOsd(src: string | null, opts: OsdOptions = {}) {
   const hostRef = useRef<HTMLDivElement>(null)
   const viewerRef = useRef<OpenSeadragon.Viewer | null>(null)
   const [ready, setReady] = useState(false)
+  const [failed, setFailed] = useState(false)
+  const [attempt, setAttempt] = useState(0)
   const [, setTick] = useState(0)
   const { navigator = true, dragToPan = true, scrollToZoom = true } = opts
 
@@ -48,11 +50,12 @@ export function useOsd(src: string | null, opts: OsdOptions = {}) {
     v.addHandler('update-viewport', bump)
     v.addHandler('open', () => {
       setReady(true)
+      setFailed(false)
       bump()
       requestAnimationFrame(refreshNavigator)
       window.setTimeout(refreshNavigator, 300)
     })
-    v.addHandler('open-failed', () => setReady(false))
+    v.addHandler('open-failed', () => { setReady(false); setFailed(true) })
     window.addEventListener('resize', bump)
     const ro = new ResizeObserver(() => { refreshNavigator(); bump() })
     ro.observe(hostRef.current)
@@ -68,9 +71,12 @@ export function useOsd(src: string | null, opts: OsdOptions = {}) {
     const v = viewerRef.current
     if (!v) return
     setReady(false)
+    setFailed(false)
     if (!src) { v.close(); return }
     v.open({ type: 'image', url: src })
-  }, [src])
+  }, [src, attempt])
+
+  const retry = useCallback(() => setAttempt(n => n + 1), [])
 
   /** 归一化坐标 -> 查看器元素像素 */
   const toEl = useCallback((p: Pt): Pt => {
@@ -120,5 +126,5 @@ export function useOsd(src: string | null, opts: OsdOptions = {}) {
     v.viewport.fitBounds(rect)
   }, [])
 
-  return { hostRef, viewerRef, ready, toEl, toNorm, eventPos, zoomBy, goHome, fitNorm }
+  return { hostRef, viewerRef, ready, failed, retry, toEl, toNorm, eventPos, zoomBy, goHome, fitNorm }
 }

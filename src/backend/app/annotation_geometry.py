@@ -8,6 +8,9 @@ def validate_annotation_geometry(atype: str, geometry: dict) -> None:
     """Raise ValueError for malformed geometry; retain extra provenance fields."""
     if not isinstance(geometry, dict):
         raise ValueError("标注几何须为对象")
+    if geometry.get('native_mask') is not None:
+        from .native_masks import validate_native_mask
+        validate_native_mask(geometry['native_mask'])
 
     def number(value) -> bool:
         try:
@@ -40,6 +43,12 @@ def validate_annotation_geometry(atype: str, geometry: dict) -> None:
         if not all(point(geometry.get(name), dimensions) for name in names):
             raise ValueError(f"{atype} 的 {', '.join(names)} 须为 {dimensions} 维有限数值坐标")
     elif atype == "align":
+        if geometry.get('model') == 'homography':
+            from .services.transforms import homography
+            homography(geometry.get('homography'))
+            if 'rmse_px' in geometry and (not number(geometry['rmse_px']) or geometry['rmse_px'] < 0):
+                raise ValueError('对齐误差须为非负有限数值')
+            return
         fields("s", "theta_deg", "tx", "ty", positive=("s",))
         if not math.isfinite(1 / geometry["s"]):
             raise ValueError("对齐缩放须可逆")

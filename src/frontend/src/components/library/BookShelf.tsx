@@ -10,7 +10,10 @@ import { Badge, Button, Empty, Field, Spinner } from '../ui'
 import BookPicker from './BookPicker'
 import LibrarySearch from './LibrarySearch'
 
-const STATUS_TONE: Record<string, string> = { done: 'var(--green)', running: 'var(--amber)', error: 'var(--red)', pending: 'var(--bg-4)', skipped: 'var(--text-3)' }
+const STATUS_TONE: Record<string, string> = {
+  done: 'color-mix(in srgb, var(--green) 50%, var(--bg-2))', running: 'color-mix(in srgb, var(--amber) 62%, var(--bg-2))',
+  error: 'color-mix(in srgb, var(--red) 62%, var(--bg-2))', pending: 'var(--bg-3)', skipped: 'color-mix(in srgb, var(--text-3) 40%, var(--bg-2))',
+}
 
 /**
  * 书库左栏：顶部固定的全库检索框（有输入时结果接管整栏）；
@@ -36,6 +39,7 @@ export default function BookShelf({ collection, docId, pageId, activeSegment, on
   const [range, setRange] = useState('')
   const [searchOn, setSearchOn] = useState(false)
   const [busy, setBusy] = useState(false)
+  const [starting, setStarting] = useState(false)
   const pageRequest = useRef(0)
   const archiveBooks = useStore(s => s.books)
   const sourceBook = collection === 'extension' ? archiveBooks.find(b => b.id === docs.find(d => d.id === docId)?.book_id) : null
@@ -111,12 +115,13 @@ export default function BookShelf({ collection, docId, pageId, activeSegment, on
     return [...out].sort((a, b) => a - b)
   }
   const run = async () => {
-    if (!doc) return
+    if (!doc || starting) return
+    setStarting(true)
     try {
       const j = await startOcr(doc.id, { engine: engine || null, pages: parseRange(), redo, backend })
       toast.ok(`已启动：${j.total} 页（${j.engine}）`)
       await reloadStatus()
-    } catch (e) { toast.error(e) }
+    } catch (e) { toast.error(e) } finally { setStarting(false) }
   }
   const stop = async () => { try { await cancelOcr(); await reloadStatus() } catch (e) { toast.error(e) } }
   const saveMeta = async (patch: Parameters<typeof patchDocument>[1]) => {
@@ -179,7 +184,7 @@ export default function BookShelf({ collection, docId, pageId, activeSegment, on
               <div className="row">
                 {job?.running
                   ? <Button size="sm" variant="danger" icon={<Square size={12} />} onClick={stop}>{job.cancel_requested ? '正在停止…' : '取消'}</Button>
-                  : <Button size="sm" variant="primary" icon={<Play size={12} />} onClick={run}>开始 OCR</Button>}
+                  : <Button size="sm" variant="primary" icon={<Play size={12} />} onClick={run} disabled={starting}>{starting ? '启动中…' : '开始 OCR'}</Button>}
                 {status && (
                   <span className="hint">
                     {status.workers.map(w => <span key={w.engine} style={{ marginRight: 8 }}>{w.engine}：{w.available ? (w.alive ? '运行中' : '就绪') : '未安装'}</span>)}

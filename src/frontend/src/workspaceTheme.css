@@ -1,0 +1,240 @@
+/* Research tools use the museum's paper, ink, brass and ruled-page language.
+   Scope overrides to the workspace; public gallery layouts keep their own rhythm. */
+.workspace-shell,
+.workspace-entry {
+  --workspace-gutter: 32px;
+  --radius-sm: 2px;
+  --radius: 3px;
+  --radius-lg: 4px;
+}
+.workspace-shell :is(button, input, select, textarea, a):focus-visible,
+.workspace-entry :is(button, input, select, a):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+.workspace-shell .unified-header button:focus-visible,
+.workspace-entry .unified-header button:focus-visible {
+  outline-color: #e2c99c;
+}
+
+/* The header itself is shared in publicShell.css. Only workspace actions differ. */
+.workspace-shell .workspace-badge {
+  display: inline;
+  height: auto;
+  margin-left: 10px;
+  padding: 0 0 0 10px;
+  border: 0;
+  border-left: 1px solid #f3ead94d;
+  border-radius: 0;
+  background: none;
+  color: #ead2a9;
+  font: inherit;
+  font-style: normal;
+  letter-spacing: .12em;
+}
+.workspace-shell .workspace-account {
+  gap: 0;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  color: #dfd2bc;
+  font-size: 12px;
+}
+.workspace-shell .workspace-header-actions .workspace-public {
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid #f3ead94d;
+  border-radius: 2px;
+  background: none;
+  color: #f3ead9;
+  font-size: 12px;
+}
+.workspace-shell .workspace-header-actions .workspace-public:hover {
+  border-color: #e2c99c;
+  background: #ffffff16;
+  color: #fff4d9;
+}
+.workspace-shell .unified-status {
+  flex: none;
+  min-height: 26px;
+  padding: 4px var(--workspace-gutter);
+  background: var(--bg-1);
+  border-top: 1px solid var(--line-2);
+  font-size: 11px;
+  letter-spacing: .04em;
+}
+
+/* Underlined section navigation mirrors the public museum navigation. */
+.workspace-shell :is(.research-tabs, .cs-tabs) {
+  min-height: 48px;
+  gap: 20px;
+  padding: 0 var(--workspace-gutter);
+  border-bottom: 1px solid var(--line-2);
+  background: var(--bg-1);
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+.workspace-shell :is(.research-tabs, .cs-tabs) > button {
+  flex: none;
+  align-self: stretch;
+  height: auto;
+  padding: 12px 0 10px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: none;
+  font: 500 13px/1.6 var(--font-serif);
+  letter-spacing: .04em;
+  white-space: nowrap;
+}
+.workspace-shell :is(.research-tabs, .cs-tabs) > button:hover:not(:disabled) {
+  background: none;
+  color: var(--accent);
+  border-bottom-color: var(--line-2);
+}
+.workspace-shell :is(.research-tabs, .cs-tabs) > button.active {
+  background: none;
+  color: var(--accent);
+  border-color: var(--accent);
+  font-weight: 600;
+}
+
+/* Shared form and panel surfaces, including lazily loaded production pages. */
+.workspace-shell :is(.btn, .input, .select, .textarea, .bpick-btn, .bpick-menu,
+  .chip, .pl-btn, .cs-button, .cs-primary, .creative-button, .creative-primary,
+  .creative-downloads a, .creative-downloads button, .api-provider-tabs button,
+  .api-config-form, .api-config-form input, .api-config-form select, .api-config-footer button) {
+  border-radius: var(--radius-sm);
+}
+.workspace-shell :is(.btn, .input, .select, .textarea) { box-shadow: none; }
+.workspace-shell :is(.btn, .cs-button, .creative-button) { font-weight: 500; }
+.workspace-shell :is(.btn.primary, .cs-primary, .creative-primary, .api-config-footer button) {
+  color: var(--accent-ink);
+}
+.workspace-shell :is(.pane-h, .layers-title, .art-cap) {
+  font-family: var(--font-serif);
+  font-weight: 600;
+  letter-spacing: .08em;
+}
+.workspace-shell .pane-h { height: 42px; border-bottom-color: var(--line-2); }
+.workspace-shell .pane-h::before { width: 2px; height: 12px; }
+.workspace-shell :is(.side, .shelf, .info-panel) { background: var(--bg-1); }
+.workspace-shell .home { background: var(--bg-0); }
+.workspace-shell :is(.home h1, .cs-body h1, .api-config-inner h1, .rc-intro h1) {
+  font: 500 26px/1.5 var(--font-serif);
+  letter-spacing: .12em;
+}
+.workspace-shell :is(.home .stat, .home .step, .api-config-form) { box-shadow: none; }
+.workspace-shell .stat { border-radius: 0; border-top: 2px solid var(--text-2); }
+.workspace-shell :is(.cs-body, .api-config-page) { padding: 28px var(--workspace-gutter) 40px; }
+.workspace-shell .cs-heading { padding-bottom: 16px; border-bottom: 2px solid var(--text-2); }
+.workspace-shell .api-config-inner h1 {
+  padding-bottom: 16px;
+  border-bottom: 2px solid var(--text-2);
+}
+.workspace-shell .api-provider-tabs button { min-width: 0; }
+
+/* Reconstruction adopts the same paper panels and ruled headings as the gallery. */
+.workspace-shell .rc-page { padding: 24px var(--workspace-gutter) 36px; }
+.workspace-shell .rc-case-picker { margin-bottom: 18px; color: var(--text-3); }
+.workspace-shell .rc-case-picker select { border-radius: 2px; background: var(--bg-1); }
+.workspace-shell .rc-intro {
+  align-items: flex-end;
+  padding-bottom: 16px;
+  margin-bottom: 14px;
+  border-bottom: 2px solid var(--text-2);
+}
+.workspace-shell .rc-intro h1 { margin: 6px 0; }
+.workspace-shell .rc-kicker { font-size: 10px; letter-spacing: .2em; }
+.workspace-shell .rc-status {
+  border-radius: 2px;
+  padding: 5px 9px;
+  border-color: var(--line-2);
+  background: var(--bg-1);
+}
+.workspace-shell .rc-assumption {
+  padding: 9px 12px;
+  border: 0;
+  border-left: 2px solid var(--accent);
+  border-radius: 0;
+  background: var(--accent-soft);
+}
+.workspace-shell .rc-variants {
+  padding: 0 0 14px;
+  border: 0;
+  border-bottom: 1px solid var(--line-2);
+  border-radius: 0;
+  background: none;
+}
+.workspace-shell .rc-group-tabs { padding: 0; gap: 24px; }
+.workspace-shell .rc-group-tabs button { font: 500 14px/1.5 var(--font-serif); }
+.workspace-shell .rc-variant-tabs { gap: 10px; margin-top: 12px; }
+.workspace-shell .rc-variant-tabs button { border-radius: 2px; background: var(--bg-1); }
+.workspace-shell .rc-variant-tabs button.active { background: var(--accent-soft); }
+.workspace-shell .rc-workbench { border-radius: 2px; }
+.workspace-shell .rc-toolbar { background: var(--bg-1); }
+.workspace-shell .rc-toolbar button { border-radius: 2px; }
+.workspace-shell .rc-tabs button { font-family: var(--font-serif); font-size: 13px; }
+.workspace-shell :is(.rc-part, .rc-focus, .rc-search input, .rc-metrics > div,
+  .rc-small-status, .rc-saved-views a, .rc-comparison) { border-radius: 2px; }
+.workspace-shell .rc-part { padding: 10px; }
+.workspace-shell .rc-part.selected { border-left: 3px solid var(--accent); padding-left: 8px; }
+.workspace-shell .rc-saved-heading { padding-bottom: 12px; border-bottom: 2px solid var(--text-2); }
+.workspace-shell :is(.rc-saved-heading h2, .rc-comparison h2) {
+  font: 600 19px/1.5 var(--font-serif);
+  letter-spacing: .08em;
+}
+.workspace-shell .rc-comparison { padding: 20px; box-shadow: none; }
+
+/* The sign-in surface belongs to the same system, without changing its flow. */
+.workspace-entry .workspace-header-actions { margin-left: auto; }
+.workspace-entry .workspace-login { background: var(--bg-0); }
+.workspace-entry .workspace-login-card {
+  border-radius: 2px;
+  border-top: 3px solid var(--accent);
+  background: var(--bg-1);
+  box-shadow: var(--shadow-1);
+}
+.workspace-entry :is(.workspace-login-card input, .workspace-login-submit) { border-radius: 2px; }
+
+@media (max-width: 1100px) {
+  .workspace-shell { --workspace-gutter: 24px; }
+  .workspace-shell .unified-nav { gap: 32px; }
+}
+@media (max-width: 760px) {
+  .workspace-shell { --workspace-gutter: 16px; }
+  .workspace-shell :is(.research-tabs, .cs-tabs) { gap: 18px; min-height: 44px; }
+  .workspace-shell :is(.research-tabs, .cs-tabs) > span { display: none; }
+  .workspace-shell :is(.cs-body, .api-config-page, .rc-page) { padding-top: 18px; }
+  .workspace-shell :is(.home h1, .cs-body h1, .api-config-inner h1, .rc-intro h1) { font-size: 22px; }
+  .workspace-shell .rc-intro { align-items: flex-start; }
+  .workspace-shell .rc-variant-tabs { gap: 6px; }
+  .workspace-shell .rc-variant-tabs button { padding: 9px; }
+  .workspace-shell .api-provider-tabs { gap: 6px; flex-wrap: wrap; }
+  .workspace-shell .api-provider-tabs button { flex: 1 1 130px; padding: 12px; }
+  .workspace-shell .unified-status { font-size: 10px; gap: 8px; }
+  .workspace-shell .unified-status > span:last-child { display: none; }
+}
+@media (max-width: 700px) {
+  .workspace-shell .workspace-account { display: none; }
+  .workspace-shell .workspace-badge { margin-left: 7px; padding-left: 7px; font-size: 9px; }
+  .workspace-shell .workspace-header-actions { gap: 5px; }
+  .workspace-shell .workspace-header-actions .workspace-public { padding: 0 7px; height: 29px; font-size: 11px; }
+  .workspace-shell .unified-brand strong { font-size: 20px; }
+  .workspace-shell .unified-brand div > span { display: block; font-size: 8px; letter-spacing: .04em; }
+}
+@media (max-width: 480px) {
+  /* Keep navigation and every action accessible without squeezing the brand. */
+  .workspace-shell { --public-head: 144px; }
+  .workspace-shell .unified-header {
+    height: var(--public-head);
+    min-height: var(--public-head);
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: 60px 36px 48px;
+    padding-inline: 16px;
+  }
+  .workspace-shell .unified-brand { grid-column: 1; grid-row: 1; }
+  .workspace-shell .workspace-header-actions { grid-column: 1; grid-row: 2; justify-self: end; }
+  .workspace-shell .unified-nav { grid-column: 1; grid-row: 3; height: 48px; gap: 24px; }
+}

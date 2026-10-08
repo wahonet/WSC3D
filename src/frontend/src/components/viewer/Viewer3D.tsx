@@ -19,9 +19,21 @@ interface Stash {
   lights: { light: THREE.Light; base: number }[]
   measureA?: THREE.Vector3 | null; tempObjs: THREE.Object3D[]; raf: number; diag: number
   center?: THREE.Vector3
+  markerGeo?: THREE.SphereGeometry
   drawSaved?: () => void
+  highlight?: () => void
   resetCamera?: () => void
   dolly?: (f: number) => void
+}
+
+/** 释放标记占用的几何体与材质；keep 为所有标记共用的球体，随场景一起释放 */
+function disposeMarker(obj: THREE.Object3D, keep?: THREE.BufferGeometry) {
+  obj.traverse(o => {
+    const mesh = o as THREE.Mesh
+    if (mesh.geometry && mesh.geometry !== keep) mesh.geometry.dispose()
+    const materials = Array.isArray(mesh.material) ? mesh.material : mesh.material ? [mesh.material] : []
+    materials.forEach(material => material.dispose())
+  })
 }
 
 export default function Viewer3D({ asset }: { asset: AssetBrief }) {
@@ -54,10 +66,7 @@ export default function Viewer3D({ asset }: { asset: AssetBrief }) {
     st.measureA = null
     for (const obj of st.tempObjs) {
       st.scene?.remove(obj)
-      const mesh = obj as THREE.Mesh
-      mesh.geometry?.dispose()
-      const materials = Array.isArray(mesh.material) ? mesh.material : mesh.material ? [mesh.material] : []
-      materials.forEach(material => material.dispose())
+      disposeMarker(obj, st.markerGeo)
     }
     st.tempObjs = []
   }, [tool])
@@ -187,8 +196,8 @@ export default function Viewer3D({ asset }: { asset: AssetBrief }) {
       return null
     }
     function markerMesh(color: number) {
-      return new THREE.Mesh(
-        new THREE.SphereGeometry(st.diag / 260, 18, 18),
+      st.markerGeo ??= new THREE.SphereGeometry(st.diag / 260, 18, 18)
+      return new THREE.Mesh(st.markerGeo,
         new THREE.MeshBasicMaterial({ color, depthTest: false, transparent: true, opacity: 0.95 }))
     }
 
@@ -211,7 +220,7 @@ export default function Viewer3D({ asset }: { asset: AssetBrief }) {
           scene.add(m); st.tempObjs.push(m)
         } else {
           const a = st.measureA; st.measureA = null
-          st.tempObjs.forEach(o => scene.remove(o)); st.tempObjs = []
+          st.tempObjs.forEach(o => { scene.remove(o); disposeMarker(o, st.markerGeo) }); st.tempObjs = []
           createRef.current({
             atype: 'line3d', geometry: { p1: [a.x, a.y, a.z], p2: [p.x, p.y, p.z] },
             value: a.distanceTo(p), unit: 'model_unit',
@@ -226,7 +235,9 @@ export default function Viewer3D({ asset }: { asset: AssetBrief }) {
     renderer.domElement.addEventListener('webglcontextlost', onLost)
 
     function drawSaved() {
-      st.markers.forEach(o => scene.remove(o)); st.markers.clear()
+      st.markers.forEach(o => { scene.remove(o); disposeMarker(o, st.markerGeo) }); st.markers.clear()
+      // 标记尺寸取自模型包围盒，模型载入后（onObj）再绘制
+      if (!st.model) return
       for (const a of annosRef.current) {
         const g = a.geometry as Record<string, number[]>
         const grp = new THREE.Group()
@@ -255,6 +266,7 @@ export default function Viewer3D({ asset }: { asset: AssetBrief }) {
       }
     }
     st.drawSaved = drawSaved
+    st.highlight = highlight
 
     return () => {
       cancelAnimationFrame(st.raf)
@@ -274,6 +286,7 @@ export default function Viewer3D({ asset }: { asset: AssetBrief }) {
           pm.dispose()
         }
       })
+      st.markerGeo?.dispose()
       renderer.dispose()
       renderer.forceContextLoss()          // dispose() 不会释放 WebGL 上下文，必须显式丢弃
       host.innerHTML = ''
@@ -282,7 +295,8 @@ export default function Viewer3D({ asset }: { asset: AssetBrief }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [asset.id, reloadNonce])
 
-  useEffect(() => { S.current.drawSaved?.() }, [annos, selectedId])
+  useEffect(() => { S.current.drawSaved?.() }, [annos])
+  useEffect(() => { S.current.highlight?.() }, [selectedId])
 
   useEffect(() => {
     if (!viewerCmd) return

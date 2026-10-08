@@ -7,7 +7,13 @@ export function watchSceneTheme(scene: THREE.Scene, invalidate: () => void) {
   const previousBackground = scene.background;
   const previousFog = scene.fog?.color.clone();
   const backdrops = new Map<THREE.Mesh, THREE.Material | THREE.Material[]>();
-  const daylightBackdrop = new THREE.MeshBasicMaterial({ toneMapped: false });
+  // The heritage centre marks its below-grade openings with stencil 1 (hanwenhuaCenter.ts);
+  // the backdrop floor skips those pixels so the sunken court and ramp stay visible.
+  const skipOpenings = <M extends THREE.Material>(material: M) => Object.assign(material, {
+    stencilWrite: true, stencilRef: 1, stencilFunc: THREE.NotEqualStencilFunc,
+    stencilFail: THREE.KeepStencilOp, stencilZFail: THREE.KeepStencilOp, stencilZPass: THREE.KeepStencilOp,
+  });
+  const daylightBackdrop = skipOpenings(new THREE.MeshBasicMaterial({ toneMapped: false }));
   function apply() {
     scene.traverse(object => {
       if (!(object instanceof THREE.Mesh) || backdrops.has(object)) return;
@@ -15,6 +21,7 @@ export function watchSceneTheme(scene: THREE.Scene, invalidate: () => void) {
       // The asynchronous Blender architecture replaces the fallback earth plane.
       // This named material belongs only to its one outer background floor.
       if (object.name === 'courtyard_backdrop' || materials.some(material => material.name === '场外_中性地表')) {
+        materials.forEach(skipOpenings);
         backdrops.set(object, object.material);
       }
     });

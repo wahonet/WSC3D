@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Crosshair, MousePointer2, Ruler, Trash2 } from 'lucide-react'
 import { fmtValue } from '../lib/format'
 import { selectIs2d, selectIs3d, useApp } from '../store/useApp'
-import { Button, Kbd } from './ui'
+import { Button, Kbd, onEnterSpace } from './ui'
 
 /** 首页左下：选中 / 测量 两个工具 + 当前图上的测量记录 */
 export default function MeasureTools() {
@@ -45,7 +45,8 @@ export default function MeasureTools() {
         <div className="measure-list">
           <div className="layers-title">测量记录 · {measures.length}</div>
           {measures.map(m => (
-            <div key={m.id} className={`measure-row${selectedId === m.id ? ' on' : ''}`} onClick={() => select(m.id)}>
+            <div key={m.id} className={`measure-row${selectedId === m.id ? ' on' : ''}`} tabIndex={0} aria-current={selectedId === m.id || undefined}
+              onClick={() => select(m.id)} onKeyDown={onEnterSpace(() => select(m.id))}>
               <span className="sw" style={{ background: m.color }} />
               <span className="val">{fmtValue(m.value, m.unit, m.atype)}</span>
               <span style={{ flex: 1 }} />

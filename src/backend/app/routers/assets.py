@@ -2,7 +2,7 @@
 """资产文件：2D 预览 / 缩略图 / 三维模型文件 / 跨图投影。"""
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
@@ -10,7 +10,7 @@ from ..config import settings
 from ..db import get_db
 from ..models import Asset
 from ..schemas import ProjectedOut, SegPreprocess
-from ..services import alignment, previews, segment
+from ..services import alignment, native_frames, previews, segment
 from ..services.resources import asset_path
 from .deps import get_2d_asset, get_asset
 
@@ -26,6 +26,25 @@ _MEDIA = {".obj": "text/plain", ".mtl": "text/plain", ".png": "image/png",
 def preview(a: Asset = Depends(get_2d_asset)):
     p = previews.ensure_preview(a.id, a.relpath)
     return FileResponse(p, media_type="image/jpeg", headers=_CACHE)
+
+
+@router.get('/{asset_id}/work-image', summary='原色高清工作图（长边5120，供完整掩膜切图）')
+def work_image(a: Asset = Depends(get_2d_asset)):
+    p = previews.ensure_work_image(a.id, a.relpath)
+    return FileResponse(p, media_type='image/jpeg', headers=_CACHE)
+
+
+@router.get('/{asset_id}/native-frame', summary='SHA核验的原像素RGB PNG帧（不缩放、不转换ICC、不旋转）')
+def native_frame(source_sha256: str = Query(..., pattern=r'^[a-f0-9]{64}$'),
+                 frame_index: int = Query(0, ge=0),
+                 working_sha256: str | None = Query(None, pattern=r'^[a-f0-9]{64}$'),
+                 working_rgb_sha256: str | None = Query(None, pattern=r'^[a-f0-9]{64}$'),
+                 a: Asset = Depends(get_2d_asset)):
+    try:
+        path = native_frames.ensure_native_frame(a, source_sha256, frame_index, working_sha256, working_rgb_sha256)
+    except (ValueError, FileNotFoundError) as error:
+        raise HTTPException(409, str(error)) from error
+    return FileResponse(path, media_type='image/png', headers=_CACHE)
 
 
 @router.get("/{asset_id}/thumb", summary="缩略图（长边 320）")

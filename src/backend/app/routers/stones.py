@@ -87,6 +87,4 @@ def set_master(asset_id: int, s: Stone = Depends(get_stone), db: Session = Depen
     a = db.get(Asset, asset_id)
     if not a or a.stone_id != s.id:
         raise HTTPException(404, "该石头下不存在此资产")
-    from ..services.resource_versions import pin_asset
-    pin_asset(db, a)
     return alignment.set_master(db, s.id, a)

@@ -4,6 +4,9 @@ from dataclasses import replace
 from pathlib import Path
 import copy,hashlib,json,os,re,shutil,sqlite3,sys,time,uuid
 from unittest.mock import patch
+# The data folder is chosen when app.config is first imported; inside another test process
+# it would already point at the real research database, which this script edits.
+if 'app.config' in sys.modules:raise SystemExit('test_data_boundaries.py must run on its own: python tests/test_data_boundaries.py')
 ROOT=Path(__file__).resolve().parents[1];FOLDER=Path(os.environ.get('WSC_TEST_OUTPUT',str(Path(os.environ.get('TEMP','.'))/'wsc-tests')))/('boundaries-'+uuid.uuid4().hex[:8]);FOLDER.mkdir(parents=True)
 with closing(sqlite3.connect((ROOT/'data/stonelab.db').as_uri()+'?mode=ro',uri=True)) as source,closing(sqlite3.connect(FOLDER/'stonelab.db')) as target:source.backup(target)
 os.environ['STONELAB_DATA']=str(FOLDER);sys.path.insert(0,str(ROOT/'src/backend'));sys.stdout.reconfigure(encoding='utf-8')
@@ -12,11 +15,19 @@ from app.main import app
 from app.services import retrieval
 from app.config import settings
 from app.routers import xcl_layout,rear_layout
+assert settings.db_path.resolve().is_relative_to(FOLDER.resolve()),settings.db_path
 client=TestClient(app);report=[]
 
 def login():
     response=client.post('/api/workspace/login',json={'username':'admin','password':os.environ.get('WSC_WORKSPACE_PASSWORD','123456')})
     assert response.status_code==200,response.text
+
+def settle():
+    # Searches only schedule index checks; wait for the background rebuild to finish.
+    deadline=time.monotonic()+600
+    while retrieval._state['refreshing'] or retrieval._state['building']:
+        assert time.monotonic()<deadline,'index refresh did not finish'
+        time.sleep(.2)
 
 def check(name,fn):
     try:r={'name':name,'ok':True,'detail':fn()}
@@ -26,7 +37,8 @@ def check(name,fn):
 def workspace_access():
     anonymous=TestClient(app)
     public_posts={'/api/workspace/login','/api/workspace/logout','/api/archive/ask',
-                  '/api/creative/preview','/api/creative/works','/api/creative/works/{identifier}/share'}
+                  '/api/creative/preview','/api/creative/works','/api/creative/handoff','/api/creative/session/reset',
+                  '/api/creative/stamps','/api/creative/prints'}
     reached=[]
     app.add_api_route('/api/future-write-probe',lambda: reached.append(True),methods=['POST'])
     before=hashlib.sha256(settings.db_path.read_bytes()).hexdigest()
@@ -47,7 +59,7 @@ def workspace_access():
         assert hashlib.sha256(settings.db_path.read_bytes()).hexdigest()==before
         for path in ['/api/health','/api/archive/stones','/api/library/documents']:
             assert anonymous.get(path).status_code==200,path
-        for path in ['/api/archive/ask','/api/creative/preview','/api/creative/works','/api/creative/works/not-a-uuid/share']:
+        for path in ['/api/archive/ask','/api/creative/preview','/api/creative/works','/api/creative/handoff','/api/creative/stamps','/api/creative/prints']:
             assert anonymous.post(path,json={}).status_code in {400,404,422},path
         login()
         original=client.get('/api/archive/stones/武011').json()['note']
@@ -99,6 +111,7 @@ def edit_and_rebuild():
     assert changed.status_code==200,changed.text
     result=retrieval.search('西王母','core')
     assert retrieval._state['ready'] and result['groups'][1]['count']>0,result
+    settle()
     with closing(retrieval.connect()) as index:
         assert index.execute('SELECT COUNT(*) FROM chunks WHERE text LIKE ?',('%'+marker+'%',)).fetchone()[0]>0
     return {'segment_id':row[0],'edit_triggers_successful_rebuild':True,'edited_text_indexed':True}
@@ -122,12 +135,14 @@ def excluded():
     return {'excluded_field_sentinels':values,'unannotated_theme_not_counted_as_whole_catalogue':True}
 check('intro_matches_stones_only_and_legacy_evidence_exclusions',excluded)
 def fail_closed():
+    settle()
     with closing(sqlite3.connect(settings.db_path)) as db:
         title=db.execute('SELECT title FROM documents WHERE id=1').fetchone()[0]
         db.execute('UPDATE documents SET title=? WHERE id=1',(title+'（隔离测试）',));db.commit()
     original=retrieval.settings
     retrieval.settings=replace(original,library_root=FOLDER/'missing-pdfs')
-    result=retrieval.search('西王母','core')
+    retrieval.search('西王母','core');settle()
+    result=retrieval.search('西王母','core');settle()
     assert not result['groups'][1]['items'] and result['groups'][1]['error']
     assert not retrieval._state['ready']
     retrieval.settings=original

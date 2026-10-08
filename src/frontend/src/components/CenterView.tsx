@@ -31,7 +31,7 @@ export default function CenterView({ mode, children }: { mode: 'home' | 'align' 
       <Empty icon={<Box size={22} />} title="此模块只处理照片 / 拓片">三维模型请在首页查看；用顶栏的切图下拉换到一张 2D 图</Empty>
     )
   } else if (mode === 'align') {
-    body = <AlignView leftAsset={asset} />
+    body = <AlignView key={asset.id} leftAsset={asset} />
   } else {
     body = <Viewer2D asset={asset} />
   }

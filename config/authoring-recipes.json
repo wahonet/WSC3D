@@ -136,6 +136,42 @@
     {
       "file": "sync_xcl_placement_tool.py",
       "engine": "python"
+    },
+    {
+      "file": "extract_center_cad.py",
+      "engine": "python"
+    },
+    {
+      "file": "derive_center_floors.py",
+      "engine": "python"
+    },
+    {
+      "file": "prepare_center_textures.py",
+      "engine": "python"
+    },
+    {
+      "file": "build_center_blender.py",
+      "engine": "blender"
+    },
+    {
+      "file": "extract_center_disciplines.py",
+      "engine": "python"
+    },
+    {
+      "file": "build_center_project_blender.py",
+      "engine": "blender"
+    },
+    {
+      "file": "prepare_exhibition_textures.py",
+      "engine": "python"
+    },
+    {
+      "file": "build_center_exhibition_blender.py",
+      "engine": "blender"
+    },
+    {
+      "file": "refine_courtyard_glb.py",
+      "engine": "python"
     }
   ]
 }

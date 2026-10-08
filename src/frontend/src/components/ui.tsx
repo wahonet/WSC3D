@@ -1,4 +1,5 @@
-import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode } from 'react'
+import { cloneElement, isValidElement, useId } from 'react'
+import type { ButtonHTMLAttributes, InputHTMLAttributes, KeyboardEvent, ReactNode } from 'react'
 
 type Size = 'md' | 'sm' | 'xs'
 type Variant = 'default' | 'primary' | 'ghost' | 'danger'
@@ -63,16 +64,28 @@ export function Empty({ icon, title, children }: { icon?: ReactNode; title?: Rea
 }
 
 export function Spinner() {
-  return <span className="spinner" aria-label="loading" />
+  return <span className="spinner" role="status" aria-label="加载中" />
 }
 
 export function Field({ label, row, children }: { label: string; row?: boolean; children: ReactNode }) {
+  const autoId = useId()
+  const control = isValidElement<{ id?: string }>(children) ? children : null
+  const id = control?.props.id ?? autoId
   return (
     <div className={`field${row ? ' row' : ''}`}>
-      <label>{label}</label>
-      {children}
+      <label htmlFor={control ? id : undefined}>{label}</label>
+      {control && !control.props.id ? cloneElement(control, { id }) : children}
     </div>
   )
+}
+
+/** div / span 充当按钮时的键盘操作：Enter / 空格触发；只响应元素自身，内部按钮和输入框照常 */
+export function onEnterSpace(action: () => void) {
+  return (e: KeyboardEvent<HTMLElement>) => {
+    if (e.target !== e.currentTarget || (e.key !== 'Enter' && e.key !== ' ')) return
+    e.preventDefault()
+    action()
+  }
 }
 
 export function Note({ tone, children }: { tone?: 'warn' | 'error' | 'ok'; children: ReactNode }) {

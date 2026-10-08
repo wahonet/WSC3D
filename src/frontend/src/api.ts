@@ -17,7 +17,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   try {
     r = await fetch(`/api${path}`, init)
   } catch {
-    throw new ApiError(0, '无法连接后端服务（127.0.0.1:8020）')
+    throw new ApiError(0, '无法连接平台后端服务，请确认启动窗口仍在运行')
   }
   if (!r.ok) {
     let msg = `HTTP ${r.status}`
@@ -46,6 +46,12 @@ export const api = {
 
 /* ---- 文件 URL ---- */
 export const previewUrl = (assetId: number) => `/api/assets/${assetId}/preview`
+export const workImageUrl = (assetId: number) => `/api/assets/${assetId}/work-image`
+export const nativeFrameUrl = (assetId: number, sourceSha: string, frameIndex: number, workingSha: string, workingRgbSha?: string) =>
+  `/api/assets/${assetId}/native-frame?source_sha256=${encodeURIComponent(sourceSha)}&frame_index=${frameIndex}&working_sha256=${encodeURIComponent(workingSha)}` +
+  (workingRgbSha ? `&working_rgb_sha256=${encodeURIComponent(workingRgbSha)}` : '')
+export const projectivePreviewUrl = (leftId: number, rightId: number, matrix: number[][]) =>
+  `/api/align/preview?left_asset_id=${leftId}&right_asset_id=${rightId}&matrix=${encodeURIComponent(JSON.stringify(matrix))}`
 export const thumbUrl = (assetId: number) => `/api/assets/${assetId}/thumb`
 export const modelUrl = (assetId: number, fname: string) =>
   `/api/assets/${assetId}/model/${encodeURIComponent(fname)}`
@@ -112,6 +118,7 @@ export interface AnnotationBatchItem {
 }
 
 export const listAnnotations = (assetId: number) => api.get<Annotation[]>(`/annotations?asset_id=${assetId}`)
+export const getAnnotation = (id: number) => api.get<Annotation>(`/annotations/${id}`)
 export const createAnnotation = (a: NewAnnotation) => api.post<Annotation>('/annotations', a)
 export const createAnnotations = (items: NewAnnotation[]) => api.post<Annotation[]>('/annotations/batch', { items })
 export const patchAnnotation = (id: number, body: AnnotationPatchBody) =>

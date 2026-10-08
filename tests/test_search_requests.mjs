@@ -14,12 +14,12 @@ const bundle = await build({
     build.onResolve({ filter: /^react$/ }, () => ({ path: 'react', namespace: 'fixture' }))
     build.onResolve({ filter: /^lucide-react$/ }, () => ({ path: 'icons', namespace: 'fixture' }))
     build.onResolve({ filter: /^react\/jsx-runtime$/ }, () => ({ path: 'jsx', namespace: 'fixture' }))
-    build.onResolve({ filter: /store\/useApp$/ }, () => ({ path: 'store', namespace: 'fixture' }))
+    build.onResolve({ filter: /store\/(useApp|useWorkspaceAuth)$/ }, () => ({ path: 'store', namespace: 'fixture' }))
     build.onLoad({ filter: /.*/, namespace: 'fixture' }, args => ({ contents: args.path === 'icons'
       ? 'export const ArrowUp=()=>null,ArrowUpRight=ArrowUp,BookOpen=ArrowUp,Check=ArrowUp,ChevronDown=ArrowUp,FileText=ArrowUp,Layers3=ArrowUp,LoaderCircle=ArrowUp,MapPin=ArrowUp,RotateCcw=ArrowUp,Sparkles=ArrowUp;'
       : args.path === 'jsx' ? 'export const jsx = (type,props) => ({type,props}); export const jsxs = jsx; export const Fragment="fragment";'
       : args.path === 'store'
-      ? 'export const useApp = {getState: () => ({})};'
+      ? 'export const useApp = {getState: () => ({})}; export const useWorkspaceAuth = {getState: () => ({ authenticated: true })};'
       : 'export const useState = (...a) => fixture.state(...a); export const useRef = (...a) => fixture.ref(...a); export const useEffect = (...a) => fixture.effect(...a); export const useMemo = fn => fn(); export const forwardRef = fn => fn; export const createElement = (...a) => a;' }))
   } }],
 })

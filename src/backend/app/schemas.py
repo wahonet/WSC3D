@@ -56,6 +56,7 @@ class AssetBrief(BaseModel):
     kind: AssetKind
     kind_label: str
     filename: str
+    sha256: str = ""
     bytes: int
     width: int
     height: int

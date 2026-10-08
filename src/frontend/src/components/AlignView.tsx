@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import OpenSeadragon from 'openseadragon'
-import { Check, Eraser, Undo2, X } from 'lucide-react'
+import { Check, Eraser, Maximize, Undo2, X } from 'lucide-react'
 import { alignCommit, previewUrl } from '../api'
 import { COLORS, MAX_PAIRS, MIN_PAIRS } from '../lib/constants'
 import { alignGeomToOverlay, solveSimilarity, type Pt } from '../lib/geometry'
@@ -8,6 +8,7 @@ import { useApp } from '../store/useApp'
 import { toast } from '../store/useToast'
 import type { AlignGeometry, AssetBrief } from '../types'
 import { Badge, Button, Empty, Spinner } from './ui'
+import Viewer2D from './viewer/Viewer2D'
 import { useOsd } from './viewer/useOsd'
 
 interface Pair { a?: Pt; b?: Pt }
@@ -17,7 +18,7 @@ function Pane({ asset, color, pts, onPick, sideLabel, active, highlight }: {
   asset: AssetBrief; color: string; pts: Pt[]; onPick: (p: Pt) => void
   sideLabel: string; active: boolean; highlight: number | null
 }) {
-  const { hostRef, viewerRef, ready, toEl, toNorm, eventPos } = useOsd(previewUrl(asset.id), { navigator: false, dragToPan: false })
+  const { hostRef, viewerRef, ready, failed, retry, toEl, toNorm, eventPos } = useOsd(previewUrl(asset.id), { navigator: false, dragToPan: false })
   const onPickRef = useRef(onPick); onPickRef.current = onPick
 
   useEffect(() => {
@@ -67,7 +68,9 @@ function Pane({ asset, color, pts, onPick, sideLabel, active, highlight }: {
         <b>{sideLabel}</b><span>{asset.filename}</span>{asset.is_master && <Badge>主图</Badge>}
       </div>
       <div className="osd-host" ref={hostRef} />
-      {!ready && <div className="loading-mask"><Spinner />载入预览…</div>}
+      {!ready && <div className="loading-mask">{failed
+        ? <><span>预览生成失败</span><Button size="sm" variant="primary" onClick={retry}>重试</Button></>
+        : <><Spinner />载入预览…</>}</div>}
       <svg className="svg-overlay">
         {ready && pts.map((p, i) => {
           const [x, y] = toEl(p)
@@ -93,6 +96,9 @@ export default function AlignView({ leftAsset }: { leftAsset: AssetBrief }) {
   const candidates = useMemo(
     () => stone.groups.filter(g => g.key !== 'model').flatMap(g => g.assets), [stone])
   const onAligned = useApp(s => s.onAligned)
+  const overlay = useApp(s => s.overlay)
+  const removeOverlay = useApp(s => s.removeOverlay)
+  const sendViewerCmd = useApp(s => s.sendViewerCmd)
 
   const [rightId, setRightId] = useState<number | ''>('')
   const [pairs, setPairs] = useState<Pair[]>([])
@@ -146,11 +152,31 @@ export default function AlignView({ leftAsset }: { leftAsset: AssetBrief }) {
       if (r.chain_updates.length > 0) toast.ok(r.chain_updates.join('；'))
       else if (r.warning) toast.warn(r.warning)
       else toast.ok('对齐已保存')
-      await onAligned(r.annotation, right.id, alignGeomToOverlay(geom))
+      const transform = alignGeomToOverlay(geom)
+      if (transform) await onAligned(r.annotation, right.id, transform)
     } catch (e) { toast.error(e) } finally { setSaving(false) }
   }
 
   const rmseTone = solution ? (solution.rmse < 8 ? 'green' : solution.rmse < 25 ? 'amber' : 'red') : undefined
+
+  // 保存或打开记录后，在当前模块预览叠加；返回时保留尚未保存的取点。
+  if (overlay) {
+    const overlaidAsset = candidates.find(a => a.id === overlay.assetId)
+    return (
+      <div className="align-wrap align-preview" role="region" aria-label="图像对齐叠加预览">
+        <div className="align-bar">
+          <Badge tone="blue">叠加预览</Badge>
+          <span className="align-preview-name" title={leftAsset.filename}>底图：{leftAsset.filename}</span>
+          <span className="align-preview-name" title={overlaidAsset?.filename}>叠加：{overlaidAsset?.filename ?? `#${overlay.assetId}`}</span>
+          <span className="align-stat">透明度 <b>{Math.round(overlay.opacity * 100)}%</b></span>
+          <span style={{ flex: 1 }} />
+          <Button size="sm" icon={<Maximize size={13} />} onClick={() => sendViewerCmd('fit')}>适应窗口</Button>
+          <Button size="sm" onClick={removeOverlay}>返回取点</Button>
+        </div>
+        <Viewer2D asset={leftAsset} imageOnly />
+      </div>
+    )
+  }
 
   return (
     <div className="align-wrap">

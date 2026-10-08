@@ -129,6 +129,7 @@ export interface Stats {
   with_model: number;
   with_photos: number;
   books: number;
+  core_books?: number;
 }
 
 export type ViewKey = 'pan' | 'gate' | 'que' | 'xcl' | 'hall' | 'bl' | 'center' | 'site';

@@ -77,6 +77,7 @@ export default function TextArticle({ sources, links, selectedId, onPending, onS
   onDraft: (v: string) => void
 }) {
   const boxRef = useRef<HTMLDivElement>(null)
+  const hashLocated = useRef(false)
   useEffect(() => {
     const scrollTo = (source: string | null, start: number) => {
       const section = Array.from(boxRef.current?.querySelectorAll<HTMLElement>('[data-src]') ?? [])
@@ -92,8 +93,12 @@ export default function TextArticle({ sources, links, selectedId, onPending, onS
     }
     window.addEventListener('stonelab:locate-description', locate)
     // A jump from another module can happen before this article has mounted.
+    // Apply the hash anchor once: later source edits must not pull the reader back.
     const q = new URLSearchParams(location.hash.replace(/^#/, ''))
-    if (q.get('lib') === 'link' && q.has('src')) scrollTo(q.get('src'), Number(q.get('off')) || 0)
+    if (!hashLocated.current && q.get('lib') === 'link' && q.has('src')) {
+      hashLocated.current = true
+      scrollTo(q.get('src'), Number(q.get('off')) || 0)
+    }
     return () => window.removeEventListener('stonelab:locate-description', locate)
   }, [sources])
 

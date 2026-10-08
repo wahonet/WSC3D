@@ -299,6 +299,73 @@ class KnowledgeGraphTests(unittest.TestCase):
         self.assertEqual(self.db.query(Concept).count(), 0)
         self.assertEqual(self.db.query(AnnotationKnowledgeLink).count(), 0)
 
+    def test_attach_can_keep_curated_component_and_same_image_parent_without_new_skeletons(self):
+        scene = self.region(); scene.level = 'scene'
+        component = self.region(); component.level = 'component'; component.parent_id = scene.id
+        component.review_status = 'reviewed'; self.db.commit()
+        before = self.db.query(Annotation).count()
+        response = self.attach(component, node_id='object:dagger', keep_structure=True)
+        self.assertEqual(response.status_code, 200, response.text)
+        saved = response.json()['annotation']
+        self.assertEqual(saved['level'], 'component')
+        self.assertEqual(saved['parent_id'], scene.id)
+        self.assertEqual(saved['review_status'], 'reviewed')
+        self.assertEqual(saved['geometry'], component.geometry)
+        self.assertEqual(self.db.query(Annotation).count(), before)
+        self.assertEqual(self.db.query(KnowledgeGraphBinding).count(), 0)
+        self.assertEqual(self.db.query(AnnotationKnowledgeLink).count(), 1)
+        self.assertEqual(self.attach(component, node_id='object:dagger', keep_structure=True).status_code, 200)
+        self.assertEqual(self.db.query(Annotation).count(), before)
+
+    def test_keep_structure_refuses_unparented_or_cross_image_regions_without_writing(self):
+        node = self.region(); node.level = 'figure'; self.db.commit()
+        self.assertEqual(self.attach(node, keep_structure=True).status_code, 422)
+        same_stone_asset = Asset(stone_id=self.stone.id, kind='photo', filename='face2.jpg', relpath='face2.jpg')
+        self.db.add(same_stone_asset); self.db.flush()
+        scene = self.region(); scene.level = 'scene'; scene.asset_id = same_stone_asset.id
+        node.parent_id = scene.id; self.db.commit()
+        self.assertEqual(self.attach(node, keep_structure=True).status_code, 422)
+        self.assertEqual(self.db.query(AnnotationKnowledgeLink).count(), 0)
+        self.assertEqual(self.db.query(Concept).count(), 0)
+        self.assertEqual(node.label, '')
+
+    def test_keep_structure_object_link_preserves_band_under_whole(self):
+        whole = self.region(); whole.level = 'whole'
+        band = self.region(); band.level = 'band'; band.parent_id = whole.id
+        band.review_status = 'reviewed'; self.db.commit()
+        before = self.db.query(Annotation).count()
+        response = self.attach(band, node_id='object:dagger', keep_structure=True)
+        self.assertEqual(response.status_code, 200, response.text)
+        saved = response.json()['annotation']
+        self.assertEqual(saved['level'], 'band')
+        self.assertEqual(saved['parent_id'], whole.id)
+        self.assertEqual(saved['geometry'], band.geometry)
+        self.assertEqual(saved['review_status'], 'reviewed')
+        self.assertEqual(self.db.query(Annotation).count(), before)
+        self.assertEqual(self.db.query(KnowledgeGraphBinding).count(), 0)
+
+    def test_keep_structure_band_refuses_person_or_invalid_parent(self):
+        scene = self.region(); scene.level = 'scene'
+        band = self.region(); band.level = 'band'; band.parent_id = scene.id
+        self.db.commit()
+        self.assertEqual(self.attach(band, node_id='object:dagger', keep_structure=True).status_code, 422)
+        scene.level = 'whole'; self.db.commit()
+        self.assertEqual(self.attach(band, keep_structure=True).status_code, 422)
+        self.assertEqual(self.db.query(AnnotationKnowledgeLink).count(), 0)
+        self.assertEqual(self.db.query(Concept).count(), 0)
+        self.assertEqual(band.label, '')
+
+    def test_keep_structure_scene_link_preserves_its_layer_and_selected_evidence(self):
+        layer = self.region(); layer.level = 'layer'
+        scene = self.region(); scene.level = 'scene'; scene.parent_id = layer.id; self.db.commit()
+        response = self.attach(scene, node_id='story:a', story_id=None, keep_structure=True)
+        self.assertEqual(response.status_code, 200, response.text)
+        saved = response.json()['annotation']
+        self.assertEqual(saved['parent_id'], layer.id)
+        self.assertEqual(saved['level'], 'scene')
+        self.assertEqual([r['segment_id'] for r in saved['references']], [self.segments[0].id])
+        self.assertEqual(self.db.query(KnowledgeGraphBinding).count(), 0)
+
     def test_reassigning_references_removes_only_managed_sources(self):
         from app.schemas import AnnotationReferenceCreate
         node = self.region()

@@ -55,6 +55,8 @@ class CourtyardSSAO extends SSAOPass {
 
   constructor(scene: THREE.Scene, camera: THREE.PerspectiveCamera) {
     super(scene, camera, 2, 2);
+    // The heritage centre's opening masks rely on stencil in the beauty image.
+    this.beautyRenderTarget.stencilBuffer = true;
     this.normalMaterial.side = THREE.DoubleSide;
     this.rescan(scene);
     // In r147 distances are normalized by the camera's clipping range, radius is in metres.
@@ -135,7 +137,9 @@ export function createRenderLook(
   const environment = makeEnvironment(renderer, sun?.position ?? new THREE.Vector3(-82, 96, -58));
   scene.environment = environment.texture;
 
-  const composer = new EffectComposer(renderer);
+  const targetSize = renderer.getSize(new THREE.Vector2()).multiplyScalar(renderer.getPixelRatio());
+  const composer = new EffectComposer(renderer, new THREE.WebGLRenderTarget(targetSize.x, targetSize.y, { stencilBuffer: true }));
+  composer.setPixelRatio(renderer.getPixelRatio());
   const beauty = new RenderPass(scene, camera);
   const ao = renderer.capabilities.isWebGL2 ? new CourtyardSSAO(scene, camera) : null;
   const bloom = new UnrealBloomPass(new THREE.Vector2(2, 2), 0.075, 0.2, 0.88);

@@ -22,6 +22,9 @@ options = parser.parse_args()
 
 if not PYTHON.is_file():
     raise SystemExit(f'找不到项目自带的 Python：{PYTHON}\n请确认整个 wsc-unified 目录（含 runtime 文件夹）已完整复制。')
+if options.lan and not options.stop and os.environ.get('WSC_WORKSPACE_PASSWORD', '123456') in ('', '123456'):
+    print('警告：局域网模式仍在使用默认工作台口令（admin / 123456），同一局域网内的任何设备都能登录并修改研究数据。\n'
+          '建议先停止平台，设置环境变量 WSC_WORKSPACE_PASSWORD 后再以局域网模式启动；停止平台和命令行维护工具也须使用同一口令。', flush=True)
 
 def health():
     try:
@@ -45,6 +48,20 @@ if options.stop:
             if not health():
                 break
             time.sleep(.5)
+    # The port closes first; the workspace is released only after workers and the local model stop.
+    sys.path.insert(0, str(ROOT / 'src/backend'))
+    from app.workspace_lock import workspace_lock
+    data = Path(os.environ['STONELAB_DATA']).expanduser().resolve() if os.environ.get('STONELAB_DATA') else ROOT / 'data'
+    for _ in range(80):
+        try:
+            with workspace_lock(data):
+                break
+        except RuntimeError:
+            time.sleep(.5)
+    else:
+        launcher = ROOT / 'data/launcher/pid.json'
+        pid = json.loads(launcher.read_text()).get('pid') if launcher.exists() else '未知'
+        raise SystemExit(f'平台进程（PID {pid}）仍未退出，工作区尚未释放。请稍后重试；仍无法启动时，请在任务管理器中结束该进程。')
     sys.exit(0)
 
 existing = health()

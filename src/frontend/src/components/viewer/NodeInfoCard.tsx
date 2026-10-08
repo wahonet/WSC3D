@@ -32,7 +32,7 @@ export default function NodeInfoCard() {
         <span style={{ flex: 1 }} />
         <Button size="xs" variant="ghost" icon={<X size={12} />} onClick={() => select(null)} />
       </div>
-      {path.length > 0 && <div className="nc-path">{path.map(p => p.label).join(' ? ')}</div>}
+      {path.length > 0 && <div className="nc-path">{path.map(p => p.label).join(' › ')}</div>}
       {(a.category || cnames.length > 0) && (
         <div className="nc-row">
           {a.category && <Badge tone="blue">{taxonomy?.sop_categories[a.category] ?? a.category}</Badge>}

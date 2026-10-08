@@ -4,7 +4,7 @@ import { ATYPE_LABEL, LEVEL_SHORT } from '../lib/constants'
 import { fmtTime } from '../lib/format'
 import { annotationLabel, isStructural } from '../lib/tree'
 import { useApp } from '../store/useApp'
-import { Badge, Button, Chip, Empty } from './ui'
+import { Badge, Button, Chip, Empty, onEnterSpace } from './ui'
 
 type Filter = 'all' | 'candidate' | 'manual'
 
@@ -51,7 +51,8 @@ export default function ShapeList() {
           const on = selectedId === a.id
           const isCand = a.review_status === 'candidate'
           return (
-            <div key={a.id} className={`anno${on ? ' on' : ''}`} onClick={() => select(on ? null : a.id)}>
+            <div key={a.id} className={`anno${on ? ' on' : ''}`} tabIndex={0} aria-current={on || undefined}
+              onClick={() => select(on ? null : a.id)} onKeyDown={onEnterSpace(() => select(on ? null : a.id))}>
               <div className="head">
                 <span className="sw" style={{ background: a.color }} />
                 <span className={`lv${a.level ? '' : ' none'}`} title="层级">{LEVEL_SHORT[a.level] ?? '?'}</span>

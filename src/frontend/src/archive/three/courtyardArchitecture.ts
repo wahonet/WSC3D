@@ -103,6 +103,10 @@ export function createCourtyardArchitecture(
       const move = moves[stone.userData.hps.id];
       if (move && !stone.userData.rearPlacementApplied) { translateStone(stone, move.world_delta, move.rotation_y); report.relocatedStones++; }
     }
+    // Keys are catalogue ids; a stale key silently leaves its stone off the rebuilt walls.
+    const known = new Set(protection.stones.map(stone => stone.userData.hps.id));
+    const unmatched = Object.keys(moves).filter(id => !known.has(id));
+    if (unmatched.length) console.warn('院落建筑平移清单中有文物编号未找到，对应石刻未贴合新墙体', unmatched);
     for (const [id, delta] of Object.entries(manifest.furnishing_movements)) {
       const object = protection.objectIds.get(id);
       if (object?.userData.showcase) translateStone(object, delta);

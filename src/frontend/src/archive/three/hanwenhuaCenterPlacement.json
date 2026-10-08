@@ -1,14 +1,17 @@
 {
-  "version": 1,
+  "version": 2,
   "status": "provisional",
   "layer": {
     "name": "hanwenhua_center",
-    "glb": "models/hanwenhua-center.glb",
+    "glb": "models/hanwenhua-center-20260925.glb",
+    "revision": "courtyard-20260928-2",
     "label": "汉文化保护传承中心",
     "defaultVisible": false
   },
   "source": {
-    "model": "武氏祠汉文化保护传承中心 · 结构与展陈整合 V2（wushi_v2.glb）",
+    "model": "武氏祠汉文化保护传承中心 · 按 2026-09-25 建筑施工图重建（build_center_blender.py）",
+    "drawings": "resources/reference/测绘与CAD/施工图纸/施工图_建筑20260925.dwg",
+    "siteSource": "V2 场地地表与乔木点位（resources/authoring/heritage-center/v2/hanwenhua-center-v2.glb）",
     "crs": "2000国家大地坐标系（CGCS2000），高斯-克吕格投影 3°分带 第39带（L0 = 117°E）",
     "worldOriginM": [
       39440182.85563135,
@@ -16,7 +19,8 @@
     ],
     "worldRotationDeg": 358.030111714218,
     "zeroAbsoluteHeightM": 38.7,
-    "sourceGlbSha256": "6e59ea4d29dcce63a6be6dd9f2df3bc3c78e5e2f88279a4431e366fc5ce370a8",
+    "sourceGlbSha256": "d1835b79520cbc70b4baad2790e9833eaabb8aeb68f00233928c5849731011d9",
+    "v2SourceGlbSha256": "6e59ea4d29dcce63a6be6dd9f2df3bc3c78e5e2f88279a4431e366fc5ce370a8",
     "localFrame": "同 site_geometry_v2.json：原点 = 主馆中轴 × SA 轴，X 沿建筑轴网向东，Y 沿建筑轴网向北，Z 相对 ±0.000。world = origin + R(rotation_deg)·local；origin/rotation 由 build.mjs 从 site_geometry_v2.json 读取。",
     "gltfAxes": "glTF Y-up: x = local X, y = local Z, z = -local Y"
   },
@@ -30,7 +34,7 @@
   },
   "transform": {
     "type": "rigid-horizontal",
-    "appliesTo": "glTF scene root of hanwenhua-center.glb",
+    "appliesTo": "glTF scene root of hanwenhua-center-20260925.glb（与 V2 同一局部坐标系）",
     "rotationYDeg": 0.42379325231873205,
     "translation": [
       -4.06820352380371,

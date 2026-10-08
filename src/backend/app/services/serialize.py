@@ -63,7 +63,7 @@ def asset_brief(a: Asset, anno_count: int = 0) -> AssetBrief:
     extra = a.extra or {}
     return AssetBrief(
         id=a.id, kind=a.kind, kind_label=KIND_LABEL.get(a.kind, a.kind),
-        filename=a.filename, bytes=a.bytes, width=a.width, height=a.height, fmt=a.fmt,
+        filename=a.filename, sha256=a.sha256 or "", bytes=a.bytes, width=a.width, height=a.height, fmt=a.fmt,
         extra=extra,
         is_master=bool(extra.get("is_master")),
         in_frame=extra.get("align_to_master") is not None,

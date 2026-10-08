@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import logging
 import traceback
-import threading
 from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI, HTTPException, Request
@@ -25,7 +24,7 @@ from .routers import api
 from .routers.archive import router as archive_api, files as archive_files
 from .routers.workspace import protect_workspace_writes
 from .services import library, scanner, seeds, segment
-from .services import local_llm, retrieval, video_jobs, creative_jobs, seedream
+from .services import local_llm, retrieval, video_jobs, creative_jobs, creative_themes, seedream
 
 logging.basicConfig(
     level=logging.INFO,
@@ -60,13 +59,11 @@ async def run_lifespan(_: FastAPI):
         ollama = local_llm.start()
     except Exception:
         log.exception("本地问答服务启动失败")
-    def start_retrieval():
-        retrieval.ensure_index()
-        retrieval.build_dense()
-    threading.Thread(target=start_retrieval, daemon=True).start()
+    retrieval.start_refresh()
     video_jobs.recover()
     creative_jobs.recover()
     seedream.recover()
+    creative_themes.recover()
     try:
         yield
     finally:
@@ -108,9 +105,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-from .routers import xcl_layout, rear_layout
+from .routers import xcl_layout, rear_layout, reconstruction
 app.include_router(xcl_layout.router)
 app.include_router(rear_layout.router)
+app.include_router(reconstruction.router)
 app.include_router(api)
 app.include_router(archive_api)
 app.include_router(archive_files)
@@ -131,6 +129,10 @@ if (_dist / "index.html").is_file():
     if (_dist / "assets").is_dir():
         app.mount("/assets", StaticFiles(directory=_dist / "assets"), name="web-assets")
 
+    # Pages are not content-hashed: without this, browsers heuristically reuse an old
+    # index.html after a rebuild and keep loading the previous build's assets.
+    _revalidate = {"Cache-Control": "no-cache"}
+
     @app.get("/{path:path}", include_in_schema=False)
     def spa(path: str):
         if path.startswith("api/"):
@@ -138,7 +140,8 @@ if (_dist / "index.html").is_file():
         target = (_dist / path).resolve() if path else _dist / "index.html"
         if path and _dist.resolve() in target.parents and target.is_file():
             # Windows MIME registrations may not include WebP.
-            return FileResponse(target, media_type="image/webp" if target.suffix.lower() == ".webp" else None)
-        return FileResponse(_dist / "index.html")
+            return FileResponse(target, media_type="image/webp" if target.suffix.lower() == ".webp" else None,
+                                headers=_revalidate if target.suffix.lower() == ".html" else None)
+        return FileResponse(_dist / "index.html", headers=_revalidate)
 
     log.info("serving build/web at http://%s:%s/", settings.host, settings.port)

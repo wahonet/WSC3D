@@ -45,7 +45,7 @@ for name,rgb in COLORS.items():
 
 # Use the neighbouring lawns' own palette, smoothly interpolated at the
 # interface. Vertex colours export directly to glTF without a repeating noise map.
-center_bytes=(ROOT / 'resources/scenes/models/hanwenhua-center.glb').read_bytes()
+center_bytes=(ROOT / 'resources/authoring/heritage-center/v2/hanwenhua-center-v2.glb').read_bytes()
 center_doc=json.loads(center_bytes[20:20+struct.unpack_from('<I',center_bytes,12)[0]])
 center_grass=next(m for m in center_doc['materials'] if m.get('name','').startswith('地被草坪'))
 center_tone=np.array(center_grass['pbrMetallicRoughness']['baseColorFactor'][:3])

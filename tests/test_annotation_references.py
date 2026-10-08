@@ -114,6 +114,15 @@ class AnnotationReferenceTests(unittest.TestCase):
         self.assertEqual(len(result.json()["references"]), 4)
         self.assertIsNotNone(self.db.get(Segment, first.id))
 
+    def test_single_annotation_read_includes_references(self):
+        self.add({"kind": "segment", "segment_id": self.pages[0].segments[0].id})
+        response = self.client.get(f"/api/annotations/{self.node.id}")
+        self.assertEqual(response.status_code, 200, response.text)
+        body = response.json()
+        self.assertEqual((body["id"], body["geometry"]["w"]), (self.node.id, 0.2))
+        self.assertEqual([r["document_title"] for r in body["references"]], ["第1本文献"])
+        self.assertEqual(self.client.get("/api/annotations/999999").status_code, 404)
+
     def test_same_ocr_source_can_be_shared_and_wrong_node_cannot_delete(self):
         sid = self.pages[0].segments[0].id
         one = self.add({"kind": "segment", "segment_id": sid})

@@ -63,6 +63,7 @@ interface AppState {
   multiSel: number[]                // 结构树多选（批量处置）
   treeOrder: number[]               // 结构树当前可见顺序（键盘上下移动用）
   backendOk: boolean
+  rescanning: boolean
 
   /* ---- 界面 ---- */
   page: Page
@@ -195,6 +196,7 @@ export const useApp = create<AppState>((set, get) => ({
   multiSel: [],
   treeOrder: [],
   backendOk: true,
+  rescanning: false,
 
   page: 'home',
   theme: initialTheme(),
@@ -264,6 +266,8 @@ export const useApp = create<AppState>((set, get) => ({
   },
 
   rescan: async () => {
+    if (get().rescanning) return
+    set({ rescanning: true })
     try {
       const r = await scanAssets()
       await get().loadStones()
@@ -271,7 +275,7 @@ export const useApp = create<AppState>((set, get) => ({
       const parts = [`石头 ${r.stones}`, `新增 ${r.assets_added}`, `更新 ${r.assets_updated}`, `移除 ${r.assets_removed}`]
       if (r.previews_warming) parts.push(`后台预热预览 ${r.previews_warming}`)
       toast.ok(`扫描完成：${parts.join(' · ')}`)
-    } catch (e) { toast.error(e) }
+    } catch (e) { toast.error(e) } finally { set({ rescanning: false }) }
   },
 
   openAsset: async (stone, asset) => {
@@ -280,6 +284,7 @@ export const useApp = create<AppState>((set, get) => ({
       curStone: stone, curAsset: asset, overlay: null, annos: [],
       selectedId: sameStone ? get().selectedId : null, multiSel: sameStone ? get().multiSel : [],
       stoneAnnos: sameStone ? get().stoneAnnos : [],
+      stoneInfo: sameStone ? get().stoneInfo : null,
       projItems: [], projReason: '',
       seg: { ...get().seg, points: [], boxes: [], dets: [], excluded: [], viewPreprocessed: false, lastInfo: '' },
     })
@@ -320,7 +325,7 @@ export const useApp = create<AppState>((set, get) => ({
   refreshStoneInfo: async () => {
     const s = get().curStone
     if (!s) return
-    try { set({ stoneInfo: await getStone(s.id) }) } catch (e) { toast.error(e) }
+    try { const info = await getStone(s.id); if (get().curStone?.id === s.id) set({ stoneInfo: info }) } catch (e) { toast.error(e) }
   },
 
   /* ------------------------------------------------ 界面 */

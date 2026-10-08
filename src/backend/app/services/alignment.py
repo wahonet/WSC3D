@@ -34,6 +34,12 @@ log = logging.getLogger(__name__)
 def validate_geometry(geom: dict) -> tuple[dict, float]:
     """Reject non-invertible input before saving snapshots or alignment data."""
     try:
+        if geom.get('model') == 'homography':
+            transform = tf.homography(geom['homography'])
+            rmse = float(geom.get('rmse_px', 0))
+            if not math.isfinite(rmse) or rmse < 0:
+                raise ValueError
+            return transform, rmse
         values = [geom[key] for key in ("s", "theta_deg", "tx", "ty")]
         if any(isinstance(value, bool) for value in values):
             raise ValueError
@@ -65,6 +71,11 @@ def commit_alignment(db: Session, stone_id: str, left: Asset, right: Asset,
                      geom: dict) -> AlignCommitOut:
     """geom 为前端求解结果（AlignGeometry），T: 右图像素 -> 左图像素。"""
     t_r2l, rmse = validate_geometry(geom)
+    if t_r2l.get('model') == 'homography':
+        try:
+            tf.validate_domain(t_r2l, right.width, right.height)
+        except ValueError as error:
+            raise HTTPException(422, str(error)) from None
 
     chain_l = {**tf.identity(), 'master_asset_id': left.id} if left.is_master else left.chain
     chain_r = {**tf.identity(), 'master_asset_id': right.id} if right.is_master else right.chain
@@ -73,13 +84,19 @@ def commit_alignment(db: Session, stone_id: str, left: Asset, right: Asset,
     updates: list[str] = []
     warning = ""
     planned = None
+    local_only = geom.get('local_only') is True
     # A master is always the fixed coordinate frame, even when selected on the right.
-    if chain_r is not None and (right.is_master or chain_l is None):
+    if not local_only and chain_r is not None and (right.is_master or chain_l is None):
         planned = (left, tf.compose(chain_r, tf.invert(t_r2l)), chain_r['master_asset_id'], right.id)
-    elif chain_l is not None:
+    elif not local_only and chain_l is not None:
         planned = (right, tf.compose(chain_l, t_r2l), chain_l['master_asset_id'], left.id)
     if planned is not None:
         validate_geometry(planned[1])
+        if planned[1].get('model') == 'homography':
+            try:
+                tf.validate_domain(planned[1], planned[0].width, planned[0].height)
+            except ValueError as error:
+                raise HTTPException(422, str(error)) from None
 
     from .resource_versions import pin_asset
     pin_asset(db, left)
@@ -95,6 +112,8 @@ def commit_alignment(db: Session, stone_id: str, left: Asset, right: Asset,
         asset, sim, master_id, via_id = planned
         _set_chain(asset, sim, master_id, f"align#{via_id}", rmse)
         updates.append(f"{asset.filename} 已接入主图坐标链")
+    elif local_only:
+        warning = "局部配准已保存，可叠加核对；不用于整图坐标链或跨面标注投影"
     else:
         warning = "两张图都还没有连到主图；请先让其中一张与主图对齐，再做本次对齐即可自动入链"
 
@@ -134,6 +153,10 @@ def set_master(db: Session, stone_id: str, new_master: Asset) -> SetMasterOut:
             extra.pop("is_master", None)
             a.extra = extra
             rebased += 1
+        # 旧库的主图可能只有 is_master 而没有坐标链，循环不会经过它。
+        extra = dict(old_master.extra or {})
+        extra.pop("is_master", None)
+        old_master.extra = extra
     elif not others_chained:
         _clear_chain(old_master)                # 没有其他资产在链上：自由切换
     else:
@@ -143,6 +166,8 @@ def set_master(db: Session, stone_id: str, new_master: Asset) -> SetMasterOut:
                     f"而「{new_master.filename}」尚未与当前主图对齐，无法换算。"
                     f"请先用对齐工具把它与当前主图对齐，再切换主图。")
 
+    from .resource_versions import pin_asset
+    pin_asset(db, new_master)
     _set_chain(new_master, tf.identity(), new_master.id, "self", None)
     new_master.extra = {**(new_master.extra or {}), "is_master": True}
     db.commit()
@@ -197,7 +222,7 @@ def project_annotations(db: Session, target: Asset) -> ProjectedOut:
         if src is None or src.is_model:
             continue
         m_src = src.chain
-        if m_src is None:
+        if m_src is None or m_src.get('master_asset_id') != chain_t.get('master_asset_id'):
             skipped += 1
             continue
         try:
@@ -206,7 +231,11 @@ def project_annotations(db: Session, target: Asset) -> ProjectedOut:
             invalid_ids.append(x.id)
             log.warning("跳过无效标注几何 id=%s: %s", x.id, error)
             continue
-        out = _project_geometry(x.atype, x.geometry, src, target, m_src, m_dst_inv)
+        try:
+            out = _project_geometry(x.atype, x.geometry, src, target, m_src, m_dst_inv)
+        except ValueError:
+            invalid_ids.append(x.id)
+            continue
         if out is None:
             continue
         ptype, pgeom = out

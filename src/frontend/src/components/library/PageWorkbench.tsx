@@ -7,7 +7,7 @@ import { stageReferenceExcerpt } from '../../lib/annotationDraft'
 import { useApp } from '../../store/useApp'
 import { toast } from '../../store/useToast'
 import type { DocFigure, DocSegment, PageDetail, ReferenceExcerpt, SegmentKind, SegmentReview } from '../../types'
-import { Badge, Button, Chip, Empty, Spinner } from '../ui'
+import { Badge, Button, Chip, Empty, Spinner, onEnterSpace } from '../ui'
 import { Mark, splitWords } from './highlight'
 import './library-references.css'
 import PageAnnotations, { usePageAnnotations } from './PageAnnotations'
@@ -254,7 +254,7 @@ function SegmentCard({ s, words, on, onSelect, onSaved, reference }: { s: DocSeg
     } catch (e) { toast.error(e) } finally { setSaving(false) }
   }
   return (
-    <div className={`segc${on ? ' on' : ''} rv-${s.review_status}`} data-seg={s.id} onClick={onSelect}>
+    <div className={`segc${on ? ' on' : ''} rv-${s.review_status}`} data-seg={s.id} tabIndex={0} aria-current={on || undefined} onClick={onSelect} onKeyDown={onEnterSpace(onSelect)}>
       <div className="segc-h">
         <span className="sw" style={{ background: KIND_COLOR[s.kind] ?? '#999' }} />
         <select className="select sm" style={{ width: 84 }} value={s.kind} onChange={e => save({ kind: e.target.value as SegmentKind })} onClick={e => e.stopPropagation()}>
@@ -291,7 +291,7 @@ function FigureCard({ f, on, onSelect, onSaved, reference }: { f: DocFigure; on:
   const dirty = caption !== f.caption || label !== f.label
   const save = async () => { try { await patchFigure(f.id, { caption, label }); onSaved() } catch (e) { toast.error(e) } }
   return (
-    <div className={`figc${on ? ' on' : ''}`} data-fig={f.id} onClick={onSelect}>
+    <div className={`figc${on ? ' on' : ''}`} data-fig={f.id} tabIndex={0} aria-current={on || undefined} onClick={onSelect} onKeyDown={onEnterSpace(onSelect)}>
       {f.has_image ? <img src={figureImageUrl(f.id)} alt="" /> : <div className="figc-empty">无裁片</div>}
       <div className="figc-b">
         <div className="row" style={{ gap: 6 }}>

@@ -7,7 +7,7 @@ import { useApp } from '../store/useApp'
 import { toast } from '../store/useToast'
 import TextArticle, { buildSources, joinArticle, splitArticle, type PendingSel } from './library/TextArticle'
 import NodeReferences from './library/NodeReferences'
-import { Badge, Button, Empty, Field } from './ui'
+import { Badge, Button, Empty, Field, Spinner } from './ui'
 
 type Fields = { dims_text: string; era: string; material: string; carving: string; location: string }
 const FIELD_LABELS: [keyof Fields, string][] = [
@@ -20,7 +20,9 @@ const FIELD_LABELS: [keyof Fields, string][] = [
  * 选中节点后在正文里拖选一段文字 → 顶部「关联到本节点」；已关联文字按节点颜色高亮并锁定。
  */
 export default function InfoPanel() {
-  const info = useApp(s => s.stoneInfo)
+  const stoneId = useApp(s => s.curStone?.id)
+  const loaded = useApp(s => s.stoneInfo)
+  const info = loaded && loaded.id === stoneId ? loaded : null
   const stoneAnnos = useApp(s => s.stoneAnnos)
   const selectedId = useApp(s => s.selectedId)
   const select = useApp(s => s.select)
@@ -35,6 +37,7 @@ export default function InfoPanel() {
   const [linking, setLinking] = useState(false)
   const [fields, setFields] = useState<Fields>({ dims_text: '', era: '', material: '', carving: '', location: '' })
   const [fieldsDirty, setFieldsDirty] = useState(false)
+  const [savingFields, setSavingFields] = useState(false)
 
   useEffect(() => {
     if (!info) return
@@ -49,15 +52,19 @@ export default function InfoPanel() {
   const selected = selectedId != null ? stoneAnnos.find(a => a.id === selectedId && isStructural(a)) ?? null : null
   useEffect(() => { setPending(null) }, [info?.id])
 
-  if (!info) return <Empty icon={<Landmark size={22} />} title="未选择画像石">先在首页选择一块画像石</Empty>
+  if (!info) return stoneId
+    ? <Empty icon={<Spinner />} title="载入释文…" />
+    : <Empty icon={<Landmark size={22} />} title="未选择画像石">先在首页选择一块画像石</Empty>
 
   const setF = (k: keyof Fields, v: string) => { setFields(f => ({ ...f, [k]: v })); setFieldsDirty(true) }
   const saveFields = async () => {
+    if (savingFields) return
+    setSavingFields(true)
     try {
       await patchStone(info.id, fields)
       await refreshStoneInfo()
       toast.ok('石头信息已保存')
-    } catch (e) { toast.error(e) }
+    } catch (e) { toast.error(e) } finally { setSavingFields(false) }
   }
 
   const startEdit = () => { setDraft(joinArticle(sources)); setEditing(true); setPending(null); window.getSelection()?.removeAllRanges() }
@@ -154,8 +161,8 @@ export default function InfoPanel() {
           </div>
           {fieldsDirty && (
             <div className="rrow" style={{ marginTop: 8 }}>
-              <Button size="sm" variant="primary" icon={<Save size={13} />} onClick={saveFields}>保存信息</Button>
-              <Button size="sm" variant="ghost" onClick={() => refreshStoneInfo()}>放弃修改</Button>
+              <Button size="sm" variant="primary" icon={<Save size={13} />} onClick={saveFields} disabled={savingFields}>{savingFields ? '保存中…' : '保存信息'}</Button>
+              <Button size="sm" variant="ghost" onClick={() => refreshStoneInfo()} disabled={savingFields}>放弃修改</Button>
             </div>
           )}
         </details>

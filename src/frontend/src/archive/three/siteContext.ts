@@ -1,6 +1,6 @@
 import * as THREE from 'three-inventory';
 import { GLTFLoader } from 'three-inventory/examples/jsm/loaders/GLTFLoader';
-import { createCenterLayer, disposeTree, type CenterStatus } from './hanwenhuaCenter';
+import { createCenterLayer, disposeTree, CENTER_PLACEMENT, type CenterStatus } from './hanwenhuaCenter';
 import type { PrepareModel } from './assetScheduling';
 import manifest from './siteContextManifest.json';
 
@@ -17,7 +17,8 @@ export function createSiteContextLayer(
   group.visible = false;
   group.userData.siteContext = { version: manifest.version, status: 'idle' };
   scene.add(group);
-  const center = createCenterLayer(group, './models/hanwenhua-center.glb', undefined, prepareModel);
+  const layer = CENTER_PLACEMENT.layer;
+  const center = createCenterLayer(group, './' + layer.glb + '?v=' + encodeURIComponent(layer.revision), undefined, prepareModel);
   center.setVisible(true);
   let environment: THREE.Object3D | null = null;
   let status: ContextStatus = 'idle';

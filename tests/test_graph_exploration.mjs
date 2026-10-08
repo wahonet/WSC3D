@@ -12,7 +12,7 @@ const bundle = await build({
 })
 const context = vm.createContext({ module: { exports: {} } })
 vm.runInContext(bundle.outputFiles[0].text, context)
-const { neighbourhood, inducedGraph, graphDegrees } = context.module.exports
+const { neighbourhood, inducedGraph, graphDegrees, relatedStoneNodes } = context.module.exports
 const node = (id, kind) => ({ id, kind, label: id })
 const edge = (source, target) => ({ id: source + '→' + target, source, target })
 const graph = {
@@ -48,5 +48,17 @@ test('degrees count both relationship directions and exploration leaves source d
   assert.equal(graphDegrees(graph).get('story1'), 3)
   assert.equal(graphDegrees(graph).get('isolated'), 0)
   assert.equal(JSON.stringify(graph), original)
+})
+test('related stones include direct entity depictions and existing story paths in either direction', () => {
+  const fixture = {
+    nodes: [...graph.nodes, { ...node('stone3', 'stone'), stone_id: '武092' }, node('stone4', 'stone')],
+    edges: [...graph.edges, edge('stone3', 'object'), edge('object', 'stone4'), edge('stone1', 'object')],
+  }
+  const before = JSON.stringify(fixture)
+  assert.deepEqual(Array.from(relatedStoneNodes(fixture, 'object'), item => item.id).sort(), ['stone1', 'stone2', 'stone3', 'stone4'])
+  assert.deepEqual(Array.from(relatedStoneNodes(fixture, 'story1'), item => item.id), ['stone1'])
+  assert.deepEqual(Array.from(relatedStoneNodes(fixture, 'stone3'), item => item.id), ['stone3'])
+  assert.equal(relatedStoneNodes(fixture, 'missing').length, 0)
+  assert.equal(JSON.stringify(fixture), before)
 })
 console.log(`${passed} graph exploration checks passed.`)
