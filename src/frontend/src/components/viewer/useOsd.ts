@@ -59,7 +59,18 @@ export function useOsd(src: string | null, opts: OsdOptions = {}) {
     window.addEventListener('resize', bump)
     const ro = new ResizeObserver(() => { refreshNavigator(); bump() })
     ro.observe(hostRef.current)
+    // 标注覆盖层（.svg-overlay）与查看器是兄弟元素，其中可点选的图形会接住滚轮，事件到不了 OpenSeadragon。
+    // 把这些滚轮事件原样转交给查看器画布：缩放手感与空白处完全一致，点选图形不受影响。
+    const container = hostRef.current.parentElement
+    const forwardWheel = (event: WheelEvent) => {
+      const target = event.target instanceof Element ? event.target : null
+      if (!target?.closest('.svg-overlay') || v.element.contains(target)) return
+      event.preventDefault()
+      v.canvas.dispatchEvent(new WheelEvent('wheel', event))
+    }
+    container?.addEventListener('wheel', forwardWheel, { passive: false })
     return () => {
+      container?.removeEventListener('wheel', forwardWheel)
       ro.disconnect()
       window.removeEventListener('resize', bump)
       v.destroy()

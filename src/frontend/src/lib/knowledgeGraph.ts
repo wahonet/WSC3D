@@ -24,8 +24,40 @@ export interface KnowledgeGraph {
   nodes: KnowledgeNode[]; edges: KnowledgeEdge[]; evidence: KnowledgeEvidence[]; documents: KnowledgeDocument[];
 }
 export async function fetchKnowledgeGraph(signal?: AbortSignal): Promise<KnowledgeGraph> {
-  const response = await fetch('/api/knowledge-graph?limit=3000', { signal })
-  const data = await response.json()
-  if (!response.ok) throw new Error(typeof data.detail === 'string' ? data.detail : '知识图谱暂时无法载入')
+  let response: Response
+  try { response = await fetch('/api/knowledge-graph?limit=3000', { signal }) }
+  catch (reason) {
+    if ((reason as Error).name === 'AbortError') throw reason
+    throw new Error('无法连接平台后端服务，请确认启动窗口仍在运行')
+  }
+  // 后端异常或代理出错时可能返回 HTML，不能让 JSON 解析错误直接显示给观众
+  const data = await response.json().catch(() => null)
+  if (!response.ok || !data) throw new Error(typeof data?.detail === 'string' ? data.detail : '知识图谱暂时无法载入，请稍后重试')
   return data
+}
+
+/**
+ * 图谱约 3000 个节点，形象库、故事库和图谱页都要用。几分钟内复用同一份数据；
+ * 页面“重试”或“刷新”传 force。signal 只取消调用方的等待，不中断共享的请求。
+ */
+const GRAPH_FRESH_MS = 5 * 60_000
+let graphCache: { data: KnowledgeGraph; at: number } | null = null
+let graphPending: Promise<KnowledgeGraph> | null = null
+
+export function loadKnowledgeGraph(options: { force?: boolean; signal?: AbortSignal } = {}): Promise<KnowledgeGraph> {
+  const { force = false, signal } = options
+  if (signal?.aborted) return Promise.reject(new DOMException('Aborted', 'AbortError'))
+  if (!force && graphCache && Date.now() - graphCache.at < GRAPH_FRESH_MS) return Promise.resolve(graphCache.data)
+  if (!graphPending) {
+    graphPending = fetchKnowledgeGraph()
+      .then(data => { graphCache = { data, at: Date.now() }; return data })
+      .finally(() => { graphPending = null })
+  }
+  if (!signal) return graphPending
+  const shared = graphPending
+  return new Promise((resolve, reject) => {
+    const abort = () => reject(new DOMException('Aborted', 'AbortError'))
+    signal.addEventListener('abort', abort, { once: true })
+    shared.then(resolve, reject).finally(() => signal.removeEventListener('abort', abort))
+  })
 }

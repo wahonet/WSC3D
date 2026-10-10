@@ -2,7 +2,7 @@
 __pycache__/
 *.py[cod]
 .pytest_cache/
-node_modules/
+node_modules
 *.tsbuildinfo
 /src/frontend/dist/
 /tmp/

@@ -8,6 +8,7 @@ import { annotationLabel, ancestors, buildTree, descendantIds, flatten, hasGeome
 import { useApp } from '../../store/useApp'
 import { toast } from '../../store/useToast'
 import type { Annotation, Level } from '../../types'
+import { imageBadge } from '../../lib/imageBadge'
 import { Badge, Button, Chip, Empty } from '../ui'
 import SkeletonDialog from './SkeletonDialog'
 
@@ -44,6 +45,10 @@ export default function StructurePanel({ revealRequest, compact = false }: { rev
   const [query, setQuery] = useState('')
   const [filter, setFilter] = useState<Filter>('all')
   const [collapsed, setCollapsed] = useState<Set<number>>(new Set())
+  // 默认只列当前影像的标注；同一石的其他照片、拓片各有一套结构节点。与画布上的跨图投影、
+  // 查看与测量和智能分割共用同一个「其他影像」开关，切换影像时自动恢复为只看本图。
+  const allImages = useApp(s => s.projOn)
+  const toggleAllImages = () => { void useApp.getState().toggleProj(!allImages) }
   const [dragId, setDragId] = useState<number | null>(null)
   const [overId, setOverId] = useState<number | null | 'root'>(null)
   const [dropMenu, setDropMenu] = useState<{ src: number; dst: number } | null>(null)
@@ -56,7 +61,7 @@ export default function StructurePanel({ revealRequest, compact = false }: { rev
   const handledReveal = useRef<StructureRevealRequest | null>(null)
   const listRef = useRef<HTMLDivElement>(null)
 
-  const nodes = useMemo(() => {
+  const everyImage = useMemo(() => {
     const structural = stoneAnnos.filter(isStructural)
     if (!compact) return structural
     const indexed = new Map(structural.map(a => [a.id, a]))
@@ -70,6 +75,24 @@ export default function StructurePanel({ revealRequest, compact = false }: { rev
     }
     return structural.filter(a => visible.has(a.id))
   }, [stoneAnnos, compact])
+  // 只看当前影像时，仍保留这些节点在其他影像上的上级（层级上下文）和当前选中的节点（如在画布上点中的投影）
+  const pickedElsewhere = useMemo(() => {
+    if (allImages || !curAsset || selectedId == null) return null
+    const picked = everyImage.find(a => a.id === selectedId)
+    return picked && picked.asset_id !== curAsset.id ? picked.id : null
+  }, [everyImage, allImages, curAsset, selectedId])
+  const nodes = useMemo(() => {
+    if (allImages || !curAsset) return everyImage
+    const indexed = new Map(everyImage.map(a => [a.id, a]))
+    const keep = new Set<number>()
+    const include = (a: Annotation) => { keep.add(a.id); for (const parent of ancestors(indexed, a)) keep.add(parent.id) }
+    for (const a of everyImage) if (a.asset_id === curAsset.id) include(a)
+    const picked = pickedElsewhere != null ? indexed.get(pickedElsewhere) : undefined
+    if (picked) include(picked)
+    return everyImage.filter(a => keep.has(a.id))
+  }, [everyImage, allImages, curAsset, pickedElsewhere])
+  const otherImages = curAsset ? everyImage.filter(a => a.asset_id !== curAsset.id).length : 0
+  const assetsById = useMemo(() => new Map((curStone?.groups ?? []).flatMap(g => g.assets).map(asset => [asset.id, asset])), [curStone])
   const byId = useMemo(() => new Map(nodes.map(a => [a.id, a])), [nodes])
   const tree = useMemo(() => buildTree(nodes), [nodes])
   const prog = useMemo(() => progress(nodes), [nodes])
@@ -115,7 +138,11 @@ export default function StructurePanel({ revealRequest, compact = false }: { rev
   useEffect(() => {
     if (!revealRequest || handledReveal.current === revealRequest) return
     const target = byId.get(revealRequest.annotationId)
-    if (!target) return
+    if (!target) {
+      // 目标在其他影像上时打开「其他影像」，下一轮再定位
+      if (!allImages && everyImage.some(a => a.id === revealRequest.annotationId)) void useApp.getState().toggleProj(true)
+      return
+    }
     handledReveal.current = revealRequest
     setQuery('')
     setFilter('all')
@@ -125,7 +152,7 @@ export default function StructurePanel({ revealRequest, compact = false }: { rev
       return next
     })
     setRevealTarget(target.id)
-  }, [revealRequest, byId])
+  }, [revealRequest, byId, allImages, everyImage])
 
   useEffect(() => {
     if (revealTarget == null || filtering || !rows.some(row => row.a.id === revealTarget)) return
@@ -247,6 +274,8 @@ export default function StructurePanel({ revealRequest, compact = false }: { rev
           if (k !== 'all' && n === 0) return null
           return <Chip key={k} size="sm" on={filter === k} onClick={() => setFilter(k)}>{compact && k === 'candidate' ? '待标注' : lb} {n}</Chip>
         })}
+        {otherImages > 0 && <Chip size="sm" on={allImages} onClick={toggleAllImages}
+          title={allImages ? '只看当前影像的标注' : '同时列出本石其他照片、拓片上的标注，并在图上以点划线投影显示'}>其他影像 {otherImages}</Chip>}
         <span style={{ flex: 1 }} />
         {!filtering && tree.length > 0 && (
           <>
@@ -332,6 +361,7 @@ export default function StructurePanel({ revealRequest, compact = false }: { rev
                 {compact ? annotationLabel(a) : a.label}
                 {path && <span className="path">{path}</span>}
               </span>
+              <span className={`tn-img${a.asset_id === curAsset?.id ? ' own' : ''}`} title={assetsById.get(a.asset_id)?.filename ?? `影像 ${a.asset_id}`}>{imageBadge(assetsById.get(a.asset_id))}</span>
               {isCand && <Badge tone="cyan">候选</Badge>}
               {v === 'none' && <Badge outline title="尚无几何：选中后在图上绘制即挂接，或把候选拖到它上面并入">无框</Badge>}
               {v === 'proj' && <Badge tone="violet" title="在其他图上，以投影显示">投影</Badge>}

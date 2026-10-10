@@ -1,9 +1,16 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react'
-import { AlertTriangle, RotateCcw } from 'lucide-react'
+import { AlertTriangle, RefreshCw, RotateCcw } from 'lucide-react'
 import { useApp } from '../store/useApp'
 
-interface Props { children: ReactNode; area?: string; resetKey?: string | number }
+interface Props {
+  children: ReactNode; area?: string; resetKey?: string | number
+  /** 公开展示区：面向观众的措辞，不提工作台工具与控制台 */
+  publicArea?: boolean
+}
 interface State { error: Error | null }
+
+/** 重新构建前端后，已打开的旧页面再按需载入模块会找不到旧文件名，刷新即可恢复。 */
+const STALE_CHUNK = /dynamically imported module|Importing a module script failed|error loading dynamically imported module|Unable to preload CSS|ChunkLoadError/i
 
 /**
  * 局部错误边界：某个面板抛错时只显示错误卡片，不让整棵树被卸载成黑屏。
@@ -31,18 +38,48 @@ export default class ErrorBoundary extends Component<Props, State> {
   }
 
   render() {
-    if (!this.state.error) return this.props.children
+    const { error } = this.state
+    if (!error) return this.props.children
+    const area = this.props.area ?? '界面'
+    const reload = <button className="btn sm" onClick={() => location.reload()}><RefreshCw size={13} />刷新页面</button>
+    if (STALE_CHUNK.test(error.message)) {
+      return (
+        <div className="empty" style={{ height: '100%' }} role="alert">
+          <RefreshCw size={26} style={{ color: 'var(--accent)' }} />
+          <b>平台已更新</b>
+          <div className="hint">当前打开的是更新前的页面，{area}需要刷新后才能载入。</div>
+          <button className="btn primary sm" onClick={() => location.reload()}><RefreshCw size={13} />刷新页面</button>
+        </div>
+      )
+    }
+    if (this.props.publicArea) {
+      return (
+        <div className="empty" style={{ height: '100%' }} role="alert">
+          <AlertTriangle size={26} style={{ color: 'var(--red)' }} />
+          <b>{area}暂时无法显示</b>
+          <div className="hint">可以先重试；仍无法显示时，请刷新页面或联系现场工作人员。</div>
+          <details className="hint" style={{ maxWidth: 560, wordBreak: 'break-word' }}><summary>技术信息</summary>{error.message}</details>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button className="btn primary sm" onClick={this.reset}><RotateCcw size={13} />重试</button>
+            {reload}
+          </div>
+        </div>
+      )
+    }
     return (
-      <div className="empty" style={{ height: '100%' }}>
+      <div className="empty" style={{ height: '100%' }} role="alert">
         <AlertTriangle size={26} style={{ color: 'var(--red)' }} />
-        <b>{this.props.area ?? '界面'}出错了</b>
+        <b>{area}出错了</b>
         <div className="note-box error" style={{ maxWidth: 560, textAlign: 'left', wordBreak: 'break-word' }}>
-          {this.state.error.message}
+          {error.message}
         </div>
         <div className="hint">详细堆栈见浏览器控制台（F12）。数据都在后端，未受影响。</div>
-        <button className="btn primary sm" onClick={this.reset}>
-          <RotateCcw size={13} />重置并回到「选中」工具
-        </button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button className="btn primary sm" onClick={this.reset}>
+            <RotateCcw size={13} />重置并回到「选中」工具
+          </button>
+          {reload}
+        </div>
       </div>
     )
   }

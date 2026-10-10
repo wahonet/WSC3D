@@ -14,8 +14,8 @@ export const HOME_STORIES = [
   { id: 97, title: '管仲射小白', stone: '武037', image: 'story-97.jpg', place: '左石室后壁小龛西侧' },
   { id: 261, title: '二桃杀三士', stone: '武040', image: 'story-261.jpg', place: '左石室小龛东壁' },
   { id: 228, title: '周公辅成王', stone: '武041', image: 'story-228.jpg', place: '左石室小龛西壁' },
-  { id: 703, title: '水陆攻战', stone: '武032', image: 'scene-703.jpg', place: '左石室西壁下石' },
-  { id: 750, title: '历代帝王', stone: '武011', image: 'wall-diwang.jpg', place: '武梁祠西壁' },
+  { id: 703, title: '水陆攻战', stone: '武032', image: 'story-703.jpg', place: '左石室西壁下石' },
+  { id: 750, title: '历代帝王', stone: '武011', image: 'story-750.jpg', place: '武梁祠西壁' },
 ]
 export const HOME_FIGURES = [
   { id: 105, title: '荆轲', stone: '武037', place: '左石室后壁小龛西侧' },

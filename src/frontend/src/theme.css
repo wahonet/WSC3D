@@ -170,6 +170,16 @@ body { font-family: var(--font-sans); background: var(--bg-0); color: var(--text
 .public-reference { border-radius: var(--radius-lg); box-shadow: var(--shadow-2); }
 .public-reference::backdrop { background: rgba(10, 9, 8, .6); }
 
+/* ---------------------------------------------------------------- 按需载入页面的占位 */
+.page-loading { flex: 1; min-height: 240px; display: flex; align-items: center; justify-content: center; gap: 10px;
+  color: var(--text-2); font-size: 13.5px; letter-spacing: .5px; }
+.page-loading-spin { color: var(--accent); animation: spin 1s linear infinite; }
+@media (prefers-reduced-motion: reduce) { .page-loading-spin { animation: none; } }
+
+/* ---------------------------------------------------------------- 提示条：窄屏不超出视口 */
+.toaster { max-width: min(420px, calc(100vw - 32px)); pointer-events: none; }
+.toaster .toast { pointer-events: auto; }
+
 /* ---------------------------------------------------------------- responsive: nav drops to a second row */
 @media (max-width: 1240px) {
   .unified-header { flex-wrap: wrap; row-gap: 0; padding-top: 8px; }

@@ -50,18 +50,60 @@ export function nativeMaskBounds(mask: NativeMask): [number, number, number, num
 }
 
 const canvases = new WeakMap<NativeMask, HTMLCanvasElement>()
-const decodedMasks = new WeakMap<NativeMask, Uint8Array>()
-function maskPixels(mask: NativeMask): Uint8Array {
-  const cached = decodedMasks.get(mask)
+
+/**
+ * Maximal foreground intervals [start, end) of each row, read straight from the RLE.
+ * Everything below works on runs instead of pixels: a 900 × 5000 mask holds 4.5 million
+ * pixels but only a few thousand runs, so outlines no longer cost seconds per mask.
+ */
+const rowRuns = new WeakMap<NativeMask, number[][]>()
+function maskRows(mask: NativeMask): number[][] {
+  const cached = rowRuns.get(mask)
   if (cached) return cached
-  const binary = new Uint8Array(mask.size[0] * mask.size[1])
+  const [height, width] = mask.size
+  const rows: number[][] = Array.from({ length: height }, () => [])
+  const add = (y: number, start: number, end: number) => {
+    const row = rows[y]
+    // A zero-length background run between two foreground runs joins them, as pixels would.
+    if (row.length && row[row.length - 1] === start) row[row.length - 1] = end
+    else row.push(start, end)
+  }
   let offset = 0
   mask.counts.forEach((count, i) => {
-    if (i % 2) binary.fill(1, offset, offset + count)
+    if (i % 2 && count) {
+      let position = offset
+      const stop = offset + count
+      while (position < stop) {
+        const y = Math.floor(position / width), x = position - y * width
+        const end = Math.min(width, x + stop - position)
+        add(y, x, end)
+        position += end - x
+      }
+    }
     offset += count
   })
-  decodedMasks.set(mask, binary)
-  return binary
+  rowRuns.set(mask, rows)
+  return rows
+}
+
+/** Parts of the sorted, disjoint intervals `a` not covered by `b` (flat [start, end, …] lists). */
+function subtractRuns(a: number[], b: number[] | undefined): number[] {
+  if (!b || !b.length) return a
+  const out: number[] = []
+  let j = 0
+  for (let i = 0; i < a.length; i += 2) {
+    let start = a[i]
+    const end = a[i + 1]
+    while (j < b.length && b[j + 1] <= start) j += 2
+    let k = j
+    while (start < end && k < b.length && b[k] < end) {
+      if (b[k] > start) out.push(start, b[k])
+      start = Math.max(start, b[k + 1])
+      k += 2
+    }
+    if (start < end) out.push(start, end)
+  }
+  return out
 }
 
 /** Pixel-exact SVG fill and exterior/interior edges, including separate one-pixel pieces. */
@@ -69,38 +111,32 @@ const paths = new WeakMap<NativeMask, { fill: string; boundary: string }>()
 export function nativeMaskPaths(mask: NativeMask): { fill: string; boundary: string } {
   const cached = paths.get(mask)
   if (cached) return cached
-  const [height, width] = mask.size, binary = maskPixels(mask)
+  const height = mask.size[0], rows = maskRows(mask)
   const fill: string[] = [], boundary: string[] = []
   for (let y = 0; y < height; y++) {
-    let start = -1
-    for (let x = 0; x <= width; x++) {
-      const inside = x < width && binary[y * width + x]
-      if (inside && start < 0) start = x
-      if (!inside && start >= 0) {
-        fill.push(`M${start} ${y}h${x-start}v1h${start-x}z`); start = -1
-      }
-    }
-    for (const dy of [-1, 1]) {
-      let edgeStart = -1
-      for (let x = 0; x <= width; x++) {
-        const edge = x < width && binary[y*width+x] && (y+dy < 0 || y+dy >= height || !binary[(y+dy)*width+x])
-        if (edge && edgeStart < 0) edgeStart = x
-        if (!edge && edgeStart >= 0) {
-          boundary.push(`M${edgeStart} ${y+(dy>0?1:0)}h${x-edgeStart}`); edgeStart = -1
-        }
-      }
-    }
+    const row = rows[y]
+    for (let i = 0; i < row.length; i += 2) fill.push(`M${row[i]} ${y}h${row[i+1]-row[i]}v1h${row[i]-row[i+1]}z`)
+    // Top edges, then bottom edges: the run is exposed where the neighbouring row is empty.
+    const top = subtractRuns(row, y > 0 ? rows[y - 1] : undefined)
+    for (let i = 0; i < top.length; i += 2) boundary.push(`M${top[i]} ${y}h${top[i+1]-top[i]}`)
+    const bottom = subtractRuns(row, y + 1 < height ? rows[y + 1] : undefined)
+    for (let i = 0; i < bottom.length; i += 2) boundary.push(`M${bottom[i]} ${y+1}h${bottom[i+1]-bottom[i]}`)
   }
-  for (let x = 0; x < width; x++) for (const dx of [-1, 1]) {
-    let edgeStart = -1
-    for (let y = 0; y <= height; y++) {
-      const edge = y < height && binary[y*width+x] && (x+dx < 0 || x+dx >= width || !binary[y*width+x+dx])
-      if (edge && edgeStart < 0) edgeStart = y
-      if (!edge && edgeStart >= 0) {
-        boundary.push(`M${x+(dx>0?1:0)} ${edgeStart}v${y-edgeStart}`); edgeStart = -1
-      }
+  // Vertical edges sit at each run's first pixel (left side) and last pixel (right side).
+  // Join the same edge across consecutive rows, then list them column by column, left
+  // before right, as a pixel scan would.
+  const segments: number[][] = [] // [column, side 0 = left / 1 = right, startRow, endRow]
+  let previous = new Map<number, number>() // edge key -> first row of its open segment
+  for (let y = 0; y <= height; y++) {
+    const row = y < height ? rows[y] : [], current = new Map<number, number>()
+    for (let i = 0; i < row.length; i += 2) {
+      for (const key of [row[i] * 2, (row[i + 1] - 1) * 2 + 1]) current.set(key, previous.get(key) ?? y)
     }
+    previous.forEach((startRow, key) => { if (!current.has(key)) segments.push([key >> 1, key & 1, startRow, y]) })
+    previous = current
   }
+  segments.sort((a, b) => a[0] - b[0] || a[1] - b[1] || a[2] - b[2])
+  for (const [column, side, startRow, endRow] of segments) boundary.push(`M${column + side} ${startRow}v${endRow - startRow}`)
   const value = { fill: fill.join(''), boundary: boundary.join('') }
   paths.set(mask, value)
   return value
@@ -114,10 +150,11 @@ export function nativeMaskCanvas(mask: NativeMask): HTMLCanvasElement {
   const ctx = canvas.getContext('2d')
   if (!ctx) throw new Error('当前浏览器无法读取分割掩膜')
   const pixels = ctx.createImageData(width, height)
-  maskPixels(mask).forEach((inside, p) => {
-    if (inside) {
-      pixels.data[p * 4] = pixels.data[p * 4 + 1] = pixels.data[p * 4 + 2] = pixels.data[p * 4 + 3] = 255
-    }
+  // Opaque white wherever the mask is set: fill whole RLE spans instead of testing each pixel.
+  let offset = 0
+  mask.counts.forEach((count, i) => {
+    if (i % 2 && count) pixels.data.fill(255, offset * 4, (offset + count) * 4)
+    offset += count
   })
   ctx.putImageData(pixels, 0, 0)
   canvases.set(mask, canvas)

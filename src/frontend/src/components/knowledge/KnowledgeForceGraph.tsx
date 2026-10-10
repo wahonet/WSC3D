@@ -6,6 +6,7 @@ import { CanvasRenderer } from 'echarts/renderers'
 import { LabelLayout } from 'echarts/features'
 import { Focus, Minus, Plus } from 'lucide-react'
 import { useApp } from '../../store/useApp'
+import { useText } from '../../i18n/lang'
 import type { GraphData } from '../../lib/graphExploration'
 import type { GraphPositions } from '../../lib/graphLayout'
 import type { KnowledgeKind, KnowledgeNode } from '../../lib/knowledgeGraph'
@@ -17,13 +18,16 @@ const RELATIONS: Record<string, string> = { depicts: '图像题材', has_charact
 export const graphRelation = (relation: string) => RELATIONS[relation] || '文献关联'
 type ChartOption = ComposeOption<GraphSeriesOption | TooltipComponentOption>
 const layouts = new WeakMap<GraphData, GraphPositions>()
+// `disabled` is honoured at runtime but missing from the graph series typings.
+const NO_EMPHASIS = { disabled: true, focus: 'none', scale: false } as const
+const escapeHtml = (text: string) => text.replace(/[&<>"']/g, char => `&#${char.charCodeAt(0)};`)
 interface Props { graph: GraphData; degrees: Map<string, number>; selectedId: string; overview: boolean; onSelect(id: string): void }
 
 export default function KnowledgeForceGraph({ graph, degrees, selectedId, overview, onSelect }: Props) {
   const host = useRef<HTMLDivElement>(null), chart = useRef<EChartsType | null>(null)
   const fitted = useRef<GraphPositions | null>(null), selectRef = useRef(onSelect)
   selectRef.current = onSelect
-  const theme = useApp(state => state.theme)
+  const theme = useApp(state => state.theme), tr = useText()
   const [layout, setLayout] = useState<{ graph: GraphData; positions: GraphPositions; ms: number } | null>(null)
   const [layoutError, setLayoutError] = useState(false)
   const [zoom, setZoom] = useState(100), zoomValue = useRef(1)
@@ -64,11 +68,12 @@ export default function KnowledgeForceGraph({ graph, degrees, selectedId, overvi
     const labelled = new Set([...graph.nodes].sort((a, b) => (degrees.get(b.id) || 0) - (degrees.get(a.id) || 0)).slice(0, 55).map(node => node.id))
     return {
       backgroundColor: 'transparent', animation: false,
-      tooltip: { confine: true, renderMode: 'richText', backgroundColor: panel, borderColor: line, textStyle: { color: text, fontSize: 12 },
+      // HTML tooltip: hovering never repaints the canvas.
+      tooltip: { confine: true, renderMode: 'html', transitionDuration: 0, backgroundColor: panel, borderColor: line, padding: [6, 10], textStyle: { color: text, fontSize: 12 },
         formatter: params => {
           const param = Array.isArray(params) ? params[0] : params
           const item = param.data as { name?: string; kind?: KnowledgeKind; degree?: number; relation?: string }
-          return param.dataType === 'edge' ? graphRelation(item.relation || '') : `${item.name || ''}\n${item.kind ? GRAPH_LABELS[item.kind] : ''} · ${item.degree || 0} 条关系`
+          return param.dataType === 'edge' ? escapeHtml(graphRelation(item.relation || '')) : `${escapeHtml(item.name || '')}<br>${item.kind ? GRAPH_LABELS[item.kind] : ''} · ${item.degree || 0} 条关系`
         } },
       series: [{
         id: 'knowledge', type: 'graph', layout: 'none', roam: true, draggable: true,
@@ -76,14 +81,13 @@ export default function KnowledgeForceGraph({ graph, degrees, selectedId, overvi
         label: { show: true, position: 'right', color: text, fontSize: 11, distance: 4,
           textBorderColor: theme === 'light' ? '#f3f0e7' : '#181714', textBorderWidth: 2 },
         labelLayout: { hideOverlap: true },
-        emphasis: { focus: 'adjacency', scale: 1.15, label: { show: true, fontSize: 14, fontWeight: 600 }, lineStyle: { width: 2, opacity: .9 } },
-        blur: { itemStyle: { opacity: .16 }, lineStyle: { opacity: .07 }, label: { opacity: .22 } },
+        emphasis: NO_EMPHASIS,
         edgeSymbol: ['none', overview ? 'none' : 'arrow'], edgeSymbolSize: [0, 5],
-        lineStyle: { color: 'source', curveness: .08, opacity: .3, width: 1 },
+        lineStyle: { color: 'source', curveness: 0, opacity: .3, width: 1 },
         data: ready ? graph.nodes.map(node => {
           const degree = degrees.get(node.id) || 0, active = node.id === selectedId
           const [x, y] = layout.positions[node.id]
-          return { id: node.id, name: node.label, kind: node.kind, degree, x, y,
+          return { id: node.id, name: tr(node.label), kind: node.kind, degree, x, y,
             symbolSize: (active ? 20 : overview ? 7 : 13) + Math.round(Math.sqrt(degree / maxDegree) * 22),
             itemStyle: { color: GRAPH_COLORS[node.kind], borderColor: theme === 'light' ? '#312820' : '#fff4dc', borderWidth: active ? 2 : 0 },
             label: { show: active || graph.nodes.length <= 80 || labelled.has(node.id), fontWeight: active ? 600 : 400 } }
@@ -91,7 +95,7 @@ export default function KnowledgeForceGraph({ graph, degrees, selectedId, overvi
         links: ready ? graph.edges.map(edge => ({ source: edge.source, target: edge.target, relation: edge.relation })) : [],
       }],
     }
-  }, [graph, degrees, selectedId, overview, theme, layout, ready])
+  }, [graph, degrees, selectedId, overview, theme, layout, ready, tr])
 
   useEffect(() => {
     const element = host.current

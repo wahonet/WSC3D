@@ -1,25 +1,57 @@
-/* Shared museum header for the public site and authenticated research workspace. */
-.museum-shell{--public-head:80px;--public-serif:"Noto Serif SC","Source Han Serif SC","Songti SC","SimSun",serif}
-.museum-shell .unified-header{min-height:var(--public-head);height:var(--public-head);flex:0 0 var(--public-head);gap:0;flex-wrap:nowrap;padding:0 max(32px,calc((100vw - 1490px)/2));background:rgba(66,52,40,.94);border:0;color:#f3ead9;z-index:30;backdrop-filter:blur(7px)}
-.museum-shell.overview-theme .unified-header{position:absolute;top:0;left:0;right:0;background:rgba(66,52,40,.9)}
-.museum-shell .unified-brand{min-width:0;flex-shrink:0;margin-right:clamp(28px,3vw,56px)}
-.museum-shell .unified-brand-home{display:flex;align-items:center;gap:12px;padding:0;border:0;background:none;color:inherit;text-align:left}
-.museum-shell .unified-brand-logo{width:38px;height:38px;object-fit:contain;filter:brightness(0) invert(1);background:transparent;padding:0;border:0;border-radius:0;box-shadow:none}
-.museum-shell .unified-brand strong{font:400 28px/1.2 KaiTi,STKaiti,serif;letter-spacing:.12em;color:#f3ead9}
-.museum-shell .unified-brand div>span{margin-top:3px;font-size:10px;line-height:1.4;letter-spacing:.28em;color:#dfd2bc}
-.museum-shell .unified-nav{display:flex;align-items:center;flex:1;min-width:0;gap:clamp(16px,1.7vw,29px);height:auto;overflow-x:auto;scrollbar-width:none;border:0;background:none;padding:0;margin:0;order:0;white-space:nowrap}
-.museum-shell .unified-nav button{flex-shrink:0;padding:9px 0 8px;border:0;border-bottom:1px solid transparent;border-radius:0;background:none;color:#f3ead9;font:500 15px/1 var(--public-serif);letter-spacing:.05em;box-shadow:none}
-.museum-shell .unified-nav button.active,.museum-shell .unified-nav button:hover{color:#fff4d9;border-bottom-color:#e2c99c;background:none;box-shadow:none}
+/* Shared museum header for the public site and authenticated research workspace (homepage scheme 08). */
+.museum-shell{--public-head:80px;--public-gutter:clamp(16px,2.6vw,40px);--public-serif:"Noto Serif SC","Source Han Serif SC","Songti SC","STSong","SimSun",serif;--public-kai:"KaiTi","STKaiti","Kaiti SC",serif;--public-gold:#e2c99c;--public-ink:#f3ead9}
+/* Full width at every size: logo left, navigation centred on the page, controls right. Side columns never
+   shrink below their content, so on narrower screens the navigation shifts aside rather than overlapping. */
+.museum-shell .unified-header{display:grid;grid-template-columns:minmax(max-content,1fr) auto minmax(max-content,1fr);align-items:center;column-gap:32px;min-height:var(--public-head);height:var(--public-head);flex:0 0 var(--public-head);padding:0 var(--public-gutter);background:rgba(66,52,40,.84);border:0;color:var(--public-ink);z-index:30;backdrop-filter:blur(6px)}
+.museum-shell .unified-header::after{display:none}
+.museum-shell.overview-theme .unified-header{position:absolute;top:0;left:0;right:0}
+.museum-shell .unified-brand{grid-column:1;grid-row:1;justify-self:start;min-width:0;flex-shrink:0;margin-right:0;align-self:center}
+.museum-shell .unified-brand-home{display:flex;align-items:center;gap:12px;padding:0;border:0;background:none;color:inherit;text-align:left;cursor:pointer}
+.museum-shell .unified-brand-logo{width:auto;height:38px;object-fit:contain;filter:brightness(0) invert(1);background:transparent;padding:0;border:0;border-radius:0;box-shadow:none}
+.museum-shell .unified-brand strong{display:block;font:400 30px/1.1 var(--public-kai);letter-spacing:.14em;color:var(--public-ink)}
+.museum-shell .unified-brand div>span{display:block;margin-top:3px;font-size:11.5px;line-height:1.4;letter-spacing:.32em;color:var(--public-ink);opacity:.8}
+.museum-shell .unified-nav{grid-column:2;grid-row:1;justify-self:center;max-width:100%;display:flex;align-items:center;flex:0 1 auto;min-width:0;gap:30px;margin:0;height:auto;overflow-x:auto;scrollbar-width:none;border:0;background:none;padding:0;order:0;white-space:nowrap}
+.museum-shell .unified-nav button{flex-shrink:0;padding:8px 0 7px;border:0;border-bottom:2px solid transparent;border-radius:0;background:none;color:var(--public-ink);font:500 16px/1 var(--public-serif);letter-spacing:.06em;opacity:.92;box-shadow:none;cursor:pointer}
+.museum-shell .unified-nav button.active,.museum-shell .unified-nav button:hover{color:var(--public-ink);border-bottom-color:var(--public-gold);background:none;box-shadow:none;opacity:1;font-weight:500}
 .museum-shell .unified-nav button.active::after{display:none}
-.museum-shell .workspace-header-actions{display:flex;align-items:center;gap:8px;margin-left:24px;flex-shrink:0}
-.museum-shell .unified-icon{display:grid;place-items:center;width:34px;height:34px;padding:0;border:1px solid #f3ead94d;border-radius:50%;color:#f3ead9;background:none}
-.museum-shell .unified-icon svg{width:16px;height:16px}
-.museum-shell .unified-icon:hover{border-color:#e2c99c;background:#ffffff16}
-.museum-shell .unified-icon:focus-visible,.museum-shell .unified-nav button:focus-visible{outline:2px solid #e2c99c;outline-offset:4px}
+.museum-shell .workspace-header-actions{grid-column:3;grid-row:1;justify-self:end;display:flex;align-items:center;gap:8px;margin-left:0;padding-left:0;flex-shrink:0}
+.museum-shell .unified-icon{position:relative;display:grid;place-items:center;width:36px;height:36px;padding:0;border:1px solid rgba(243,234,217,.3);border-radius:50%;color:var(--public-ink);background:none;transition:background .2s,border-color .2s}
+.museum-shell .unified-icon svg{width:17px;height:17px}
+.museum-shell .unified-icon:hover,.museum-shell .unified-icon:focus-visible{background:rgba(255,255,255,.1);border-color:var(--public-gold);color:var(--public-ink)}
+.museum-shell .unified-icon[data-tip]::after{content:attr(data-tip);position:absolute;top:calc(100% + 10px);left:50%;transform:translateX(-50%);padding:5px 10px;border-radius:2px;background:rgba(28,22,17,.94);color:#f3ead9;font:12px/1.4 var(--font-sans);letter-spacing:.05em;white-space:nowrap;opacity:0;pointer-events:none;transition:opacity .15s;z-index:40}
+.museum-shell .workspace-header-actions>.unified-icon:last-child::after{left:auto;right:0;transform:none}
+.museum-shell .unified-icon[data-tip]:hover::after,.museum-shell .unified-icon[data-tip]:focus-visible::after{opacity:1}
+.museum-shell .unified-icon:focus-visible,.museum-shell .unified-nav button:focus-visible,.museum-shell .unified-brand-home:focus-visible{outline:2px solid var(--public-gold);outline-offset:3px}
+.museum-shell .lang-menu{position:relative}
+.museum-shell .lang-menu-list{position:absolute;top:calc(100% + 10px);left:50%;transform:translateX(-50%);display:grid;gap:2px;min-width:128px;padding:6px;border:1px solid rgba(243,234,217,.18);border-radius:3px;background:rgba(28,22,17,.96);box-shadow:0 12px 30px rgba(0,0,0,.35);z-index:50}
+.museum-shell .lang-menu-list button{display:flex;align-items:center;gap:9px;padding:9px 12px;border:0;border-radius:2px;background:none;color:#f3ead9;font:14px/1.2 var(--public-serif);letter-spacing:.04em;text-align:left;white-space:nowrap;cursor:pointer}
+.museum-shell .lang-menu-list button::before{content:"";width:6px;height:6px;border-radius:50%;border:1px solid rgba(243,234,217,.4)}
+.museum-shell .lang-menu-list button.on::before{border-color:var(--public-gold);background:var(--public-gold)}
+.museum-shell .lang-menu-list button:hover,.museum-shell .lang-menu-list button:focus-visible{background:rgba(255,255,255,.08);outline:none}
+/* Latin text: no CJK letter-spacing, and a smaller brand line. */
+html[data-lang="en"] .public-shell *{letter-spacing:normal!important}
+html[data-lang="en"] .museum-shell .unified-brand strong{font:500 22px/1.15 var(--public-serif)}
+html[data-lang="en"] .museum-shell .unified-brand div>span{font-size:11.5px}
+html[data-lang="en"] .museum-shell .unified-nav button{font-size:14.5px}
+@media(min-width:1181px){html[data-lang="en"] .museum-shell .unified-nav{gap:20px}}
+@media(min-width:1181px) and (max-width:1400px){html[data-lang="en"] .museum-shell .unified-nav{gap:15px}html[data-lang="en"] .museum-shell .unified-nav button{font-size:14px}}
+@media(min-width:1181px) and (max-width:1280px){html[data-lang="en"] .museum-shell .unified-brand strong{font-size:19px}html[data-lang="en"] .museum-shell .unified-nav{gap:12px}html[data-lang="en"] .museum-shell .unified-nav button{font-size:13.5px}}
 .museum-shell .unified-main{min-height:0;flex:1;padding:0}
 .museum-shell.overview-theme .unified-main{height:100%;max-height:none;overflow:hidden}
 .museum-shell .function-transition{pointer-events:none}
-@media(max-width:1350px){.museum-shell .unified-header{padding-inline:28px}.museum-shell .unified-brand{margin-right:26px}.museum-shell .unified-brand strong{font-size:25px}.museum-shell .unified-nav{gap:18px}.museum-shell .unified-nav button{font-size:14px}.museum-shell .workspace-header-actions{margin-left:18px}}
-@media(max-width:1100px){.museum-shell{--public-head:112px}.museum-shell .unified-header{display:grid;grid-template-columns:1fr auto;grid-template-rows:68px 44px;padding:0 32px;height:112px;min-height:112px}.museum-shell .unified-brand{margin-right:0}.museum-shell .workspace-header-actions{grid-column:2;grid-row:1;margin-left:0}.museum-shell .unified-nav{grid-row:2;grid-column:1/-1;width:100%;height:44px;gap:27px;border-top:1px solid #f3ead929}.museum-shell .unified-nav button{font-size:14px}}
-@media(max-width:700px){.museum-shell{--public-head:108px}.museum-shell .unified-header{grid-template-rows:64px 44px;padding:0 20px;height:108px;min-height:108px}.museum-shell .unified-brand strong{font-size:22px;letter-spacing:.05em}.museum-shell .unified-brand-logo{width:29px;height:32px}.museum-shell .unified-brand-home{gap:8px}.museum-shell .unified-brand div>span{font-size:9px;letter-spacing:.15em}.museum-shell .workspace-header-actions{gap:6px}.museum-shell .unified-icon{width:29px;height:29px}.museum-shell .unified-nav{gap:25px}.museum-shell .unified-nav button{font-size:13px}}
-@media(max-width:380px){.museum-shell .unified-header{padding-inline:12px}.museum-shell .unified-brand strong{font-size:20px}.museum-shell .unified-brand-logo{width:26px}}
+.museum-shell .workspace-header-actions .workspace-account,.museum-shell .workspace-header-actions .workspace-public{color:var(--public-ink);border-color:rgba(243,234,217,.3);background:none}
+@media(max-width:1400px){.museum-shell .unified-nav{gap:22px}.museum-shell .unified-header{column-gap:24px}}
+@media(max-width:1280px){.museum-shell .unified-brand strong{font-size:26px}.museum-shell .unified-nav{gap:18px}.museum-shell .unified-nav button{font-size:15px}}
+@media(max-width:1180px){
+  .public-shell .unified-header,.museum-shell.public-shell.overview-theme .unified-header{position:relative;grid-template-columns:minmax(0,1fr) auto;height:auto;min-height:0;flex:0 0 auto;padding-top:14px;background:#4d3d2f}
+  .public-shell .workspace-header-actions{grid-column:2;grid-row:1}
+  .public-shell .unified-nav{grid-column:1/-1;grid-row:2;justify-self:stretch;max-width:none;width:auto;margin:6px calc(-1 * var(--public-gutter)) 0;padding:0 var(--public-gutter);justify-content:flex-start;justify-content:safe center}
+  .public-shell .unified-nav button{padding:10px 0 9px}
+  .museum-shell .unified-icon[data-tip]::after{display:none}
+}
+@media(max-width:1100px){.workspace-shell{--public-head:112px}.workspace-shell .unified-header{display:grid;grid-template-columns:1fr auto;grid-template-rows:68px 44px;padding:0 32px;height:112px;min-height:112px}.workspace-shell .workspace-header-actions{grid-column:2;grid-row:1;margin-left:0;padding-left:0}.workspace-shell .unified-nav{grid-row:2;grid-column:1/-1;width:100%;justify-content:flex-start;justify-content:safe center;height:44px;margin:0;gap:27px;border-top:1px solid #f3ead929}.workspace-shell .unified-nav button{font-size:14px}}
+@media(max-width:700px){
+  .museum-shell .unified-brand-home{gap:10px}.museum-shell .unified-brand-logo{height:30px}.museum-shell .unified-brand strong{font-size:21px;letter-spacing:.08em}.museum-shell .unified-brand div>span{font-size:10.5px;letter-spacing:.16em}
+  .museum-shell .workspace-header-actions{gap:4px;padding-left:8px}.museum-shell .unified-icon{width:32px;height:32px}.museum-shell .unified-icon svg{width:15px;height:15px}
+  .workspace-shell{--public-head:108px}.workspace-shell .unified-header{grid-template-rows:64px 44px;padding:0 20px;height:108px;min-height:108px}.workspace-shell .unified-nav{gap:25px}.workspace-shell .unified-nav button{font-size:13px}
+}

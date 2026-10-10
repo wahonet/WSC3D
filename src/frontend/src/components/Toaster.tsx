@@ -8,14 +8,19 @@ const ICON = {
   error: <XCircle size={15} />,
 }
 
+/**
+ * 提示容器始终存在并作为 polite 播报区域，读屏软件才能可靠读出后加入的提示；
+ * 错误提示单独用 alert 立即播报。悬停或聚焦时暂停自动关闭。
+ */
 export default function Toaster() {
   const toasts = useToast(s => s.toasts)
-  const dismiss = useToast(s => s.dismiss)
-  if (toasts.length === 0) return null
+  const { dismiss, hold, release } = useToast.getState()
   return (
-    <div className="toaster">
+    <div className="toaster" aria-live="polite" aria-relevant="additions">
       {toasts.map(t => (
-        <div key={t.id} className={`toast ${t.kind}`} role="status">
+        <div key={t.id} className={`toast ${t.kind}`} role={t.kind === 'error' ? 'alert' : undefined}
+          onMouseEnter={() => hold(t.id)} onMouseLeave={() => release(t.id)}
+          onFocus={() => hold(t.id)} onBlur={() => release(t.id)}>
           {ICON[t.kind]}
           <span>{t.text}</span>
           <button className="x" onClick={() => dismiss(t.id)} aria-label="关闭提示"><X size={13} /></button>
