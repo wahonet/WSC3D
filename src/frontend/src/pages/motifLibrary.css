@@ -38,6 +38,12 @@
 .motif-state { display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;min-height:280px;color:var(--text-2);text-align:center; }
 .motif-state p { margin:0; }.motif-state>span { color:var(--text-3);font-size:12px; }
 .motif-more { display:block;margin:26px auto 0;border:1px solid var(--line-2);border-radius:6px;background:var(--bg-1);color:var(--text);padding:9px 22px; }
+.motif-more:hover { border-color:var(--accent);color:var(--accent); }
+.motif-clear { border:1px solid var(--line-2);border-radius:999px;background:var(--bg-1);color:var(--text-2);padding:6px 16px;font-size:12.5px; }
+.motif-clear:hover { border-color:var(--accent);color:var(--accent); }
+.motif-loading-more { display:inline-flex;align-items:center;gap:5px;margin-left:12px;color:var(--text-3);font-size:12px;white-space:nowrap; }
+.motif-state[role="status"] svg,.motif-loading-more svg { animation:motif-loading 1.2s linear infinite; }
+@media (prefers-reduced-motion:reduce) { .motif-state[role="status"] svg,.motif-loading-more svg { animation:none; } }
 .motif-detail { width:clamp(350px,31vw,480px);flex-shrink:0;min-height:0;overflow:auto;background:var(--bg-1);border-left:1px solid var(--line); }
 .motif-detail-heading { display:flex;align-items:flex-start;gap:12px;justify-content:space-between;padding:22px 20px 17px; }
 .motif-detail-heading small { color:var(--text-3);font-size:11px;line-height:1.7; }

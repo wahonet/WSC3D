@@ -168,8 +168,15 @@ export default function SearchPage({ active, query, submissionId, onQuery, onSto
             </section>
             <section className="search-group search-documents" aria-label="相关文献">
               <header className="document-heading"><h2><BookOpen size={16} />相关文献</h2><span>{result?.dense ? '已结合语义匹配' : busy ? '资料检索中' : '关键词匹配'}</span></header>
-              <div className="document-tabs" role="tablist" aria-label="文献范围">{['core', 'extension'].map(key => <button key={key} role="tab" aria-selected={documentScope === key} onClick={() => setDocumentScope(key)}>{sourceLabel(key)}<span>{groups.find(g => g.scope === key)?.count ?? '—'}</span></button>)}</div>
-              <div className="document-results" data-scope={documentScope}>
+              <div className="document-tabs" role="tablist" aria-label="文献范围" onKeyDown={event => {
+                // 方向键在两个范围之间切换并移动焦点（WAI-ARIA 标签页约定）
+                if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
+                event.preventDefault()
+                const next = documentScope === 'core' ? 'extension' : 'core'
+                setDocumentScope(next)
+                event.currentTarget.querySelector<HTMLButtonElement>(`#search-tab-${next}`)?.focus()
+              }}>{['core', 'extension'].map(key => <button key={key} id={`search-tab-${key}`} role="tab" aria-selected={documentScope === key} aria-controls="search-document-results" tabIndex={documentScope === key ? 0 : -1} onClick={() => setDocumentScope(key)}>{sourceLabel(key)}<span>{groups.find(g => g.scope === key)?.count ?? '—'}</span></button>)}</div>
+              <div className="document-results" id="search-document-results" role="tabpanel" aria-labelledby={`search-tab-${documentScope}`} data-scope={documentScope}>
                 {busy && <p className="group-empty" role="status">正在查找相关文献…</p>}
                 {documents?.error && <p role="alert" className="search-error">{documents.error}</p>}
                 {!busy && !documents?.items.length && <p className="group-empty">当前范围暂未找到相关文献，试试补充文物名称或画像主题。</p>}

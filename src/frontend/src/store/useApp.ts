@@ -148,7 +148,7 @@ interface AppState {
 }
 
 const THEME_KEY = 'stonelab.theme'
-const initialTheme = (): Theme => (localStorage.getItem(THEME_KEY) === 'light' ? 'light' : 'dark')
+const initialTheme = (): Theme => (localStorage.getItem(THEME_KEY) === 'dark' ? 'dark' : 'light')
 
 const is2d = (a: AssetBrief | null) => a != null && !a.kind.startsWith('model')
 
@@ -208,7 +208,9 @@ export const useApp = create<AppState>((set, get) => ({
   showLabels: localStorage.getItem('stonelab.labels') !== 'off',
   hiddenLevels: [],
   hiddenAnnotations: (() => { try { const value = JSON.parse(localStorage.getItem('stonelab.hidden-annotations') || '[]'); return Array.isArray(value) ? value.filter(Number.isInteger) : [] } catch { return [] } })(),
-  projOn: localStorage.getItem('stonelab.proj') !== 'off',   // 跨图投影：默认开启，偏好跨资产记忆
+  // 「其他影像」：同石其他照片、拓片上的标注（画布上为跨图投影，列表中为其他影像的节点）。
+  // 默认只看当前影像；开关只在本次浏览中有效，切换到另一张影像时恢复为关闭。
+  projOn: false,
   projItems: [],
   projReason: '',
   seg: SEG_DEFAULT,
@@ -286,6 +288,7 @@ export const useApp = create<AppState>((set, get) => ({
       stoneAnnos: sameStone ? get().stoneAnnos : [],
       stoneInfo: sameStone ? get().stoneInfo : null,
       projItems: [], projReason: '',
+      projOn: get().curAsset?.id === asset.id ? get().projOn : false,
       seg: { ...get().seg, points: [], boxes: [], dets: [], excluded: [], viewPreprocessed: false, lastInfo: '' },
     })
     writeHash(asset.id, get().page)
@@ -384,7 +387,6 @@ export const useApp = create<AppState>((set, get) => ({
 
   toggleProj: async v => {
     set({ projOn: v, projReason: '', projItems: v ? get().projItems : [] })
-    localStorage.setItem('stonelab.proj', v ? 'on' : 'off')
     const a = get().curAsset
     if (v && a && is2d(a)) {
       await fetchProjected(a.id, set, get).catch(e => set({ projReason: String(e) }))

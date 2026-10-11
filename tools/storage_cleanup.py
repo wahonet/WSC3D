@@ -1,11 +1,11 @@
-"""Resumable project storage cleanup (2026-10-04 plan, tiers 1-6).
+"""Resumable project storage cleanup (2026-10-04 plan, tiers 1-6; tier7 added 2026-10-10).
 
 Every tier re-plans from the current disk state, so an interrupted tier can be
 re-run safely. Plans, deleted-file lists and progress are written to
 data/reports/storage-cleanup-20261004/ (see RUNBOOK.md there).
 
     python tools/storage_cleanup.py status
-    python tools/storage_cleanup.py tier1|tier2|tier3|tier4|tier5|tier6
+    python tools/storage_cleanup.py tier1|tier2|tier3|tier4|tier5|tier6|tier7
     python tools/storage_cleanup.py rollback-tier2
 Stop the platform before tier2 / rollback-tier2.
 """
@@ -352,6 +352,52 @@ def tier5():
     return result
 
 
+RUN_STATE = {'native-commits.json', 'native-decisions.json', 'alignment-commits.json', 'alignment-decisions.json',
+             'alignment-review-plan.json', 'baseline.json', 'inventory.json', 'progress-audit.json'}
+RUN_STATE_PREFIXES = ('native-batch-', 'native-review-queue-', 'native-decisions-', 'pilot-decisions-', 'native-jobs')
+
+
+def pack_files(run, files, stem):
+    """Verified ZIP of run-relative files; loose copies are removed only after every digest matches."""
+    number = 1
+    while (RESEARCH / run / f'{stem}-{number}.zip').exists():
+        number += 1
+    final = RESEARCH / run / f'{stem}-{number}.zip'
+    partial = final.with_suffix('.zip.part')
+    partial.unlink(missing_ok=True)
+    digests = {}
+    with zipfile.ZipFile(partial, 'x', compression=zipfile.ZIP_DEFLATED, compresslevel=6, allowZip64=True) as archive:
+        for path in files:
+            member = path.relative_to(RESEARCH / run).as_posix()
+            data = Path(long(path)).read_bytes()
+            digests[member] = hashlib.sha256(data).hexdigest()
+            archive.writestr(zipfile.ZipInfo.from_file(long(path), member), data, compress_type=zipfile.ZIP_DEFLATED, compresslevel=6)
+    with zipfile.ZipFile(partial) as archive:
+        for member, digest in digests.items():
+            if hashlib.sha256(archive.read(member)).hexdigest() != digest:
+                raise RuntimeError(f'Zip verification failed: {member}')
+    os.replace(partial, final)
+    write_list(f'{stem}-{run}-{number}-members.jsonl', ({'member': m, 'sha256': d} for m, d in digests.items()))
+    freed = sum(unlink(path) for path in files)
+    return {'zip': final.relative_to(ROOT).as_posix(), 'files': len(files), 'freed_bytes': freed, 'zip_bytes': final.stat().st_size}
+
+
+def tier7():
+    """Pack unreferenced review records at each run root; tool state files stay loose."""
+    refs = db_references() | committed_proposals() | markdown_links()
+    result = {}
+    for run in RUNS:
+        folder = RESEARCH / run
+        if not folder.is_dir():
+            continue
+        files = sorted(p for p in folder.iterdir() if p.is_file() and p.suffix.lower() == '.json' and key(p) not in refs
+                       and p.name not in RUN_STATE and not p.name.startswith(RUN_STATE_PREFIXES))
+        if files:
+            result[run] = pack_files(run, files, 'review-records-unreferenced')
+            log('tier7-packed', run=run, **result[run])
+    return result
+
+
 def tier6():
     rows = []
     for name in TIER6:
@@ -366,7 +412,7 @@ def tier6():
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument('command', choices=['status', 'tier1', 'tier2', 'tier3', 'tier4', 'tier5', 'tier6', 'rollback-tier2'])
+    parser.add_argument('command', choices=['status', 'tier1', 'tier2', 'tier3', 'tier4', 'tier5', 'tier6', 'tier7', 'rollback-tier2'])
     command = parser.parse_args().command
     REPORT.mkdir(parents=True, exist_ok=True)
     if command == 'status':
@@ -382,7 +428,7 @@ def main():
         tier3_rows, tier4_rows = research_images()
         result = delete_listed(command, tier3_rows if command == 'tier3' else tier4_rows)
     else:
-        result = {'tier1': tier1, 'tier2': tier2, 'tier5': tier5, 'tier6': tier6, 'rollback-tier2': rollback_tier2}[command]()
+        result = {'tier1': tier1, 'tier2': tier2, 'tier5': tier5, 'tier6': tier6, 'tier7': tier7, 'rollback-tier2': rollback_tier2}[command]()
     after = measure()
     summary = {'after_files': after[0], 'after_bytes': after[1],
                'files_reduced': before[0] - after[0], 'gib_reduced': round((before[1] - after[1]) / 1024 ** 3, 2)}

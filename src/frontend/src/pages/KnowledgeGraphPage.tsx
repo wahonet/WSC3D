@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowLeft, ArrowRight, ArrowUpRight, BookOpen, ChevronDown, LoaderCircle, Network, PanelLeftClose, PanelRightClose, Search, X } from 'lucide-react'
 import KnowledgeForceGraph, { GRAPH_COLORS, GRAPH_LABELS, graphRelation } from '../components/knowledge/KnowledgeForceGraph'
-import { fetchKnowledgeGraph, type KnowledgeGraph, type KnowledgeKind, type KnowledgeNode } from '../lib/knowledgeGraph'
+import { loadKnowledgeGraph, type KnowledgeGraph, type KnowledgeKind, type KnowledgeNode } from '../lib/knowledgeGraph'
 import { graphDegrees, inducedGraph, neighbourhood, relatedStoneNodes, type GraphData } from '../lib/graphExploration'
 import { goToSection, openDocument } from '../lib/navigation'
 import CreativeLinks from '../components/CreativeLinks'
@@ -38,7 +38,7 @@ export default function KnowledgeGraphPage() {
   useEffect(() => {
     const abort = new AbortController()
     setLoading(true); setError('')
-    void fetchKnowledgeGraph(abort.signal).then(result => {
+    void loadKnowledgeGraph({ force: reload > 0, signal: abort.signal }).then(result => {
       if (abort.signal.aborted) return
       setData(result)
       setSelectedId(current => result.nodes.some(node => node.id === current) ? current : '')

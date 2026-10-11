@@ -3,12 +3,16 @@ import ImageVersions from '../components/ImageVersions'
 import { galleryImageVersionGroups, imageVersionLabel, preferredImageVersion } from '../lib/imageVersions'
 import { useGalleryScroll } from '../lib/useGalleryScroll'
 import { ArrowUpRight, BookOpen, Download, ImageOff, LoaderCircle, Network, RefreshCw, Search, X } from 'lucide-react'
-import { stoneAnnotations, listStones, figureImageUrl } from '../api'
-import type { AnnotationReference, StoneNode } from '../types'
+import { figureImageUrl } from '../api'
+import type { AnnotationReference } from '../types'
 import { collectMotifs, motifProvenance, motifReferenceScope, renderMotifCutout, type Motif } from '../lib/motifCutouts'
-import { collectStories } from '../lib/storyCutouts'
+import { storiesOf } from '../lib/galleryCorpus'
 import CutoutImage from '../components/CutoutImage'
-import { fetchKnowledgeGraph, type KnowledgeGraph } from '../lib/knowledgeGraph'
+import { loadKnowledgeGraph, type KnowledgeGraph } from '../lib/knowledgeGraph'
+import { deriveByEntry, type AnnotationCorpus, type StoneAnnotations } from '../lib/publicCorpus'
+import { useAnnotationCorpus } from '../lib/useAnnotationCorpus'
+import { useAutoMore } from '../lib/useAutoMore'
+import { matchesQuery } from '../lib/format'
 import { goToSection, openDocument } from '../lib/navigation'
 import './motifLibrary.css'
 
@@ -79,48 +83,37 @@ function MotifDetail({ motif, motifs, onSelect, storyIds, graph, graphError, ret
   </aside>
 }
 
+const motifsByEntry = new WeakMap<StoneAnnotations, { motifs: Motif[]; storyIds: number[] }>()
+function deriveMotifLibrary(corpus: AnnotationCorpus) {
+  const motifs: Motif[] = [], storyIds = new Set<number>()
+  for (const entry of corpus.entries) {
+    const derived = deriveByEntry(motifsByEntry, entry, ({ stone, annotations }) => ({
+      motifs: collectMotifs(stone, annotations),
+      storyIds: storiesOf(entry).map(story => story.annotation.id),
+    }))
+    motifs.push(...derived.motifs)
+    derived.storyIds.forEach(id => storyIds.add(id))
+  }
+  motifs.sort((a, b) => a.stone.id.localeCompare(b.stone.id) || a.annotation.id - b.annotation.id)
+  return { motifs, storyIds }
+}
+const NO_MOTIFS: Motif[] = [], NO_STORIES = new Set<number>()
+
 export default function MotifLibraryPage() {
-  const [stones, setStones] = useState<StoneNode[]>([]), [motifs, setMotifs] = useState<Motif[]>([])
-  const [storyIds, setStoryIds] = useState<Set<number>>(new Set())
-  const [loading, setLoading] = useState(true), [progress, setProgress] = useState(0), [errors, setErrors] = useState<string[]>([])
-  const [annotatedStones, setAnnotatedStones] = useState(0)
   const [reload, setReload] = useState(0), [query, setQuery] = useState(''), [stone, setStone] = useState(''), [category, setCategory] = useState('')
+  // 近期读取过的标注直接复用；第一次读取时先显示已读到的石件
+  const corpus = useAnnotationCorpus(reload, deriveMotifLibrary)
+  const { stones, errors, annotatedStones, loading, done: progress, total } = corpus
+  const motifs = corpus.value?.motifs ?? NO_MOTIFS, storyIds = corpus.value?.storyIds ?? NO_STORIES
   const [candidates, setCandidates] = useState(new URLSearchParams(location.hash.slice(1)).get('motif_candidates') === '1'), [limit, setLimit] = useState(48)
   const [selected, setSelected] = useState(Number(new URLSearchParams(location.hash.slice(1)).get('motif')) || 0)
   const [graph, setGraph] = useState<KnowledgeGraph | null>(null), [graphError, setGraphError] = useState(''), [graphReload, setGraphReload] = useState(0)
   const scroll = useRef<HTMLDivElement>(null)
   const rememberScroll = useGalleryScroll(scroll, selected)
-  useEffect(() => {
-    let active = true
-    setLoading(true); setProgress(0); setErrors([]); setAnnotatedStones(0)
-    void listStones().then(async rows => {
-      if (!active) return
-      setStones(rows)
-      const result: Motif[] = [], failures: string[] = [], sceneIds = new Set<number>(); let index = 0, completed = 0, annotated = 0
-      async function work() {
-        while (active && index < rows.length) {
-          const item = rows[index++]
-          try {
-            const annotations = await stoneAnnotations(item.id)
-            if (annotations.some(a => ['whole', 'layer', 'scene', 'band'].includes(a.level) && a.atype !== 'none' && ['reviewed', 'candidate', 'approved'].includes(a.review_status))) annotated++
-            result.push(...collectMotifs(item, annotations))
-            collectStories(item, annotations).forEach(story => sceneIds.add(story.annotation.id))
-          }
-          catch (reason) { failures.push(`${item.id}：${(reason as Error).message}`) }
-          completed++
-          if (active) setProgress(completed)
-        }
-      }
-      await Promise.all(Array.from({ length: 4 }, work))
-      if (!active) return
-      result.sort((a, b) => a.stone.id.localeCompare(b.stone.id) || a.annotation.id - b.annotation.id)
-      setMotifs(result); setStoryIds(sceneIds); setErrors(failures); setAnnotatedStones(annotated)
-    }).catch(reason => { if (active) setErrors([reason.message]) }).finally(() => { if (active) setLoading(false) })
-    return () => { active = false }
-  }, [reload])
+  const moreRef = useAutoMore(scroll, limit, () => setLimit(value => value + 48))
   useEffect(() => {
     const controller = new AbortController(); setGraphError('')
-    void fetchKnowledgeGraph(controller.signal).then(setGraph).catch(reason => { if (!controller.signal.aborted) setGraphError(reason.message) })
+    void loadKnowledgeGraph({ force: graphReload > 0, signal: controller.signal }).then(setGraph).catch(reason => { if (!controller.signal.aborted) setGraphError(reason.message) })
     return () => controller.abort()
   }, [graphReload])
   useEffect(() => {
@@ -132,7 +125,7 @@ export default function MotifLibraryPage() {
   const versionCount = groups.reduce((sum, group) => sum + group.versions.length, 0)
   const visible = useMemo(() => groups.filter(group => (!stone || group.representative.stone.id === stone) &&
     (!category || group.versions.some(m => m.annotation.category === category)) &&
-    (!query.trim() || group.versions.some(motif => [motif.annotation.label, motif.stone.id, motif.stone.name, motif.asset.filename, imageVersionLabel(motif), ...motif.ancestors.map(node => node.label)].some(text => text.includes(query.trim()))))), [groups, stone, category, query])
+    (!query.trim() || group.versions.some(motif => matchesQuery(query, [motif.annotation.label, motif.stone.id, motif.stone.name, motif.asset.filename, imageVersionLabel(motif), CATEGORIES[motif.annotation.category], ...motif.ancestors.map(node => node.label)])))), [groups, stone, category, query])
   const selectedRecord = motifs.find(motif => motif.annotation.id === selected)
   const current = selectedRecord && preferredImageVersion(selectedRecord, motifs)
   const currentGroup = useMemo(() => current && galleryImageVersionGroups(motifs, true)
@@ -147,7 +140,7 @@ export default function MotifLibraryPage() {
   }
   return <div className={`motif-library${current ? ' has-detail' : ''}`}>
     <div className="motif-library-body" ref={scroll}>
-      <header className="motif-intro"><div><p className="motif-eyebrow">原图切割 · 出处可追溯</p><h1>画像形象库</h1><p>独立浏览石上的人物、动物、车马与纹饰。每幅形象连接原石、文献和知识图谱。</p></div><div className="motif-library-count"><strong>{groups.length}</strong><span>个形象 · {new Set(groups.map(g => g.representative.stone.id)).size}件来源石</span><span>含不同版本共{versionCount}个切图</span><small>研究范围 {stones.length || '—'} 件 · {loading ? '正在读取标注' : `${annotatedStones}件有结构标注`}</small></div></header>
+      <header className="motif-intro"><div><p className="motif-eyebrow">原图切割 · 出处可追溯</p><h1>画像形象库</h1><p>独立浏览石上的人物、动物、车马与纹饰。每幅形象连接原石、文献和知识图谱。</p></div><div className="motif-library-count"><strong>{groups.length}</strong><span>个形象 · {new Set(groups.map(g => g.representative.stone.id)).size}件来源石</span><span>含不同版本共{versionCount}个切图</span><small>研究范围 {stones.length || total || '—'} 件 · {loading ? '正在读取标注' : `${annotatedStones}件有结构标注`}</small></div></header>
       <div className="motif-filters"><label className="motif-search"><Search size={17} /><input value={query} onChange={event => setQuery(event.target.value)} placeholder="搜索形象、故事或石号" aria-label="搜索形象" /></label>
         <select value={stone} onChange={event => setStone(event.target.value)} aria-label="筛选来源石件"><option value="">全部石件</option>{stones.map(item => <option key={item.id} value={item.id}>{item.id} · {item.name}</option>)}</select>
         <select value={category} onChange={event => setCategory(event.target.value)} aria-label="筛选形象类别"><option value="">全部类别</option>{categories.map(key => <option key={key} value={key}>{CATEGORIES[key] || '其他形象'}</option>)}</select>
@@ -155,14 +148,14 @@ export default function MotifLibraryPage() {
         <button className="motif-refresh" disabled={loading} onClick={() => { setReload(value => value + 1); setGraphReload(value => value + 1) }} title="读取最新标注成果" aria-label="刷新形象库"><RefreshCw size={17} /></button>
       </div>
       {errors.length > 0 && <div className="motif-load-error" role="alert">{errors.length}项读取失败，当前结果可能不完整。<button onClick={() => setReload(value => value + 1)}>重试</button><details><summary>查看详情</summary>{errors.map(error => <p key={error}>{error}</p>)}</details></div>}
-      {loading ? <div className="motif-state" role="status"><LoaderCircle size={22} />正在读取已标注成果… {progress}/{stones.length || '—'}</div> : <>
-        <p className="motif-result-count">{visible.length}个形象（含不同版本共{visible.reduce((sum, g) => sum + g.versions.length, 0)}个切图）{candidates ? ' · 包含候选残片' : ''}</p>
-        {!visible.length ? <div className="motif-state"><ImageOff size={26} /><p>当前范围暂无可展示的独立切图。</p><span>{query || category ? '调整筛选条件试试。' : '已标注成果正在按石件逐步收录。'}</span></div> :
+      {loading && !motifs.length ? <div className="motif-state" role="status"><LoaderCircle size={22} />正在读取已标注成果… {progress}/{total || stones.length || '—'}</div> : <>
+        <p className="motif-result-count">{visible.length}个形象（含不同版本共{visible.reduce((sum, g) => sum + g.versions.length, 0)}个切图）{candidates ? ' · 包含候选残片' : ''}{loading && <span className="motif-loading-more" role="status"><LoaderCircle size={13} />继续读取 {progress}/{total || '—'} 件石刻</span>}</p>
+        {!visible.length ? loading ? <div className="motif-state" role="status"><LoaderCircle size={22} />正在读取其余石刻…</div> : <div className="motif-state"><ImageOff size={26} /><p>当前范围暂无可展示的独立切图。</p><span>{query || stone || category ? '调整筛选条件试试。' : '已标注成果正在按石件逐步收录。'}</span>{(query || stone || category) && <button className="motif-clear" onClick={() => { setQuery(''); setStone(''); setCategory('') }}>清除筛选</button>}</div> :
           <div className="motif-grid">{visible.slice(0, limit).map(group => {
             const motif = group.representative
             return <article key={group.key} className={`motif-card${group.key === currentGroup ? ' is-selected' : ''}`}><button className="motif-open" onClick={event => select(motif.annotation.id, event.currentTarget.closest<HTMLElement>('.motif-card'))} aria-label={`查看${motif.annotation.label}的出处`}><CutoutImage motif={motif} /><div className="motif-card-caption"><small>{motif.stone.id} · {CATEGORIES[motif.annotation.category] || '形象'}</small><h2>{motif.annotation.label}</h2><small className="motif-version-label">{imageVersionLabel(motif)} · {group.versions.length}个图像版本</small><p>{motif.ancestors.find(node => node.level === 'scene')?.label || motif.stone.name}</p><span><BookOpen size={12} />{motif.annotation.references.filter(ref => ref.kind === 'segment').length}段文献{motif.annotation.review_status === 'candidate' && <b>候选</b>}</span></div></button></article>
           })}</div>}
-        {visible.length > limit && <button className="motif-more" onClick={() => setLimit(value => value + 48)}>继续显示形象（{limit}/{visible.length}）</button>}
+        {visible.length > limit && <button ref={moreRef} className="motif-more" onClick={() => setLimit(value => value + 48)}>继续显示形象（{limit}/{visible.length}）</button>}
       </>}
     </div>
     {current && <MotifDetail key={current.annotation.id} motif={current} motifs={motifs} onSelect={select} storyIds={storyIds} graph={graph} graphError={graphError} retryGraph={() => setGraphReload(value => value + 1)} close={() => select(0)} />}

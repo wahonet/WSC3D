@@ -1,6 +1,9 @@
 import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { Moon, Sun, UserRound, LogOut, ArrowUpRight } from 'lucide-react'
 import ErrorBoundary from './components/ErrorBoundary'
+import PageLoading from './components/PageLoading'
+import LanguageMenu from './components/LanguageMenu'
+import { useDomTranslation, useText } from './i18n/lang'
 import Toaster from './components/Toaster'
 import { useShortcuts } from './hooks/useShortcuts'
 import { useEntranceMotion } from './hooks/useEntranceMotion'
@@ -24,6 +27,7 @@ import { goToSection, openDocument, openExtensionBook, type DocumentTarget } fro
 import { publicSections, workspaceSections, isWorkspaceSection, resolveSection, type SectionId, type WorkspaceSection } from './lib/sections'
 import { useWorkspaceAuth } from './store/useWorkspaceAuth'
 import { toast } from './store/useToast'
+import { prefetchAnnotationCorpus } from './lib/publicCorpus'
 import './archive/scoped.css'
 import './unified.css'
 import './workspace.css'
@@ -33,8 +37,10 @@ import './workspaceTheme.css'
 
 const SiteStage = lazy(() => import('./archive/three/SiteStage'))
 const KnowledgeGraphPage = lazy(() => import('./pages/KnowledgeGraphPage'))
-const MotifLibraryPage = lazy(() => import('./pages/MotifLibraryPage'))
-const StoryLibraryPage = lazy(() => import('./pages/StoryLibraryPage'))
+const loadMotifLibrary = () => import('./pages/MotifLibraryPage')
+const loadStoryLibrary = () => import('./pages/StoryLibraryPage')
+const MotifLibraryPage = lazy(loadMotifLibrary)
+const StoryLibraryPage = lazy(loadStoryLibrary)
 const CreativeStudio = lazy(() => import('./pages/CreativeStudio'))
 const CreativePage = lazy(() => import('./pages/CreativePage'))
 const CenterProjectPage = lazy(() => import('./pages/CenterProjectPage'))
@@ -42,6 +48,14 @@ const ReconstructionPage = lazy(() => import('./pages/ReconstructionPage'))
 type Section = SectionId
 const researchPages = { home: HomePage, align: AlignPage, segment: SegmentPage, annotate: AnnotatePage, library: EvidencePage }
 const researchTabs = [['home', '查看与测量'], ['align', '图像对齐'], ['segment', '智能分割'], ['annotate', '结构标注'], ['library', '文献举证']] as const
+const SITE_NAME = '嘉祥武氏墓群石刻'
+/** 两个形象库共用全部石件的标注；在导航上停留或按下时就开始读取页面代码与数据。 */
+function prefetchGallery(id: string) {
+  if (id !== 'motifs' && id !== 'stories') return
+  void (id === 'motifs' ? loadMotifLibrary() : loadStoryLibrary()).catch(() => undefined)
+  prefetchAnnotationCorpus()
+}
+const SITE_TITLE = `${SITE_NAME} · 数字档案与图像研究平台`
 
 export default function App() {
   const initial = useRef(new URLSearchParams(location.hash.slice(1)))
@@ -56,6 +70,17 @@ export default function App() {
   const [manageArchive, setManageArchive] = useState(initial.current.get('manage') === 'archive')
   const archiveMaintenance = workspace && section === 'research' && manageArchive
   const [reference, setReference] = useState<DocumentTarget | null>(null)
+  const intentTimer = useRef(0)
+  // 只在停留片刻后预读，划过导航栏不会触发上百 MB 的读取
+  const intent = (id: string) => id === 'motifs' || id === 'stories' ? {
+    onPointerEnter: () => { clearTimeout(intentTimer.current); intentTimer.current = window.setTimeout(() => prefetchGallery(id), 150) },
+    onFocus: () => { clearTimeout(intentTimer.current); intentTimer.current = window.setTimeout(() => prefetchGallery(id), 150) },
+    onPointerLeave: () => clearTimeout(intentTimer.current),
+    onBlur: () => clearTimeout(intentTimer.current),
+    onPointerDown: () => prefetchGallery(id),
+  } : undefined
+  useDomTranslation(!workspace && section !== 'login')
+  const text = useText()
   function setSection(next: Section) {
     if (isWorkspaceSection(next)) requestedWorkspace.current = next
     setRequestedSection(next)
@@ -133,6 +158,11 @@ export default function App() {
     if (submitted) q.set('query', submitted); else q.delete('query')
     history.replaceState(null, '', '#' + q.toString())
   }, [section, requestedSection, selectedId, libraryScope, submitted, curAsset, page, authPending])
+  // 浏览器标签、历史记录和书签按当前功能区命名，便于在多个标签页之间区分
+  useEffect(() => {
+    const label = section === 'login' ? '工作台登录' : [...publicSections, ...workspaceSections].find(([id]) => id === section)?.[1]
+    document.title = text(section === 'overview' || !label ? SITE_TITLE : `${label} · ${SITE_NAME}`)
+  }, [section, text])
   // 大图浏览挂在档案区里，离开后隐藏的 Lightbox 仍会拦截 Esc 与方向键
   useEffect(() => { useStore.getState().closeLightbox() }, [section])
   useEffect(() => {
@@ -192,7 +222,7 @@ export default function App() {
   const inventoryVisible = section === 'archive' || section === 'scene' || archiveMaintenance
   const entranceKey = section === 'research' ? `${section}:${page}` : section === 'library' ? `${section}:${libraryScope}` : section
   const entranceRef = useEntranceMotion<HTMLElement>(entranceKey, {
-    liftSelector: '.home-section-heading, .research-tabs, .kg-toolbar, .lg-heading, .scene-tools, .search-heading',
+    liftSelector: '.home-sec-head, .research-tabs, .kg-toolbar, .lg-heading, .scene-tools, .search-heading',
   })
   function switchLibrary(scope: 'core' | 'extension') {
     if (scope === libraryScope) return
@@ -202,10 +232,13 @@ export default function App() {
   return <div className={`unified-shell museum-shell${workspace ? ' workspace-shell' : ' public-shell'}${section === 'login' ? ' workspace-entry' : ''}${section === 'overview' ? ' overview-theme' : ''}${section === 'creative' ? ' creative-shell' : ''}`}>
     <header className={`unified-header${workspace ? ' is-workspace' : ''}`}>
       <div className="unified-brand"><button className="unified-brand-home" onClick={() => navigate('overview')} aria-label="武氏墓群石刻首页"><img className="unified-brand-logo" src="/brand/culture-jining.png" alt="文化济宁" /><div><strong>嘉祥武氏墓群石刻</strong><span>数字档案与图像研究平台{workspace && <em className="workspace-badge">研究工作台</em>}</span></div></button></div>
-      {section !== 'login' && <nav className={`unified-nav${workspace ? ' workspace-nav' : ''}`} aria-label={workspace ? '工作台导航' : '展示导航'}>{(workspace ? workspaceSections : publicSections).map(([id, label]) => <button key={id} className={section === id ? 'active' : ''} aria-current={section === id ? 'page' : undefined} onClick={() => navigate(id)}>{label}</button>)}</nav>}
+      {section !== 'login' && <nav className={`unified-nav${workspace ? ' workspace-nav' : ''}`} aria-label={workspace ? '工作台导航' : '展示导航'}>{(workspace ? workspaceSections : publicSections).map(([id, label]) => <button key={id} className={section === id ? 'active' : ''} aria-current={section === id ? 'page' : undefined} onClick={() => navigate(id)} {...intent(id)}>{label}</button>)}</nav>}
       <div className="workspace-header-actions">
-      {workspace ? <><span className="workspace-account">admin</span><button className="workspace-public" onClick={() => navigate('overview')}>查看展示<ArrowUpRight size={14} /></button><button className="unified-icon" aria-label="退出登录" onClick={logout}><LogOut size={18} /></button></> : section !== 'login' && <button className="unified-icon" onClick={() => navigate(authenticated || checking ? 'research' : 'login')} title={authenticated ? '进入工作台' : '工作台登录'} aria-label={authenticated ? '进入工作台' : '工作台登录'}><UserRound size={19} /></button>}
-      <button className="unified-icon" onClick={() => useApp.getState().toggleTheme()} aria-label="切换明暗主题">{theme === 'dark' ? <Sun size={19} /> : <Moon size={19} />}</button>
+      {workspace ? <><span className="workspace-account">admin</span><button className="workspace-public" onClick={() => navigate('overview')}>查看展示<ArrowUpRight size={14} /></button><button className="unified-icon" data-tip="退出登录" aria-label="退出登录" onClick={logout}><LogOut size={18} /></button></> : section !== 'login' && <>
+        <button className="unified-icon" onClick={() => navigate(authenticated || checking ? 'research' : 'login')} data-tip={authenticated ? '进入工作台' : '工作台登录'} aria-label={authenticated ? '进入工作台' : '工作台登录'}><UserRound size={19} /></button>
+        <LanguageMenu />
+      </>}
+      <button className="unified-icon" onClick={() => useApp.getState().toggleTheme()} data-tip={theme === 'dark' ? '浅色模式' : '深色模式'} aria-label={`切换为${theme === 'dark' ? '浅色模式' : '深色模式'}`}>{theme === 'dark' ? <Sun size={19} /> : <Moon size={19} />}</button>
       </div>
     </header>
     {bootError && <div role="alert" className="unified-error">载入失败：{bootError}<button onClick={() => location.reload()}>重新载入</button></div>}
@@ -213,21 +246,21 @@ export default function App() {
       <div className="function-transition" aria-hidden="true"><span className="function-transition-light" /></div>
       {section === 'login' && (authPending ? <div className="workspace-login" role="status">正在确认登录状态…</div> : <LoginPage onLogin={login} onBack={() => navigate('overview')} />)}
       {section === 'settings' && <ErrorBoundary area="API配置"><ApiConfigPage /></ErrorBoundary>}
-      {section === 'reconstruction' && <ErrorBoundary area="三维复原"><Suspense fallback={<div role="status">载入三维复原…</div>}><ReconstructionPage /></Suspense></ErrorBoundary>}
-      {section === 'video' && <ErrorBoundary area="电子文创工作台"><Suspense fallback={<div role="status">载入工作台…</div>}><CreativeStudio /></Suspense></ErrorBoundary>}
-      {section === 'creative' && <ErrorBoundary area="电子文创"><Suspense fallback={<div role="status">载入电子文创…</div>}><CreativePage /></Suspense></ErrorBoundary>}
+      {section === 'reconstruction' && <ErrorBoundary area="三维复原"><Suspense fallback={<PageLoading label="载入三维复原…" />}><ReconstructionPage /></Suspense></ErrorBoundary>}
+      {section === 'video' && <ErrorBoundary area="电子文创工作台"><Suspense fallback={<PageLoading label="载入电子文创工作台…" />}><CreativeStudio /></Suspense></ErrorBoundary>}
+      {section === 'creative' && <ErrorBoundary area="电子文创" publicArea><Suspense fallback={<PageLoading label="载入电子文创…" />}><CreativePage /></Suspense></ErrorBoundary>}
       {section === 'overview' && <OverviewPage onNavigate={navigate} onStone={(id, target) => { useStore.getState().select(id); navigate(target) }} onSearch={q => { setSubmitted(q); setSubmissionId(id => id + 1); navigate('search') }} />}
-      {section === 'graph' && <ErrorBoundary area="知识图谱"><Suspense fallback={<div className="kg-state" role="status">载入图谱…</div>}><KnowledgeGraphPage /></Suspense></ErrorBoundary>}
-      {section === 'motifs' && <ErrorBoundary area="画像形象库"><Suspense fallback={<div role="status">载入形象库…</div>}><MotifLibraryPage /></Suspense></ErrorBoundary>}
-      {section === 'stories' && <ErrorBoundary area="故事形象库"><Suspense fallback={<div role="status">载入故事形象库…</div>}><StoryLibraryPage /></Suspense></ErrorBoundary>}
+      {section === 'graph' && <ErrorBoundary area="知识图谱" publicArea><Suspense fallback={<div className="kg-state" role="status">载入图谱…</div>}><KnowledgeGraphPage /></Suspense></ErrorBoundary>}
+      {section === 'motifs' && <ErrorBoundary area="画像形象库" publicArea><Suspense fallback={<PageLoading label="载入画像形象库…" />}><MotifLibraryPage /></Suspense></ErrorBoundary>}
+      {section === 'stories' && <ErrorBoundary area="故事形象库" publicArea><Suspense fallback={<PageLoading label="载入故事形象库…" />}><StoryLibraryPage /></Suspense></ErrorBoundary>}
       {section === 'research' && <div className="research-pane" style={archiveMaintenance ? { flex: '0 0 auto' } : undefined}><div className="research-tabs">{researchTabs.map(([id, label]) => <button key={id} className={!archiveMaintenance && page === id ? 'active' : ''} onClick={() => { setManageArchive(false); goToSection('research', { p: id, manage: null }); useApp.getState().setPage(id) }}>{label}</button>)}<span /><button className={archiveMaintenance ? 'active' : ''} onClick={() => goToSection('research', { manage: 'archive' })}>档案维护</button><button disabled={rescanning} onClick={() => void useApp.getState().rescan()}>{rescanning ? '检查中…' : '检查资源'}</button></div>{!archiveMaintenance && <ErrorBoundary area="图像研究" resetKey={page}><Research /></ErrorBoundary>}</div>}
       {section === 'library' && <div className="library-pane"><div className="research-tabs"><button className={libraryScope === 'core' ? 'active' : ''} onClick={() => switchLibrary('core')}>文献库</button><button className={libraryScope === 'extension' ? 'active' : ''} onClick={() => switchLibrary('extension')}>扩展库</button></div><ErrorBoundary area="文献中心" resetKey={libraryScope}><LibraryPage key={libraryScope} collection={libraryScope} booksOnly /></ErrorBoundary></div>}
       <div className={`inventory-pane${showList ? ' mobile-list' : ''}`} style={{ display: inventoryVisible ? 'flex' : 'none' }}>
-        {inventoryVisible && <button className="mobile-list-toggle" onClick={() => setShowList(!showList)}>展开 / 收起资料列表</button>}
-        {inventoryVisible && <div className="app-body"><Sidebar editable={archiveMaintenance} /><div className="app-main"><ErrorBoundary area="文物档案与全景" resetKey={section}>{section === 'scene' ? <SceneView /> : <LedgerView editable={archiveMaintenance} />}</ErrorBoundary></div></div>}
+        {inventoryVisible && <button className="mobile-list-toggle" aria-expanded={showList} onClick={() => setShowList(!showList)}>{showList ? '收起资料列表' : '展开资料列表'}</button>}
+        {inventoryVisible && <div className="app-body"><Sidebar editable={archiveMaintenance} /><div className="app-main"><ErrorBoundary area="文物档案与全景" resetKey={section} publicArea={!archiveMaintenance}>{section === 'scene' ? <SceneView /> : <LedgerView editable={archiveMaintenance} />}</ErrorBoundary></div></div>}
         <Suspense fallback={null}>{stageVisited.current && <SiteStage />}</Suspense><Lightbox />
       </div>
-      {centerVisited.current && <div className="center-pane" style={{ display: section === 'center' ? 'flex' : 'none' }}><ErrorBoundary area="传承中心"><Suspense fallback={<div className="center-status" role="status">载入传承中心…</div>}><CenterProjectPage active={section === 'center'} /></Suspense></ErrorBoundary></div>}
+      {centerVisited.current && <div className="center-pane" style={{ display: section === 'center' ? 'flex' : 'none' }}><ErrorBoundary area="传承中心" publicArea><Suspense fallback={<div className="center-status" role="status">载入传承中心…</div>}><CenterProjectPage active={section === 'center'} /></Suspense></ErrorBoundary></div>}
       {searchVisited.current && <SearchPage active={section === 'search'} query={submitted} submissionId={submissionId} onQuery={q => { setSubmitted(q); setSubmissionId(id => id + 1) }} onStone={id => { useStore.getState().select(id); navigate('archive') }} onDocument={openDocument} onExtension={(id, pageNo) => { void openExtensionBook(id, pageNo).then(opened => { if (!opened) toast.warn('当前仅有书目记录，尚未收录 PDF 原文') }).catch(toast.error) }} />}
     </main>
     {workspace && <div className="unified-status"><span>{stats ? `${stats.total}件文物 · ${stats.with_model}件三维模型 · 核心10本 · 扩展${stats.books}条` : '正在载入档案…'}</span><span>研究工作台</span></div>}

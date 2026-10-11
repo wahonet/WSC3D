@@ -1,5 +1,5 @@
 ﻿param(
-    [ValidateSet('local','lan','stop','build','viewer')][string]$Mode = 'local',
+    [ValidateSet('local','lan','stop','build','dev','viewer')][string]$Mode = 'local',
     [switch]$PrepareOnly,
     [switch]$NoBrowser
 )
@@ -80,6 +80,7 @@ $python = Join-Path $runtimePath 'python\python.exe'
 if ($PrepareOnly) { Write-Output $runtimePath; return }
 $arguments = @('-X','utf8','-B')
 if ($Mode -eq 'build') { $arguments += (Join-Path $workspace 'tools\build_frontend.py') }
+elseif ($Mode -eq 'dev') { $arguments += (Join-Path $workspace 'tools\dev_frontend.py') }
 elseif ($Mode -eq 'viewer') { $arguments += @((Join-Path $workspace 'tools\viewer.py'),'--open-browser') }
 else {
     $arguments += (Join-Path $workspace 'tools\launch_unified.py')

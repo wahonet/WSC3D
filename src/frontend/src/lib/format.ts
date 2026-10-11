@@ -18,7 +18,13 @@ export const fmtValue = (value: number | null, unit: string, atype: string) => {
   return `${value.toFixed(1)} ${unit}`
 }
 
-export const clamp01 = (v: number) => Math.min(1, Math.max(0, v))
+/** 画廊筛选：忽略大小写与首尾空白，任一字段包含关键词即命中；关键词为空时全部命中 */
+export const matchesQuery = (query: string, texts: (string | null | undefined)[]) => {
+  const needle = query.trim().toLowerCase()
+  return !needle || texts.some(text => !!text && text.toLowerCase().includes(needle))
+}
+
+export const clamp01 =(v: number) => Math.min(1, Math.max(0, v))
 
 /** '#rrggbb' -> 'rgba(r,g,b,a)'；非法输入回退为半透明灰 */
 export const rgba = (hex: string, alpha: number) => {

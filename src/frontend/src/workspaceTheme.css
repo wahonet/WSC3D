@@ -136,42 +136,9 @@
 .workspace-shell .api-provider-tabs button { min-width: 0; }
 
 /* Reconstruction adopts the same paper panels and ruled headings as the gallery. */
-.workspace-shell .rc-page { padding: 24px var(--workspace-gutter) 36px; }
-.workspace-shell .rc-case-picker { margin-bottom: 18px; color: var(--text-3); }
-.workspace-shell .rc-case-picker select { border-radius: 2px; background: var(--bg-1); }
-.workspace-shell .rc-intro {
-  align-items: flex-end;
-  padding-bottom: 16px;
-  margin-bottom: 14px;
-  border-bottom: 2px solid var(--text-2);
-}
-.workspace-shell .rc-intro h1 { margin: 6px 0; }
-.workspace-shell .rc-kicker { font-size: 10px; letter-spacing: .2em; }
-.workspace-shell .rc-status {
-  border-radius: 2px;
-  padding: 5px 9px;
-  border-color: var(--line-2);
-  background: var(--bg-1);
-}
-.workspace-shell .rc-assumption {
-  padding: 9px 12px;
-  border: 0;
-  border-left: 2px solid var(--accent);
-  border-radius: 0;
-  background: var(--accent-soft);
-}
-.workspace-shell .rc-variants {
-  padding: 0 0 14px;
-  border: 0;
-  border-bottom: 1px solid var(--line-2);
-  border-radius: 0;
-  background: none;
-}
-.workspace-shell .rc-group-tabs { padding: 0; gap: 24px; }
-.workspace-shell .rc-group-tabs button { font: 500 14px/1.5 var(--font-serif); }
-.workspace-shell .rc-variant-tabs { gap: 10px; margin-top: 12px; }
-.workspace-shell .rc-variant-tabs button { border-radius: 2px; background: var(--bg-1); }
-.workspace-shell .rc-variant-tabs button.active { background: var(--accent-soft); }
+.workspace-shell .rc-page { padding: 12px var(--workspace-gutter) 36px; }
+.workspace-shell :is(.rc-case-picker select, .rc-seg, .rc-info-toggle) { border-radius: 2px; }
+.workspace-shell .rc-seg button { border-radius: 1px; font-family: var(--font-serif); }
 .workspace-shell .rc-workbench { border-radius: 2px; }
 .workspace-shell .rc-toolbar { background: var(--bg-1); }
 .workspace-shell .rc-toolbar button { border-radius: 2px; }
@@ -208,9 +175,6 @@
   .workspace-shell :is(.research-tabs, .cs-tabs) > span { display: none; }
   .workspace-shell :is(.cs-body, .api-config-page, .rc-page) { padding-top: 18px; }
   .workspace-shell :is(.home h1, .cs-body h1, .api-config-inner h1, .rc-intro h1) { font-size: 22px; }
-  .workspace-shell .rc-intro { align-items: flex-start; }
-  .workspace-shell .rc-variant-tabs { gap: 6px; }
-  .workspace-shell .rc-variant-tabs button { padding: 9px; }
   .workspace-shell .api-provider-tabs { gap: 6px; flex-wrap: wrap; }
   .workspace-shell .api-provider-tabs button { flex: 1 1 130px; padding: 12px; }
   .workspace-shell .unified-status { font-size: 10px; gap: 8px; }

@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
-import { ArrowUpRight, Box, Download, Eye, Layers3, RotateCcw, ScanLine } from 'lucide-react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { ArrowUpRight, Box, ChevronDown, Download, Eye, Info, Layers3, RotateCcw } from 'lucide-react'
 import ReconstructionViewer, { type ReconstructionView } from '../components/viewer/ReconstructionViewer'
 import ReconstructionDimensions, { dimensionList } from '../components/viewer/ReconstructionDimensions'
 import { reconstructionFile, type ReconstructionCase, type ReconstructionSummary, type ReconstructionVariant } from '../lib/reconstruction'
@@ -13,8 +13,10 @@ async function readJson<T>(url: string, signal: AbortSignal): Promise<T> {
   return response.json()
 }
 const groupNames: Record<string, string> = { front: '前石室', left: '左石室', residual: '待定石件' }
+const INFO_KEY = 'stonelab.reconstruction.info'
 
-function CaseViewer({ data }: { data: ReconstructionCase }) {
+/** picker: 项目选择框，与组别、方案放在同一行，把纵向空间留给三维视图 */
+function CaseViewer({ data, picker }: { data: ReconstructionCase; picker?: ReactNode }) {
   const [variantId, setVariantId] = useState(data.variants?.[0]?.id || '')
   const variant = data.variants?.find(v => v.id === variantId)
   const active = useMemo<ReconstructionCase>(() => variant ? { ...data, parts: data.parts.filter(p => variant.partIds.includes(p.id)), sceneFile: variant.sceneFile, sceneBytes: variant.sceneBytes, previewFile: variant.previewFile } : data, [data, variant])
@@ -23,6 +25,9 @@ function CaseViewer({ data }: { data: ReconstructionCase }) {
   const [cut, setCut] = useState<number | null>(null), [tab, setTab] = useState('parts')
   const [view, setView] = useState<{ name: ReconstructionView; revision: number }>({ name: 'iso', revision: 0 })
   const [log, setLog] = useState(''), [logError, setLogError] = useState('')
+  // 项目说明、比例假设等文字默认收起；展开状态按浏览器记住
+  const [info, setInfo] = useState(() => { try { return localStorage.getItem(INFO_KEY) === '1' } catch { return false } })
+  const toggleInfo = () => setInfo(open => { try { localStorage.setItem(INFO_KEY, open ? '0' : '1') } catch { /* 无痕模式等 */ } return !open })
   const part = active.parts.find(p => p.id === selected), unit = data.unitLabel || '工作米'
   const file = (path: string, download = false) => reconstructionFile(data.id, path, download)
   const roofIds = active.parts.filter(p => p.kind === 'roof').map(p => p.id)
@@ -45,12 +50,19 @@ function CaseViewer({ data }: { data: ReconstructionCase }) {
     return () => abort.abort()
   }, [tab, data, log])
   return <>
-    <div className="rc-intro"><div><span className="rc-kicker">建筑复原研究 / {data.version}</span><h1>{data.title}</h1><p>{data.description}</p></div><div className="rc-intro-side"><span className="rc-status">{data.status}</span><small>{data.date} · {data.parts.length} 件模型</small></div></div>
-    <div className="rc-assumption"><ScanLine size={17} /><span>{data.scaleNote}</span><button onClick={() => setTab('dimensions')}>尺寸核查<ArrowUpRight size={13} /></button></div>
-    {variant && data.variants && <div className="rc-variants">
-      <div className="rc-group-tabs" role="group" aria-label="石件组别">{[...new Set(data.variants.map(v => v.group))].map(group => <button key={group} className={variant.group === group ? 'active' : ''} aria-pressed={variant.group === group} onClick={() => choose(data.variants!.find(v => v.group === group)!)}>{groupNames[group] || group}<span>{data.variants!.find(v => v.group === group)!.partIds.length} 件</span></button>)}</div>
-      <div className="rc-variant-tabs" role="group" aria-label="拼接方案">{data.variants.filter(v => v.group === variant.group).map(v => <button key={v.id} aria-pressed={v.id === variant.id} className={v.id === variant.id ? 'active' : ''} onClick={() => choose(v)}><strong>{v.title}</strong><small>{v.status}</small></button>)}</div>
-      <div className="rc-variant-caption"><p>{variant.description}</p><button onClick={() => setTab('checks')}>比较依据与冲突<ArrowUpRight size={13} /></button></div>
+    <div className="rc-bar">
+      {picker ?? <h1 className="rc-title">{data.title}<small>{data.version}</small></h1>}
+      {variant && data.variants && <>
+        <div className="rc-seg" role="group" aria-label="石件组别">{[...new Set(data.variants.map(v => v.group))].map(group => <button key={group} className={variant.group === group ? 'active' : ''} aria-pressed={variant.group === group} onClick={() => choose(data.variants!.find(v => v.group === group)!)}>{groupNames[group] || group}<span>{data.variants!.find(v => v.group === group)!.partIds.length}</span></button>)}</div>
+        <div className="rc-seg rc-seg-variants" role="group" aria-label="拼接方案">{data.variants.filter(v => v.group === variant.group).map(v => <button key={v.id} aria-pressed={v.id === variant.id} className={v.id === variant.id ? 'active' : ''} title={v.status} onClick={() => choose(v)}>{v.title}</button>)}</div>
+      </>}
+      <button className="rc-info-toggle" aria-expanded={info} aria-controls="rc-info" onClick={toggleInfo}><Info size={14} />说明<ChevronDown size={13} /></button>
+    </div>
+    {info && <div className="rc-info" id="rc-info">
+      <p>{data.description}</p>
+      {variant && <p><b>{variant.title}</b>（{variant.status}）：{variant.description}</p>}
+      <p className="rc-muted">{data.status} · {data.date} · {data.parts.length} 件模型。{data.scaleNote}</p>
+      <div className="rc-info-links"><button onClick={() => setTab('dimensions')}>尺寸核查<ArrowUpRight size={12} /></button>{variant && <button onClick={() => setTab('checks')}>比较依据与冲突<ArrowUpRight size={12} /></button>}</div>
     </div>}
     <div className="rc-workbench">
       <section className="rc-stage" aria-label="复原模型查看">
@@ -60,7 +72,7 @@ function CaseViewer({ data }: { data: ReconstructionCase }) {
         <div className="rc-cut"><label><input type="checkbox" checked={cut !== null} onChange={e => setCut(e.target.checked ? 1.2 : null)} />水平截取</label><input aria-label="水平截取高度" type="range" min="0.1" max="4.5" step="0.01" disabled={cut === null} value={cut ?? 1.2} onChange={e => setCut(Number(e.target.value))} /><output>{cut === null ? '关闭' : `${cut.toFixed(2)} ${unit}`}</output><small>非实测剖面</small></div>
       </section>
       <aside className="rc-sidebar"><div className="rc-tabs" role="tablist" aria-label="复原研究资料">{[['parts', '构件'], ['sources', '依据'], ['checks', '核查'], ['dimensions', '尺寸'], ['log', '记录']].map(([id, label]) => <button role="tab" aria-selected={tab === id} key={id} className={tab === id ? 'active' : ''} onClick={() => setTab(id)}>{label}</button>)}</div><div className="rc-sidebar-body" role="tabpanel">
-        {tab === 'parts' && <><div className="rc-panel-heading"><b>{variant ? groupNames[variant.group] : '现存构件'}</b><span>{visible.length} / {active.parts.length} 显示</span></div><div className="rc-part-list">{active.parts.map(p => <div key={p.id} className={`rc-part ${p.id === selected ? 'selected' : ''}`}><input type="checkbox" aria-label={`显示${p.id}`} checked={visible.includes(p.id)} onChange={() => toggle(p.id)} /><button onClick={() => setSelected(p.id)}><i style={{ background: p.color }} /><span><strong>{p.id} <em>{p.name}</em></strong><small>{p.historicalName}</small></span></button></div>)}</div>{part && <div className="rc-part-detail"><h2>{part.id} · {part.name}</h2><p>{part.note}</p><button className="rc-focus" onClick={() => { setVisible(ids => [...new Set([...ids, part.id])]); show('focus') }}>居中查看此件</button><dl><dt>原网格 / 预览三角面</dt><dd>{part.triangles.toLocaleString()} / {(part.previewTriangles ?? part.triangles).toLocaleString()}</dd><dt>原模型轴向跨度 · 单位未核</dt><dd>{dimensionList(part.rawExtents)}</dd>{part.workingExtentsU ? <><dt>本方案比例下的跨度 · U</dt><dd>{dimensionList(part.workingExtentsU)}</dd></> : <><dt>旧登记参照的跨度 · 工作厘米</dt><dd>{dimensionList(part.workingExtentsCm)}</dd></>}<dt>可靠实物尺寸</dt><dd>未标定，不能确定</dd></dl><small>轴向包围跨度不等同于石板厚度，尤其须区分转角石两臂与回折深度。</small><div className="rc-evidence-links">{data.sources.filter(s => part.evidence.includes(s.id)).map(s => <a key={s.id} href={s.url} target="_blank" rel="noreferrer">{s.locator}<ArrowUpRight size={12} /></a>)}</div></div>}{variant && <div className="rc-missing"><h2>本组缺项</h2>{variant.missing.map(s => <p key={s}>{s}</p>)}</div>}</>}
+        {tab === 'parts' && <><div className="rc-panel-heading"><b>{variant ? groupNames[variant.group] : '现存构件'}</b><span>{visible.length} / {active.parts.length} 显示</span></div><div className="rc-part-list">{active.parts.map(p => <div key={p.id} className={`rc-part ${p.id === selected ? 'selected' : ''}`}><input type="checkbox" aria-label={`显示${p.id}`} checked={visible.includes(p.id)} onChange={() => toggle(p.id)} /><button onClick={() => setSelected(p.id)}><i style={{ background: p.color }} /><span><strong>{p.id} <em>{p.name}</em></strong><small>{p.historicalName}</small></span></button></div>)}</div>{part && <div className="rc-part-detail"><h2>{part.id} · {part.name}</h2><p>{part.note}</p><button className="rc-focus" onClick={() => { setVisible(ids => [...new Set([...ids, part.id])]); show('focus') }}>居中查看此件</button><dl><dt>原网格 / 预览三角面</dt><dd>{part.triangles.toLocaleString()} / {(part.previewTriangles ?? part.triangles).toLocaleString()}</dd><dt>原模型跨度</dt><dd>{dimensionList(part.rawExtents)}</dd>{part.workingExtentsU ? <><dt>本方案比例下的跨度 · U</dt><dd>{dimensionList(part.workingExtentsU)}</dd></> : <><dt>旧登记参照的跨度 · 工作厘米</dt><dd>{dimensionList(part.workingExtentsCm)}</dd></>}</dl><div className="rc-evidence-links">{data.sources.filter(s => part.evidence.includes(s.id)).map(s => <a key={s.id} href={s.url} target="_blank" rel="noreferrer">{s.locator}<ArrowUpRight size={12} /></a>)}</div></div>}{variant && <div className="rc-missing"><h2>本组缺项</h2>{variant.missing.map(s => <p key={s}>{s}</p>)}</div>}</>}
         {tab === 'sources' && <><div className="rc-panel-heading"><b>文献与原页</b><span>{data.sources.length} 条</span></div>{data.sources.map(s => <article className="rc-source" key={s.id}><h2>{s.title}</h2><small>{s.locator}</small><p>{s.claim}</p><div><a href={s.url} target="_blank" rel="noreferrer">{s.url.startsWith('/') ? '文献库阅读' : '来源网站'}<ArrowUpRight size={13} /></a>{s.image && <a href={file(s.image)} target="_blank" rel="noreferrer">查看原页</a>}</div></article>)}<p className="rc-muted">文献配置、模型观察和本项目的试验参数分别记录，不能互相循环证明。</p></>}
         {tab === 'checks' && <>{variant && <><div className="rc-panel-heading"><b>{variant.title}</b></div><div className="rc-metrics">{variant.metrics.map(m => <div key={m.label}><small>{m.label}</small><strong>{m.value} <em>{m.unit}</em></strong></div>)}</div><h2>这一方案改变了什么</h2><ul className="rc-check-list">{variant.changes.map(c => <li key={c}>{c}</li>)}</ul><h2>冲突与局限</h2><ul className="rc-check-list">{variant.conflicts.map(c => <li key={c}>{c}</li>)}</ul></>}<div className="rc-panel-heading"><b>共同核查事项</b></div>{data.findings.map((f, i) => <article className="rc-finding" key={f.title}><span>{String(i + 1).padStart(2, '0')}</span><div><h2>{f.title}</h2><p>{f.text}</p></div></article>)}<dl>{parameters.frontPitchDegrees !== undefined && <><dt>前坡试验角度</dt><dd>{parameters.frontPitchDegrees.toFixed(1)}°</dd></>}{parameters.rearPitchDegrees !== undefined && <><dt>后坡试验角度</dt><dd>{parameters.rearPitchDegrees.toFixed(1)}°</dd></>}</dl><p className="rc-muted">{data.coordinateNote}</p><a className="rc-file-link" href={file('evidence/validation.json', true)}>下载几何检查记录<Download size={13} /></a></>}
         {tab === 'dimensions' && <ReconstructionDimensions data={data} />}
@@ -91,11 +103,12 @@ export default function ReconstructionPage() {
     void readJson<ReconstructionCase>(`/api/reconstruction/${encodeURIComponent(caseId)}`, abort.signal).then(r => { setData(r); setLoading(false) }).catch(e => { if (!abort.signal.aborted) { setError(e.message); setLoading(false) } })
     return () => abort.abort()
   }, [caseId])
+  const picker = cases.length > 1 ? <label className="rc-case-picker"><select aria-label="复原项目" value={caseId} onChange={e => { setError(''); setCaseId(e.target.value) }}>{cases.map(c => <option key={c.id} value={c.id}>{c.title} · {c.version}</option>)}</select></label> : undefined
   return <div className="rc-page">
-    {cases.length > 1 && <label className="rc-case-picker">复原项目<select value={caseId} onChange={e => { setError(''); setCaseId(e.target.value) }}>{cases.map(c => <option key={c.id} value={c.id}>{c.title} · {c.version}</option>)}</select></label>}
+    {!data && picker}
     {error && <div className="rc-error" role="alert">{error}<button onClick={() => location.reload()}>重新载入</button></div>}
     {loading && <div className="rc-empty" role="status">读取复原项目…</div>}
     {!loading && !data && !error && <div className="rc-empty"><Box size={32} /><h1>三维复原</h1><p>尚未保存复原成果。研究项目将从独立工作目录载入。</p></div>}
-    {data && <CaseViewer key={data.id} data={data} />}
+    {data && <CaseViewer key={data.id} data={data} picker={picker} />}
   </div>
 }

@@ -33,11 +33,14 @@ export default function LayerPanel() {
   const setOverlayAsset = useApp(s => s.setOverlayAsset)
   const setOverlayOpacity = useApp(s => s.setOverlayOpacity)
 
+  // 只统计图上实际显示的：当前影像自有的节点，打开「其他影像」时再加上投影过来的节点
   const levelCounts = useMemo(() => {
     const c: Record<string, number> = {}
-    for (const a of stoneAnnos) if (isStructural(a) && a.review_status !== 'candidate') c[a.level] = (c[a.level] ?? 0) + 1
+    for (const a of annos) if (isStructural(a) && a.review_status !== 'candidate') c[a.level] = (c[a.level] ?? 0) + 1
+    if (projOn) for (const p of projItems) if (p.review_status !== 'candidate') c[p.level] = (c[p.level] ?? 0) + 1
     return c
-  }, [stoneAnnos])
+  }, [annos, projOn, projItems])
+  const otherImages = useMemo(() => asset ? stoneAnnos.filter(a => isStructural(a) && a.asset_id !== asset.id && a.atype !== 'none').length : 0, [stoneAnnos, asset])
   const candCount = annos.filter(a => a.review_status === 'candidate').length
     + projItems.filter(p => p.review_status === 'candidate').length
   const overlayChoices = useMemo(() => {
@@ -84,11 +87,13 @@ export default function LayerPanel() {
         <>
           <div className="layer-row">
             <span className="sw" style={{ background: COLORS.proj }} />
-            <span className="lbl" title="同石其他已入链图上的节点，经主图坐标系投影到本图（点划线，沿用各节点颜色）">跨图投影（点划线）</span>
-            {projOn && projItems.length > 0 && <span className="cnt">{projItems.length}</span>}
+            <span className="lbl" title="默认只显示当前影像的标注。打开后，同石其他已入链照片、拓片上的节点经主图坐标系投影到本图（点划线，沿用各节点颜色），结构标注和智能分割的列表也一并列出；切换影像时自动关闭">其他影像（点划线投影）</span>
+            <span className="cnt">{projOn ? projItems.length : otherImages}</span>
             <Switch checked={projOn} onChange={toggleProj} />
           </div>
           {projOn && projReason && <div className="hint" style={{ padding: '0 10px 4px' }}>{projReason}</div>}
+          {projOn && projItems.length > 0 && otherImages > projItems.length && <div className="hint" style={{ padding: '0 10px 4px' }}>
+            另有 {otherImages - projItems.length} 条所在影像未接入主图坐标链，无法投影</div>}
           <div className="layer-row" style={{ alignItems: 'flex-start' }}>
             <span className="sw" style={{ background: COLORS.align, marginTop: 8 }} />
             <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
